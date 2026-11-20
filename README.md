@@ -232,21 +232,6 @@ AX_CODE_DESKTOP_RENDERER_PORT=20000 pnpm run dev
 That port is fixed. Startup fails when it is already taken. Defaults live in
 `desktop/shared/dev-ports.json`.
 
-### Launch and quit animations
-
-The app picks one opening and ending pair per launch. Press Escape or **Skip animation** to dismiss
-a clip. **Disable animations** persists the preference; the application menu can turn it back on.
-Reduced-motion settings skip playback. For development or unattended runs:
-
-```bash
-AX_CODE_DESKTOP_ANIMATIONS=0 pnpm run dev
-```
-
-```bash
-pnpm run check:launch-animations
-pnpm run smoke:launch-animations
-```
-
 ### Electron
 
 Development and release builds pin the stable Electron `45.2.3`. The Electron 46 Alpha evaluation remains

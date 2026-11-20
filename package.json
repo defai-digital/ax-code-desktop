@@ -52,8 +52,6 @@
     "smoke:session-cors": "node desktop/packages/electron/scripts/smoke-session-cors.mjs",
     "smoke:mermaid": "pnpm --dir desktop/packages/ui exec vite build --config dev/mermaid/vite.config.ts && node desktop/packages/electron/scripts/smoke-mermaid.mjs",
     "smoke:electron-compatibility": "node desktop/packages/electron/scripts/smoke-electron-compatibility.mjs",
-    "smoke:launch-animations": "node desktop/packages/electron/scripts/smoke-launch-animations.mjs",
-    "check:launch-animations": "node desktop/scripts/check-launch-animations.mjs",
     "package:desktop": "node desktop/packages/electron/scripts/package.mjs",
     "shadow:evidence": "node script/shadow-release-evidence.mjs",
     "winget:generate": "tsx tools/winget/generate-manifests.ts",

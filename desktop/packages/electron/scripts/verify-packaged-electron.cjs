@@ -17,7 +17,6 @@ const REQUIRED_ASAR_FILES = [
   "package.json",
   "dist/main.js",
   "dist/preload.js",
-  "dist/launch-animation-preload.js",
   "dist/server-process.js",
   "dist/server.js",
   "dist/desktop-cli.mjs",

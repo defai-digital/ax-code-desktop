@@ -3139,7 +3139,6 @@ describe("shutdown honors project browser refusal", () => {
       const coordinator = createQuitCoordinator({
         onStarting: () => {},
         onCancelled: cancelled,
-        playEnding: () => {},
         stopServices: shutdown,
         quit: app.quit,
         logger: { warn: vi.fn() },

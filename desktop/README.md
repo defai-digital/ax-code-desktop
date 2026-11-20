@@ -123,8 +123,8 @@ uses the next safe free port.
 
 ## Development
 
-Run development commands from the repository root. Requirements, the development port range, and
-launch-animation switches are in the repository [README](../README.md).
+Run development commands from the repository root. Requirements and the development port range are in the
+repository [README](../README.md).
 
 ```bash
 pnpm install

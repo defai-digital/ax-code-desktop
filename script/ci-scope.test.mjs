@@ -51,7 +51,6 @@ describe("CI change selection", () => {
 
   it.each([
     "desktop/packages/electron/src/main.js",
-    "desktop/packages/electron/resources/launch-animations/manifest.json",
     "desktop/packages/electron/resources/help.md",
     "desktop/packages/electron/scripts/verify-packaged-electron.test.mjs",
     "desktop/packages/web/server/index.js",

@@ -193,7 +193,6 @@ describe("createUpdateInstaller", () => {
     const { createQuitCoordinator } = require("./quit-coordinator.js")
     const coordinator = createQuitCoordinator({
       onStarting: vi.fn(),
-      playEnding: vi.fn(),
       stopServices,
       quit: vi.fn(),
     })

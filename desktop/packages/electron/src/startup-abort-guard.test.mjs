@@ -139,7 +139,6 @@ describe("startup abort guard", () => {
         quitting = false
         guard.quitCancelled("browser-closure-refused")
       },
-      playEnding: () => {},
       // The startup coroutine reaches its next guard while cleanup is still running.
       stopServices: async () => {
         expect(guard.shouldStop()).toBe(true)

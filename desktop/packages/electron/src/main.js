@@ -136,7 +136,6 @@ const {
   removeDisabledRemoteAccessSettingsFromRoot,
 } = require("./desktop-hosts")
 const { normalizeDevRendererUrl } = require("./renderer-navigation-policy")
-const { createLaunchAnimationController, ANIMATION_PRIVILEGED_SCHEMES } = require("./launch-animation-controller")
 const { createQuitCoordinator } = require("./quit-coordinator")
 const { createStartupAbortGuard } = require("./startup-abort-guard")
 const {
@@ -154,7 +153,6 @@ const {
   normalizeHexColor,
   resolveWindowBackgroundColor,
 } = require("./desktop-window-chrome")
-const launchAnimationManifest = require("../resources/launch-animations/manifest.json")
 const {
   PACKAGED_RENDERER_ORIGIN,
   PACKAGED_RENDERER_PRIVILEGED_SCHEMES,
@@ -166,7 +164,7 @@ const {
   isTrustedRendererNavigationUrl,
 } = require("./desktop-renderer-protocol")
 
-protocol.registerSchemesAsPrivileged([...PACKAGED_RENDERER_PRIVILEGED_SCHEMES, ...ANIMATION_PRIVILEGED_SCHEMES])
+protocol.registerSchemesAsPrivileged([...PACKAGED_RENDERER_PRIVILEGED_SCHEMES])
 const { normalizeSafeExternalUrl } = require("./external-url")
 const { buildDesktopOpenDialogOptions, resolveDesktopDialogOwnerWindow } = require("./desktop-dialog")
 const {
@@ -233,8 +231,6 @@ let runtimeOrigin = null
 // switches from the "restarting" loader to the failure UI.
 let runtimeRetryExhausted = false
 let isQuitting = false
-let launchAnimations = null
-let openingAnimation = Promise.resolve()
 let desktopStartupComplete = false
 let rendererStabilityTimer = null
 let rendererReadyForOpenProject = false
@@ -772,12 +768,9 @@ function createMainWindowShell() {
 
   mainWindow.once("ready-to-show", () => {
     recordStartupEvent("renderer.ready-to-show")
-    const window = mainWindow
-    openingAnimation.finally(() => {
-      if (isQuitting || window.isDestroyed()) return
-      applyMacVibrancy(window)
-      window.show()
-    })
+    if (isQuitting || !mainWindow || mainWindow.isDestroyed()) return
+    applyMacVibrancy(mainWindow)
+    mainWindow.show()
   })
 
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
@@ -942,14 +935,6 @@ function createMainWindowShell() {
       app.quit()
       return
     }
-    // Closing the last window quits on Windows/Linux, but by then the window is
-    // gone and the closing artwork has nowhere to play. Route it through the
-    // quit coordinator so the artwork plays inside this window first.
-    if (process.platform === "darwin" || isQuitting) return
-    if (!launchAnimations?.enabled()) return
-    if (BrowserWindow.getAllWindows().some((win) => win !== mainWindow && !win.isDestroyed())) return
-    event.preventDefault()
-    app.quit()
   })
 
   mainWindow.on("closed", () => {
@@ -1210,7 +1195,6 @@ const startupGuard = createStartupAbortGuard({
       .catch((error) => console.warn("[electron] cleanup after abandoned startup failed:", error))
       .finally(() => {
         releaseQuickDispatchGlobalShortcut()
-        launchAnimations?.dispose()
         app.exit(0)
       })
   },
@@ -1226,7 +1210,6 @@ const quitCoordinator = createQuitCoordinator({
     recordStartupEvent("quit.cancelled", { startupStage: startupGuard.stage }, { once: false })
     startupGuard.quitCancelled("browser-closure-refused")
   },
-  playEnding: () => launchAnimations?.playEnding(),
   stopServices: stopBackgroundServices,
   quit: () => app.quit(),
 })
@@ -1262,7 +1245,6 @@ async function shutdownForExit() {
   try {
     await cleanup
     releaseQuickDispatchGlobalShortcut()
-    launchAnimations?.dispose()
   } catch (error) {
     isQuitting = false
     // A restart refused by a browser page must not strand a startup that already returned.
@@ -1598,35 +1580,6 @@ const getLanguageController = () => {
 const nativeT = createNativeLocalizer(() => getLanguageController().get().locale)
 const localizedDialog = createLocalizedDialog(dialog, nativeT)
 const buildLocalizedMenu = (template) => Menu.buildFromTemplate(localizeMenuTemplate(template, nativeT))
-
-const animationPreferencesPath = () => path.join(app.getPath("userData"), "launch-animation-preferences.json")
-const animationPreferences = () => {
-  const value = readJsonFile(animationPreferencesPath())
-  return value && typeof value === "object" && !Array.isArray(value) ? value : {}
-}
-const launchAnimationsEnabled = () =>
-  process.env.AX_CODE_DESKTOP_ANIMATIONS !== "0" && animationPreferences().enabled !== false
-let animationPreferenceWrites = Promise.resolve()
-const setLaunchAnimationsEnabled = (enabled) => {
-  const next = animationPreferenceWrites.then(async () => {
-    await writeJsonFile(animationPreferencesPath(), { ...animationPreferences(), enabled })
-    setupApplicationMenu()
-  })
-  animationPreferenceWrites = next.catch(() => {})
-  return next
-}
-const animationMenuItem = () => ({
-  label: "Launch and Quit Animations",
-  type: "checkbox",
-  checked: launchAnimationsEnabled(),
-  enabled: process.env.AX_CODE_DESKTOP_ANIMATIONS !== "0",
-  click: (item) => {
-    setLaunchAnimationsEnabled(item.checked).catch((error) => {
-      console.warn("[electron] animation preference write failed", error.message)
-      setupApplicationMenu()
-    })
-  },
-})
 
 handleCommand("desktop_language_get", async () => getLanguageController().get())
 handleCommand("desktop_language_set", async (args) => getLanguageController().update(args))
@@ -2565,7 +2518,6 @@ const buildMacMenu = () => {
         { label: "Check for Updates", click: () => dispatchCheckForUpdates() },
         { type: "separator" },
         { label: "Settings", accelerator: "Cmd+,", click: () => dispatchAction("settings") },
-        animationMenuItem(),
         { label: "Reload Webview", click: () => reloadMenuTargetWindow() },
         {
           label: "Restart",
@@ -2689,7 +2641,6 @@ const buildNonMacMenu = () => {
         { label: "Check for Updates", click: () => dispatchCheckForUpdates() },
         { type: "separator" },
         { label: "Settings", accelerator: "Ctrl+,", click: () => dispatchAction("settings") },
-        animationMenuItem(),
         { label: "Reload Webview", click: () => reloadMenuTargetWindow() },
         {
           label: "Restart",
@@ -3596,7 +3547,6 @@ function handleStartupFailure(err) {
   runtimeOrigin = null
   runtimeRetryExhausted = true
   loginShellEnvCapture.cancel()
-  launchAnimations?.dispose()
   if (mainWindow && !mainWindow.isDestroyed()) mainWindow.destroy()
   mainWindow = null
   startupFailurePromise = (async () => {
@@ -3703,34 +3653,7 @@ app.whenReady().then(async () => {
     // The rejection is surfaced where it is awaited; this only keeps an early
     // failure from being reported as unhandled while the shell is created.
     bundledIntegrityCheck.catch(() => {})
-    // The mini-chat and secondary windows never host the artwork. Only a
-    // visible main window does, so a hidden or minimized app skips it.
     createMainWindowShell()
-    launchAnimations = createLaunchAnimationController({
-      WebContentsView,
-      getHostWindow: () =>
-        mainWindow && !mainWindow.isDestroyed() && mainWindow.isVisible() && !mainWindow.isMinimized()
-          ? mainWindow
-          : null,
-      ipcMain,
-      manifest: launchAnimationManifest,
-      assetDir: path.join(__dirname, "launch-animations"),
-      preloadPath: path.join(__dirname, "launch-animation-preload.js"),
-      preferencesReader: animationPreferences,
-      disable: () => setLaunchAnimationsEnabled(false),
-      translate: nativeT,
-      onComplete: (result) =>
-        recordStartupEvent(`animation.${result.kind}.complete`, {
-          pair: result.pair,
-          reason: result.reason,
-          frames: result.frames,
-        }),
-    })
-    // Show the shell now so the opening plays in the main window while the
-    // server and renderer start behind it. Without animations the window stays
-    // hidden until the renderer is ready, as before.
-    if (launchAnimations.enabled()) mainWindow.show()
-    openingAnimation = launchAnimations.playOpening()
     // Settle the foreground integrity gate before the runtime or server starts.
     startupGuard.advance("runtime-integrity")
     const bundledIntegrity = await bundledIntegrityCheck

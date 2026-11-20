@@ -2,14 +2,8 @@ import { describe, expect, it, vi } from "vitest"
 import { createQuitCoordinator } from "./quit-coordinator.js"
 
 describe("quit coordination", () => {
-  it("starts ending and runtime cleanup concurrently and holds repeated quit requests", async () => {
-    let finishEnding, finishCleanup
-    const playEnding = vi.fn(
-      () =>
-        new Promise((resolve) => {
-          finishEnding = resolve
-        }),
-    )
+  it("waits for runtime cleanup and holds repeated quit requests", async () => {
+    let finishCleanup
     const stopServices = vi.fn(
       () =>
         new Promise((resolve) => {
@@ -18,16 +12,13 @@ describe("quit coordination", () => {
     )
     const quit = vi.fn(),
       onStarting = vi.fn()
-    const coordinator = createQuitCoordinator({ playEnding, stopServices, quit, onStarting })
+    const coordinator = createQuitCoordinator({ stopServices, quit, onStarting })
     const event = { preventDefault: vi.fn() }
     const pending = coordinator.handle(event)
     expect(coordinator.handle(event)).toBe(pending)
     await Promise.resolve()
-    expect(playEnding).toHaveBeenCalledTimes(1)
     expect(stopServices).toHaveBeenCalledTimes(1)
     expect(onStarting).toHaveBeenCalledTimes(1)
-    finishEnding()
-    await Promise.resolve()
     expect(quit).not.toHaveBeenCalled()
     finishCleanup()
     await pending
@@ -37,20 +28,17 @@ describe("quit coordination", () => {
     expect(finalEvent.preventDefault).not.toHaveBeenCalled()
   })
 
-  it("still quits after an ending or cleanup failure", async () => {
+  it("still quits after a cleanup failure", async () => {
     const quit = vi.fn(),
       logger = { warn: vi.fn() }
     const coordinator = createQuitCoordinator({
       onStarting: () => {},
-      playEnding: () => {
-        throw new Error("media failed")
-      },
       stopServices: () => Promise.reject(new Error("cleanup failed")),
       quit,
       logger,
     })
     await coordinator.handle({ preventDefault: vi.fn() })
     expect(quit).toHaveBeenCalledTimes(1)
-    expect(logger.warn).toHaveBeenCalledTimes(2)
+    expect(logger.warn).toHaveBeenCalledTimes(1)
   })
 })
