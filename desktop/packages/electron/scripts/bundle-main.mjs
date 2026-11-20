@@ -15,7 +15,6 @@ import fs from "fs/promises"
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const root = path.resolve(__dirname, "../../..")
 const outDir = path.join(__dirname, "../dist")
-const packageRoot = path.join(__dirname, "..")
 
 await fs.mkdir(outDir, { recursive: true })
 await fs.rm(path.join(outDir, "server.js"), { force: true })

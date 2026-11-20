@@ -121,14 +121,14 @@ const outcome = await runHarness({
       await audit.click("Toggle right sidebar")
       await audit.wait(
         `!(${visible("[data-split-inspector]")}) && ${visible("[data-split-chat]")}`,
-        "sidebar suspends inspector",
+        "toggle hides the inspector and keeps the chat",
       )
       await checkDraft()
       await capture("sidebar-handoff-dark-1280")
       await audit.click("Files", { role: "button" })
       await audit.wait(
-        `${visible("[data-split-inspector]")} && !document.querySelector('aside:last-child[aria-hidden="false"]')`,
-        "tool restores inspector without competing sidebar",
+        visible("[data-split-inspector]"),
+        "tool restores the inspector",
       )
       await checkDraft()
       await audit.click("Back to conversation")

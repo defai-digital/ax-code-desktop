@@ -31,8 +31,6 @@ interface SplitPaneLayoutProps {
 export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, rightContent }) => {
   const { t } = useI18n()
   const { splitEnabled: storedSplitEnabled, splitRatio, splitRightTab, setSplitRatio } = useSplitPane()
-  // Suspension (the session grid covers the workspace) hides the right pane without unmounting it, and keeps the same
-  // element structure, so neither the chat nor the right pane's editor, terminal or drafts are rebuilt or lost.
   const splitEnabled = storedSplitEnabled
   const [isDragging, setIsDragging] = React.useState(false)
   const [focusedTab, setFocusedTab] = React.useState<SplitPaneRightTab | null>(null)

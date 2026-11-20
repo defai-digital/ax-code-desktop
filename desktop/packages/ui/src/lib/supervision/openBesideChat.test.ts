@@ -80,9 +80,18 @@ describe("beside-chat views and the Files unsaved-changes guard", () => {
   })
 
   test("the toggle cannot close a Files editor with unsaved changes", () => {
-    dirtyFilesGuard()
+    const asked = dirtyFilesGuard()
     expect(toggleBesideChat()).toBe(false)
+    // "chat" is what the discard dialog carries out afterwards: closing the pane, not switching its view.
+    expect(asked).toEqual(["chat"])
     expect(useUIStore.getState().splitPaneEnabled).toBe(true)
+  })
+
+  test("cycling cannot replace a Files editor with unsaved changes", () => {
+    const asked = dirtyFilesGuard()
+    expect(cycleBesideChat()).toBe(false)
+    expect(asked).toEqual(["context"])
+    expect(useUIStore.getState().splitPaneRightTab).toBe("files")
   })
 
   test("on mobile the toggle covers the chat with the last view and then returns to it", () => {

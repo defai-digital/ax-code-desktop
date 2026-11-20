@@ -72,7 +72,8 @@ const outcome = await runHarness({
 
       const audit = new SettingsWebMcpAudit(session, args.artifacts)
       await audit.client.enable()
-      await audit.click("Toggle right sidebar")
+      // The header toggle reopens whichever view the inspector last showed; the rail names the Git view.
+      await audit.click("Git", { role: "button" })
       await audit.wait(
         `Boolean(document.querySelector('[aria-label="Git identity: No identity"]'))`,
         "Git header rendered",

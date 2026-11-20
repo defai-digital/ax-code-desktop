@@ -2770,6 +2770,9 @@ const revealMainWindow = async () => {
     target = mainWindow
   }
   if (target && !target.isDestroyed()) {
+    // The startup shell exists before anything is loaded into it. Showing it then would put an empty window on
+    // screen with no way to tell it from a hang; ready-to-show reveals it once the renderer has painted.
+    if (!target.webContents.getURL()) return target
     if (target.isMinimized()) target.restore()
     target.show()
     target.focus()

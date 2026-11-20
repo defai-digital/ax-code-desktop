@@ -1730,6 +1730,14 @@ export const useUIStore = create<UIStore>()(
           if (restored === currentState) return currentState
           const merged: UIStore = { ...currentState, ...restored }
           merged.browserPanel = currentState.browserPanel
+          // The right sidebar became the inspector. A profile saved with that sidebar open reopens the inspector on
+          // the same view, once: the legacy fields are not written back.
+          const legacy = persistedState as { isRightSidebarOpen?: unknown; rightSidebarTab?: unknown } | null
+          if (legacy && typeof legacy === "object" && legacy.isRightSidebarOpen === true) {
+            merged.splitPaneEnabled = true
+            const tab = legacy.rightSidebarTab
+            if (tab === "git" || tab === "files" || tab === "context") merged.splitPaneRightTab = tab
+          }
           return merged
         },
       },

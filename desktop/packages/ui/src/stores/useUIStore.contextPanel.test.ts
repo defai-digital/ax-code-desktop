@@ -235,6 +235,27 @@ describe("useUIStore context panel", () => {
     expect(merged.browserPanel).toEqual(current.browserPanel)
   })
 
+  test("a profile saved with the right sidebar open reopens the inspector on the same view", () => {
+    const merge = useUIStore.persist.getOptions().merge!
+    const current = { ...useUIStore.getState(), splitPaneEnabled: false, splitPaneRightTab: "files" as const }
+    const reopened = merge(
+      { isRightSidebarOpen: true, rightSidebarTab: "git", splitPaneEnabled: false, splitPaneRightTab: "diff" },
+      current,
+    )
+    expect(reopened).toMatchObject({ splitPaneEnabled: true, splitPaneRightTab: "git" })
+    expect(reopened).not.toHaveProperty("isRightSidebarOpen")
+
+    const closed = merge(
+      { isRightSidebarOpen: false, rightSidebarTab: "git", splitPaneEnabled: false, splitPaneRightTab: "diff" },
+      current,
+    )
+    expect(closed).toMatchObject({ splitPaneEnabled: false, splitPaneRightTab: "diff" })
+
+    // An unknown sidebar tab still reopens the pane, on the view the pane itself last held.
+    const unknown = merge({ isRightSidebarOpen: true, rightSidebarTab: "nope", splitPaneRightTab: "diff" }, current)
+    expect(unknown).toMatchObject({ splitPaneEnabled: true, splitPaneRightTab: "diff" })
+  })
+
   test("does not restore a current-version persisted browser URL", () => {
     const merge = useUIStore.persist.getOptions().merge!
     const current = { ...useUIStore.getState(), browserPanel: { isOpen: false, url: "", focused: false } }
