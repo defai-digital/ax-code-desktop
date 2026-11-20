@@ -5129,6 +5129,8 @@
   "diffView.landing.requestFix.promptStale": "Pemeriksaan dijalankan pada {commit}, yang bukan lagi commit saat ini. Jalankan lagi pemeriksaan pada commit saat ini dan perbaiki yang tidak lolos.",
   "diffView.landing.requestFix.promptFailed": "{count} pemeriksaan tidak lolos pada {commit}. Perbaiki kegagalannya dan jalankan lagi pemeriksaan.",
   "diffView.landing.requestFix.promptGeneral": "Perbaiki hal berikut pada perubahan yang sedang ditinjau:\n- ",
+  "diffView.landing.requestFix.fixForward": "Perbaiki maju",
+  "diffView.landing.requestFix.promptPullRequest": "Pemeriksaan pull request #{number} tidak lolos. Temukan yang gagal, perbaiki dengan commit baru di worktree ini, lalu jalankan lagi pemeriksaan. Jangan merge.",
   "app.embeddedSession.files": "File",
   "app.embeddedSession.terminal": "Terminal",
   "diffView.nav.changePosition": "Perubahan {index} dari {total} di {path}",

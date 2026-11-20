@@ -5129,6 +5129,8 @@
   "diffView.landing.requestFix.promptStale": "Die Prüfungen liefen auf {commit}, das nicht mehr der aktuelle Commit ist. Führe die Prüfungen auf dem aktuellen Commit erneut aus und behebe alles, was nicht besteht.",
   "diffView.landing.requestFix.promptFailed": "{count} Prüfungen sind auf {commit} nicht bestanden. Behebe die Fehler und führe die Prüfungen erneut aus.",
   "diffView.landing.requestFix.promptGeneral": "Bitte behebe Folgendes in den geprüften Änderungen:\n- ",
+  "diffView.landing.requestFix.fixForward": "Vorwärts beheben",
+  "diffView.landing.requestFix.promptPullRequest": "Die Prüfungen für Pull Request #{number} sind nicht bestanden. Finde heraus, was fehlgeschlagen ist, behebe es in diesem Worktree mit einem neuen Commit und führe die Prüfungen erneut aus. Nicht mergen.",
   "app.embeddedSession.files": "Dateien",
   "app.embeddedSession.terminal": "Terminal",
   "diffView.nav.changePosition": "\u00c4nderung {index} von {total} in {path}",

@@ -5129,6 +5129,8 @@
   "diffView.landing.requestFix.promptStale": "검사는 {commit}에서 실행되었지만 더 이상 현재 커밋이 아닙니다. 현재 커밋에서 검사를 다시 실행하고 통과하지 못한 항목을 수정하세요.",
   "diffView.landing.requestFix.promptFailed": "{commit}에서 검사 {count}개가 통과하지 못했습니다. 실패를 수정하고 검사를 다시 실행하세요.",
   "diffView.landing.requestFix.promptGeneral": "검토 중인 변경 사항에서 다음을 수정해 주세요:\n- ",
+  "diffView.landing.requestFix.fixForward": "전진 수정",
+  "diffView.landing.requestFix.promptPullRequest": "풀 리퀘스트 #{number}의 검사가 통과하지 못했습니다. 실패 원인을 찾아 이 worktree에서 전진 수정하고 검사를 다시 실행하세요. 병합하지 마세요.",
   "app.embeddedSession.files": "\ud30c\uc77c",
   "app.embeddedSession.terminal": "\ud130\ubbf8\ub110",
   "diffView.nav.changePosition": "{path}\uc758 \ubcc0\uacbd {index}/{total}",

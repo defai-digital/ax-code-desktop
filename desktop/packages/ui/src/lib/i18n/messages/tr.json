@@ -5129,6 +5129,8 @@
   "diffView.landing.requestFix.promptStale": "Denetimler {commit} üzerinde çalıştı; bu artık geçerli commit değil. Denetimleri geçerli commit üzerinde yeniden çalıştır ve geçmeyenleri düzelt.",
   "diffView.landing.requestFix.promptFailed": "{commit} üzerinde {count} denetim geçmedi. Hataları düzelt ve denetimleri yeniden çalıştır.",
   "diffView.landing.requestFix.promptGeneral": "İncelenen değişikliklerde şunları düzelt:\n- ",
+  "diffView.landing.requestFix.fixForward": "İleriye dönük düzelt",
+  "diffView.landing.requestFix.promptPullRequest": "Pull request #{number} denetimleri geçmedi. Neyin başarısız olduğunu bul, bu worktree içinde yeni bir commit ile düzelt ve denetimleri yeniden çalıştır. Birleştirme yapma.",
   "app.embeddedSession.files": "Dosyalar",
   "app.embeddedSession.terminal": "Terminal",
   "diffView.nav.changePosition": "{path} i\u00e7inde {total} de\u011fi\u015fiklikten {index}. s\u0131radaki",

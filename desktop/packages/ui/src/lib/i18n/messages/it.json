@@ -5129,6 +5129,8 @@
   "diffView.landing.requestFix.promptStale": "I controlli sono stati eseguiti su {commit}, che non è più il commit corrente. Riesegui i controlli sul commit corrente e correggi ciò che non passa.",
   "diffView.landing.requestFix.promptFailed": "{count} controlli non sono passati su {commit}. Correggi gli errori e riesegui i controlli.",
   "diffView.landing.requestFix.promptGeneral": "Correggi quanto segue nelle modifiche in revisione:\n- ",
+  "diffView.landing.requestFix.fixForward": "Correggi in avanti",
+  "diffView.landing.requestFix.promptPullRequest": "I controlli della pull request #{number} non sono passati. Trova cosa è fallito, correggilo con un nuovo commit in questo worktree e riesegui i controlli. Non eseguire il merge.",
   "app.embeddedSession.files": "File",
   "app.embeddedSession.terminal": "Terminale",
   "diffView.nav.changePosition": "Modifica {index} di {total} in {path}",

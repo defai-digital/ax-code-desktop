@@ -5129,6 +5129,8 @@
   "diffView.landing.requestFix.promptStale": "Các kiểm tra đã chạy trên {commit}, không còn là commit hiện tại. Hãy chạy lại các kiểm tra trên commit hiện tại và sửa những gì không đạt.",
   "diffView.landing.requestFix.promptFailed": "{count} kiểm tra không đạt trên {commit}. Hãy sửa các lỗi và chạy lại các kiểm tra.",
   "diffView.landing.requestFix.promptGeneral": "Hãy sửa những điểm sau trong các thay đổi đang được xem xét:\n- ",
+  "diffView.landing.requestFix.fixForward": "Sửa tiếp",
+  "diffView.landing.requestFix.promptPullRequest": "Các kiểm tra của pull request #{number} không đạt. Hãy tìm nguyên nhân, sửa bằng một commit mới trong worktree này và chạy lại các kiểm tra. Không merge.",
   "app.embeddedSession.files": "T\u1ec7p",
   "app.embeddedSession.terminal": "Terminal",
   "diffView.nav.changePosition": "Thay \u0111\u1ed5i {index} tr\u00ean {total} trong {path}",

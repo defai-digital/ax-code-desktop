@@ -17,6 +17,8 @@ import type { GitBranchDiffResponse, GitStatus } from "@/lib/api/types"
 import { ReviewLandingChecks } from "./ReviewLandingChecks"
 import { ReviewLandingBrowserEvidence } from "./ReviewLandingBrowserEvidence"
 import { ReviewLandingRequestFix } from "./ReviewLandingRequestFix"
+import { MissionControlPullRequest } from "@/components/supervision/missionControl/MissionControlPullRequest"
+import { useKnownPullRequest } from "@/hooks/useMissionControlPullRequests"
 import { SupervisionGoalLine } from "@/components/supervision/SupervisionGoalLine"
 import { useSessionGoalStore } from "@/stores/useSessionGoalStore"
 import { CommitInput } from "./CommitInput"
@@ -139,6 +141,7 @@ export function ReviewLanding({
   const tracking = status?.tracking
   const remote = tracking?.includes("/") ? tracking.slice(0, tracking.indexOf("/")) : null
   const branch = status?.current
+  const pullRequest = useKnownPullRequest(directory, branch)
   const reason = pending
     ? t(`diffView.landing.${pending}Pending`)
     : loading || !status
@@ -395,7 +398,11 @@ export function ReviewLanding({
           />
         ) : null}
         {sessionId ? <ReviewLandingBrowserEvidence directory={directory} sessionId={sessionId} /> : null}
-        {sessionId ? <ReviewLandingRequestFix directory={directory} sessionId={sessionId} /> : null}
+        {/* What CI said about the pushed branch, beside what the runtime checked locally. */}
+        <MissionControlPullRequest pr={pullRequest} />
+        {sessionId ? (
+          <ReviewLandingRequestFix directory={directory} sessionId={sessionId} pullRequest={pullRequest} />
+        ) : null}
       </div>
       {reason && (
         <p role="status" className="typography-meta text-muted-foreground">

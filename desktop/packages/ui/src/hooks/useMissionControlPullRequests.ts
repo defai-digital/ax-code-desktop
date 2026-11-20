@@ -8,6 +8,7 @@ import {
   createPullRequestCache,
   projectPullRequest,
   PULL_REQUEST_FRESH_MS,
+  type MissionPullRequest,
   type PullRequestTarget,
 } from "@/lib/supervision/pullRequestCache"
 import type { SupervisionRow } from "@/lib/supervision/rows"
@@ -16,7 +17,8 @@ import { useGitAllBranches } from "@/stores/useGitStore"
 
 type PrEntries = ReturnType<typeof useGitHubPrStatusStore.getState>["entries"]
 
-function preferredEntry(entries: PrEntries, directory: string, branch: string) {
+/** The most recently refreshed known PR status for a branch, whichever remote it was read through. */
+export function preferredEntry(entries: PrEntries, directory: string, branch: string) {
   const branchScope = pullRequestScopeKey({ directory, branch, remoteName: null })
   let preferred: { storeKey: string; entry: PrEntries[string]; scope: PullRequestScope } | undefined
   for (const [storeKey, entry] of Object.entries(entries)) {
@@ -63,6 +65,28 @@ function cacheFor(github?: GitHubAPI) {
     caches.set(github, cache)
   }
   return cache
+}
+
+/**
+ * The pull request Desktop already knows for this branch. It starts no GitHub read: the Git view and Mission Control
+ * own refreshing, and a projection they have not refreshed within the fresh window is marked stale.
+ */
+export function useKnownPullRequest(directory: string, branch: string | null | undefined): MissionPullRequest | null {
+  const entries = useGitHubPrStatusStore((state) => state.entries)
+  const [clock, setClock] = React.useState(() => Date.now())
+  React.useEffect(() => {
+    const timer = setInterval(() => setClock(Date.now()), PULL_REQUEST_FRESH_MS / 6)
+    return () => clearInterval(timer)
+  }, [])
+  return React.useMemo(() => {
+    const name = branch?.trim()
+    if (!directory || !name) return null
+    const known = preferredEntry(entries, directory, name)
+    const pr = known ? projectPullRequest(known.entry.status) : null
+    if (!known || !pr) return null
+    const stale = Boolean(known.entry.error) || clock - known.entry.lastRefreshAt >= PULL_REQUEST_FRESH_MS
+    return { ...pr, stale }
+  }, [entries, directory, branch, clock])
 }
 
 /** Project known branches before filtering; demand only the rows rendered after filters and collapsed groups. */

@@ -5129,6 +5129,8 @@
   "diffView.landing.requestFix.promptStale": "Les vérifications ont été exécutées sur {commit}, qui n’est plus le commit actuel. Relance les vérifications sur le commit actuel et corrige ce qui échoue.",
   "diffView.landing.requestFix.promptFailed": "{count} vérifications ont échoué sur {commit}. Corrige les échecs et relance les vérifications.",
   "diffView.landing.requestFix.promptGeneral": "Corrige les points suivants dans les modifications en cours de revue :\n- ",
+  "diffView.landing.requestFix.fixForward": "Corriger en avant",
+  "diffView.landing.requestFix.promptPullRequest": "Les vérifications de la pull request #{number} ont échoué. Trouve ce qui a échoué, corrige-le par un nouveau commit dans ce worktree et relance les vérifications. Ne fusionne pas.",
   "app.embeddedSession.files": "Fichiers",
   "app.embeddedSession.terminal": "Terminal",
   "diffView.nav.changePosition": "Modification {index} sur {total} dans {path}",

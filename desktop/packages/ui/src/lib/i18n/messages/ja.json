@@ -5129,6 +5129,8 @@
   "diffView.landing.requestFix.promptStale": "チェックは {commit} で実行されましたが、これは現在のコミットではありません。現在のコミットでチェックを再実行し、通らなかったものを修正してください。",
   "diffView.landing.requestFix.promptFailed": "{commit} で {count} 件のチェックが通りませんでした。失敗を修正し、チェックを再実行してください。",
   "diffView.landing.requestFix.promptGeneral": "レビュー中の変更について、次の点を修正してください:\n- ",
+  "diffView.landing.requestFix.fixForward": "前進して修正",
+  "diffView.landing.requestFix.promptPullRequest": "プルリクエスト #{number} のチェックが通りませんでした。失敗の原因を特定し、この worktree で前進して修正し、チェックを再実行してください。マージはしないでください。",
   "app.embeddedSession.files": "\u30d5\u30a1\u30a4\u30eb",
   "app.embeddedSession.terminal": "\u30bf\u30fc\u30df\u30ca\u30eb",
   "diffView.nav.changePosition": "{path} \u306e\u5909\u66f4 {index}/{total}",

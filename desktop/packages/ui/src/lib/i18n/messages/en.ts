@@ -86,6 +86,8 @@ export const dict = {
   "diffView.landing.requestFix.promptStale": "The checks ran on {commit}, which is no longer the current commit. Run the checks again on the current commit and fix anything that does not pass.",
   "diffView.landing.requestFix.promptFailed": "{count} checks did not pass on {commit}. Fix the failures and run the checks again.",
   "diffView.landing.requestFix.promptGeneral": "Please fix the following in the changes under review:\n- ",
+  "diffView.landing.requestFix.fixForward": "Fix forward",
+  "diffView.landing.requestFix.promptPullRequest": "Checks on pull request #{number} did not pass. Find what failed, fix it forward in this worktree and run the checks again. Do not merge.",
 
   "common.itemCount.one": "{count} item",
   "common.itemCount.two": "{count} items",

@@ -22,7 +22,7 @@ vi.mock("@/lib/i18n", () => ({
 
 import { useInputStore } from "@/sync/input-store"
 import { useSessionUIStore } from "@/sync/session-ui-store"
-import { requestFixKind } from "@/lib/supervision/requestFix"
+import { pullRequestChecksFailed, requestFixKind } from "@/lib/supervision/requestFix"
 import { ReviewLandingRequestFix } from "./ReviewLandingRequestFix"
 
 const evidence = (patch: Partial<VerificationEvidence>): VerificationEvidence => ({
@@ -56,6 +56,23 @@ describe("what a fix request is about", () => {
     expect(requestFixKind(evidence({ state: "failed", failed: 2, stale: true }), seal({ state: "unverified" }))).toBe(
       "general",
     )
+  })
+
+  test("failed checks on an open pull request ask for a fix forward, after local evidence", () => {
+    const pr = { number: 42, state: "open" as const, checks: "failed" as const }
+    expect(requestFixKind(evidence({}), seal({}), pr)).toBe("pr-failed")
+    expect(requestFixKind(null, seal({ state: "unverified", reason: "none", checked: null }), pr)).toBe("pr-failed")
+    // What ran on this tree outranks what CI said about the pushed branch.
+    expect(requestFixKind(evidence({ state: "failed", failed: 1 }), seal({}), pr)).toBe("failed")
+    expect(requestFixKind(evidence({}), seal({ state: "stale", reason: "moved" }), pr)).toBe("stale")
+  })
+
+  test("a merged, closed or stale pull request is not quoted", () => {
+    expect(pullRequestChecksFailed({ number: 1, state: "merged", checks: "failed" })).toBe(false)
+    expect(pullRequestChecksFailed({ number: 1, state: "closed", checks: "failed" })).toBe(false)
+    expect(pullRequestChecksFailed({ number: 1, state: "open", checks: "failed", stale: true })).toBe(false)
+    expect(pullRequestChecksFailed({ number: 1, state: "draft", checks: "failed" })).toBe(true)
+    expect(pullRequestChecksFailed({ number: 1, state: "open", checks: "pending" })).toBe(false)
   })
 
   test("passing or missing checks leave the request to the person", () => {
@@ -92,6 +109,18 @@ describe("the Request fix button", () => {
     expect(draft?.text).toContain("promptFailed")
     expect(draft?.text).toContain('"count":2')
     expect(draft?.text).toContain('"commit":"b4e19f2"')
+  })
+
+  test("a failed pull request becomes a fix-forward draft that names the request and forbids merging", () => {
+    mocks.checks = evidence({})
+    const pr = { number: 42, state: "open" as const, checks: "failed" as const }
+    act(() => root.render(<ReviewLandingRequestFix directory="/repo" sessionId="ses_1" pullRequest={pr} />))
+    expect(button()?.dataset.landingRequestFix).toBe("pr-failed")
+    expect(button()?.textContent).toContain("fixForward")
+    act(() => button()!.click())
+    const draft = useInputStore.getState().consumePendingInputText()
+    expect(draft?.text).toContain("promptPullRequest")
+    expect(draft?.text).toContain('"number":42')
   })
 
   test("is not offered while another session is on screen", () => {

@@ -1,6 +1,7 @@
 import { Button } from "@/components/ui/button"
 import { useEvidenceSeal, useSessionVerification } from "@/hooks/useEvidenceSeal"
 import { useI18n } from "@/lib/i18n"
+import type { MissionPullRequest } from "@/lib/supervision/pullRequestCache"
 import { requestFixKind } from "@/lib/supervision/requestFix"
 import { useInputStore } from "@/sync/input-store"
 import { useSessionUIStore } from "@/sync/session-ui-store"
@@ -9,11 +10,19 @@ import { useSessionUIStore } from "@/sync/session-ui-store"
  * Starts a fix request from the evidence instead of from the transcript. It only writes a draft into the composer,
  * naming the commit the checks ran on; the person edits and sends it, so nothing is dispatched by this button.
  */
-export function ReviewLandingRequestFix({ directory, sessionId }: { directory: string; sessionId: string }) {
+export function ReviewLandingRequestFix({
+  directory,
+  sessionId,
+  pullRequest,
+}: {
+  directory: string
+  sessionId: string
+  pullRequest?: MissionPullRequest | null
+}) {
   const { t } = useI18n()
   const checks = useSessionVerification(sessionId, directory)
   const seal = useEvidenceSeal(checks, directory)
-  const kind = requestFixKind(checks, seal)
+  const kind = requestFixKind(checks, seal, pullRequest)
   const onScreen = useSessionUIStore((state) => state.currentSessionId === sessionId)
 
   const request = () => {
@@ -23,7 +32,9 @@ export function ReviewLandingRequestFix({ directory, sessionId }: { directory: s
         ? t("diffView.landing.requestFix.promptStale", { commit })
         : kind === "failed"
           ? t("diffView.landing.requestFix.promptFailed", { count: checks?.failed ?? 0, commit })
-          : t("diffView.landing.requestFix.promptGeneral")
+          : kind === "pr-failed"
+            ? t("diffView.landing.requestFix.promptPullRequest", { number: pullRequest?.number ?? 0 })
+            : t("diffView.landing.requestFix.promptGeneral")
     // Read again at click time: the composer belongs to whichever session is on screen now.
     if (useSessionUIStore.getState().currentSessionId !== sessionId) return
     useInputStore.getState().setPendingInputText(text, "replace")
@@ -41,7 +52,7 @@ export function ReviewLandingRequestFix({ directory, sessionId }: { directory: s
       title={t("diffView.landing.requestFix.hint")}
       onClick={request}
     >
-      {t("diffView.landing.requestFix.action")}
+      {t(kind === "pr-failed" ? "diffView.landing.requestFix.fixForward" : "diffView.landing.requestFix.action")}
     </Button>
   )
 }

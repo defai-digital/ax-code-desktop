@@ -5129,6 +5129,8 @@
   "diffView.landing.requestFix.promptStale": "檢查是在 {commit} 上執行的，它已不是目前的提交。請在目前的提交上重新執行檢查，並修正未通過的項目。",
   "diffView.landing.requestFix.promptFailed": "在 {commit} 上有 {count} 項檢查未通過。請修正失敗項目並重新執行檢查。",
   "diffView.landing.requestFix.promptGeneral": "請修正審查中變更的以下問題：\n- ",
+  "diffView.landing.requestFix.fixForward": "向前修正",
+  "diffView.landing.requestFix.promptPullRequest": "Pull request #{number} 的檢查未通過。請找出失敗原因，在此 worktree 中向前修正，並重新執行檢查。不要合併。",
   "app.embeddedSession.files": "\u6a94\u6848",
   "app.embeddedSession.terminal": "\u7d42\u7aef\u6a5f",
   "diffView.nav.changePosition": "{path} \u7684\u7b2c {index} \u500b\u8b8a\u66f4\uff0c\u5171 {total} \u500b",

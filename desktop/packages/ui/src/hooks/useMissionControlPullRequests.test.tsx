@@ -5,7 +5,7 @@ import { RuntimeAPIContext } from "@/contexts/runtimeAPIContext"
 import type { GitHubAPI, GitHubPullRequestStatus, RuntimeAPIs } from "@/lib/api/types"
 import type { SupervisionRow } from "@/lib/supervision/rows"
 import { useGitHubPrStatusStore } from "@/stores/useGitHubPrStatusStore"
-import { useMissionControlPullRequests } from "./useMissionControlPullRequests"
+import { useKnownPullRequest, useMissionControlPullRequests } from "./useMissionControlPullRequests"
 
 let branches = new Map<string, string | null>()
 vi.mock("@/stores/useGitStore", () => ({ useGitAllBranches: () => branches }))
@@ -315,4 +315,29 @@ test("a board read without a body keeps the body the PR section loaded, and the 
   await flush()
   expect(fetch).toHaveBeenCalled()
   expect(useGitHubPrStatusStore.getState().entries["/repo"].status?.pr?.body).toBe("Loaded body")
+})
+
+test("the known pull request for a branch starts no read and ages into stale", () => {
+  const fetch = vi.fn()
+  known("/repo", "feature", { prStatus: fetch } as unknown as GitHubAPI)
+  // The seed records no refresh time; a status that was never refreshed is stale from the start.
+  useGitHubPrStatusStore.getState().updateStatus("/repo", (previous) => previous, Date.now())
+  const seen: Array<ReturnType<typeof useKnownPullRequest>> = []
+  const Probe = ({ branch }: { branch: string | null }) => {
+    seen.push(useKnownPullRequest("/repo", branch))
+    return null
+  }
+  const view = render(<Probe branch="feature" />)
+  expect(seen.at(-1)).toMatchObject({ number: 42, state: "open", checks: "pending", stale: false })
+  // A branch nothing was read for, or an unknown branch, has no pull request to quote.
+  view.rerender(<Probe branch="other" />)
+  expect(seen.at(-1)).toBeNull()
+  view.rerender(<Probe branch={null} />)
+  expect(seen.at(-1)).toBeNull()
+  view.rerender(<Probe branch="feature" />)
+  act(() => {
+    vi.advanceTimersByTime(120_000)
+  })
+  expect(seen.at(-1)).toMatchObject({ number: 42, stale: true })
+  expect(fetch).not.toHaveBeenCalled()
 })

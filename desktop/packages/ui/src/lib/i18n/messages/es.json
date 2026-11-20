@@ -5129,6 +5129,8 @@
   "diffView.landing.requestFix.promptStale": "Las comprobaciones se ejecutaron en {commit}, que ya no es el commit actual. Vuelve a ejecutarlas en el commit actual y corrige lo que no pase.",
   "diffView.landing.requestFix.promptFailed": "{count} comprobaciones no pasaron en {commit}. Corrige los fallos y vuelve a ejecutar las comprobaciones.",
   "diffView.landing.requestFix.promptGeneral": "Corrige lo siguiente en los cambios en revisión:\n- ",
+  "diffView.landing.requestFix.fixForward": "Corregir hacia adelante",
+  "diffView.landing.requestFix.promptPullRequest": "Las comprobaciones de la pull request #{number} no pasaron. Encuentra qué falló, corrígelo con un commit nuevo en este worktree y vuelve a ejecutar las comprobaciones. No fusiones.",
   "app.embeddedSession.files": "Archivos",
   "app.embeddedSession.terminal": "Terminal",
   "diffView.nav.changePosition": "Cambio {index} de {total} en {path}",

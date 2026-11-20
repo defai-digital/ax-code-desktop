@@ -5129,6 +5129,8 @@
   "diffView.landing.requestFix.promptStale": "Проверки выполнялись на {commit}, который уже не является текущим коммитом. Запусти проверки заново на текущем коммите и исправь всё, что не проходит.",
   "diffView.landing.requestFix.promptFailed": "Проверок, не прошедших на {commit}: {count}. Исправь ошибки и запусти проверки заново.",
   "diffView.landing.requestFix.promptGeneral": "Исправь следующее в проверяемых изменениях:\n- ",
+  "diffView.landing.requestFix.fixForward": "Исправить новым коммитом",
+  "diffView.landing.requestFix.promptPullRequest": "Проверки пул-реквеста #{number} не прошли. Найди причину, исправь её новым коммитом в этом worktree и запусти проверки заново. Не выполняй слияние.",
   "app.embeddedSession.files": "\u0424\u0430\u0439\u043b\u044b",
   "app.embeddedSession.terminal": "\u0422\u0435\u0440\u043c\u0438\u043d\u0430\u043b",
   "diffView.nav.changePosition": "\u0418\u0437\u043c\u0435\u043d\u0435\u043d\u0438\u0435 {index} \u0438\u0437 {total} \u0432 {path}",
