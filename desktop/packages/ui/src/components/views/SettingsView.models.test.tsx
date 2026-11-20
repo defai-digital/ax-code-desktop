@@ -111,14 +111,22 @@ test("grouped navigation stays stable through page selection, search and clear",
   }))
   const baseline = inventory()
   expect(baseline).toEqual([
-    { id: "general", pages: ["Appearance", "Chat", "Sessions", "Notifications", "Shortcuts"] },
-    { id: "projects", pages: ["Projects", "Git"] },
+    { id: "general", pages: ["Appearance", "Sessions", "Shortcuts"] },
+    { id: "projects", pages: ["Projects"] },
     { id: "models", pages: ["Providers", "Local Models"] },
-    { id: "coding", pages: ["Agents", "Commands", "Skills", "MCP"] },
-    { id: "advanced", pages: ["Behavior", "Hooks"] },
+    { id: "coding", pages: ["Agents", "Commands", "MCP"] },
   ])
-  await act(async () => navButton("Chat")?.click())
+  await act(async () => navButton("Appearance")?.click())
   await flush()
+  // Chat shares the Appearance entry and is one tab away.
+  const tabs = () => [...container.querySelectorAll('[data-settings-family-tabs] [role="tab"]')]
+  expect(tabs().map(tab => [tab.textContent, tab.getAttribute("aria-selected")])).toEqual([
+    ["Appearance", "true"], ["Chat", "false"],
+  ])
+  await act(async () => (tabs()[1] as HTMLElement).click())
+  await flush()
+  expect(useUIStore.getState().settingsPage).toBe("chat")
+  expect(container.querySelector('[data-settings-group="general"] [aria-current="page"]')?.textContent).toBe("Appearance")
   expect(inventory()).toEqual(baseline)
   const search = container.querySelector<HTMLInputElement>('[data-settings-navigation] input')!
   const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!
@@ -126,21 +134,23 @@ test("grouped navigation stays stable through page selection, search and clear",
     await act(async () => { setValue.call(search, query); search.dispatchEvent(new Event("input", { bubbles: true })) })
     await flush()
   }
-  await filter("advanced")
-  expect(inventory()).toEqual([{ id: "advanced", pages: ["Behavior", "Hooks"] }])
+  // A search lists every page, so nothing hides behind a tab.
+  await filter("coding")
+  expect(inventory()).toEqual([{ id: "coding", pages: ["Agents", "Behavior", "Hooks", "Commands", "Skills", "MCP"] }])
   expect(useUIStore.getState().settingsPage).toBe("chat")
   await act(async () => navButton("Hooks")?.click())
   await flush()
   expect(useUIStore.getState().settingsPage).toBe("hooks")
   await filter("")
   expect(inventory()).toEqual(baseline)
-  expect(container.querySelector('[data-settings-group="advanced"] [aria-current="page"]')?.textContent).toBe("Hooks")
+  expect(container.querySelector('[data-settings-group="coding"] [aria-current="page"]')?.textContent).toBe("Agents")
+  expect(container.querySelector('[data-settings-family-tabs] [aria-selected="true"]')?.textContent).toBe("Hooks")
   for (const group of container.querySelectorAll('[data-settings-group]')) {
     expect(document.getElementById(group.getAttribute("aria-labelledby")!)?.tagName).toBe("H2")
   }
 })
 
-test("translated Advanced group search finds the same destinations", async () => {
+test("translated Coding group search finds the same destinations", async () => {
   const original = useI18nStore.getState()
   try {
     const dictionary = await loadDictionary("zh-TW")
@@ -148,14 +158,16 @@ test("translated Advanced group search finds the same destinations", async () =>
     await render()
     const search = container.querySelector<HTMLInputElement>('[data-settings-navigation] input')!
     const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")!.set!
-    await act(async () => { setValue.call(search, "進階"); search.dispatchEvent(new Event("input", { bubbles: true })) })
+    await act(async () => { setValue.call(search, dictionary["settings.view.nav.group.coding"]); search.dispatchEvent(new Event("input", { bubbles: true })) })
     await flush()
     const groups = container.querySelectorAll('[data-settings-group]')
     expect(groups).toHaveLength(1)
-    expect(groups[0].getAttribute("data-settings-group")).toBe("advanced")
-    expect(groups[0].querySelector("h2")?.textContent).toBe("進階")
+    expect(groups[0].getAttribute("data-settings-group")).toBe("coding")
+    expect(groups[0].querySelector("h2")?.textContent).toBe(dictionary["settings.view.nav.group.coding"])
     expect([...groups[0].querySelectorAll("button")].map(button => button.textContent)).toEqual([
-      dictionary["settings.page.behavior.title"], dictionary["settings.page.hooks.title"],
+      dictionary["settings.page.agents.title"], dictionary["settings.page.behavior.title"],
+      dictionary["settings.page.hooks.title"], dictionary["settings.page.commands.title"],
+      dictionary["settings.page.skills.title"], dictionary["settings.page.mcp.title"],
     ])
   } finally { await act(async () => useI18nStore.setState(original)) }
 })

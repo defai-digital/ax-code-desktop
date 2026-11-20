@@ -30,7 +30,6 @@ export const settingsDict = {
   "settings.view.nav.group.projects": "Projects",
   "settings.view.nav.group.models": "Models and connections",
   "settings.view.nav.group.coding": "Coding",
-  "settings.view.nav.group.advanced": "Advanced",
   "settings.toast.saveFailed": "Failed to save settings",
   "settings.page.projects.title": "Projects",
   "settings.page.models.title": "Local Models",

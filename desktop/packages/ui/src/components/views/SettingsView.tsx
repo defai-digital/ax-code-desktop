@@ -47,7 +47,12 @@ import {
   type SettingsPageMeta,
 } from "@/lib/settings/metadata"
 import { getSettingsNavIcon } from "@/lib/settings/navIcons"
-import { groupSettingsPages, SETTINGS_NAVIGATION } from "@/lib/settings/navigation"
+import {
+  groupSettingsDestinations,
+  groupSettingsPages,
+  SETTINGS_NAVIGATION,
+  settingsFamilyOf,
+} from "@/lib/settings/navigation"
 
 // Same constraints as main sidebar
 const SETTINGS_NAV_MIN_WIDTH = 176
@@ -420,7 +425,17 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
         page.group, ...(page.keywords ?? [])].join(" ")
     })
   }, [sortedFilteredPages, navQuery, getPageTitle, t])
-  const navGroups = React.useMemo(() => groupSettingsPages(navSearchablePages), [navSearchablePages])
+  // Browsing shows one entry per family; a search lists every matching page so nothing hides behind a tab.
+  const navSearching = Boolean(navQuery.trim())
+  const navGroups = React.useMemo(
+    () => (navSearching ? groupSettingsPages(navSearchablePages) : groupSettingsDestinations(navSearchablePages)),
+    [navSearchablePages, navSearching],
+  )
+  const activeFamily = React.useMemo(() => settingsFamilyOf(settingsSlug), [settingsSlug])
+  const familyTabs = React.useMemo(
+    () => sortedFilteredPages.filter(page => activeFamily.includes(page.slug)),
+    [sortedFilteredPages, activeFamily],
+  )
 
   const renderUnavailable = React.useCallback(() => {
     return (
@@ -644,7 +659,7 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
                   {t(group.titleKey)}
                 </h2>
                 {group.pages.map((page) => {
-                  const selected = settingsSlug === page.slug
+                  const selected = navSearching ? settingsSlug === page.slug : activeFamily.includes(page.slug)
                   const iconName = getSettingsNavIcon(page.slug)
                   if (!iconName) return null
 
@@ -722,7 +737,15 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
     if (!activePageMeta) {
       return <div className="flex-1 bg-background" />
     }
+    return (
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        {renderFamilyTabs()}
+        {renderMobilePage(activePageMeta)}
+      </div>
+    )
+  }
 
+  const renderMobilePage = (activePageMeta: SettingsPageMeta) => {
     if (mobileStage === "page-sidebar") {
       if (activePageMeta.kind !== "split") {
         // No sidebar available; fall back to direct content.
@@ -752,10 +775,53 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
     )
   }
 
+  // The pages that share this navigation entry. Hidden when the page stands alone.
+  const renderFamilyTabs = () => {
+    if (familyTabs.length < 2 || !familyTabs.some(page => page.slug === settingsSlug)) return null
+    return (
+      <div
+        role="tablist"
+        aria-label={getPageTitle(familyTabs[0].slug)}
+        data-settings-family-tabs
+        className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border/60 bg-background px-3 py-1.5"
+      >
+        {familyTabs.map(page => {
+          const active = page.slug === settingsSlug
+          return (
+            <button
+              key={page.slug}
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => openPage(page.slug)}
+              className={cn(
+                "h-7 rounded-md px-2.5 typography-ui-label",
+                active
+                  ? "bg-interactive-selection text-foreground"
+                  : "text-muted-foreground hover:bg-interactive-hover hover:text-foreground",
+              )}
+            >
+              {getPageTitle(page.slug)}
+            </button>
+          )
+        })}
+      </div>
+    )
+  }
+
   const renderDesktopContent = () => {
     if (!activePageMeta || settingsSlug === "home") {
       return <SettingsHome onOpen={openPage} />
     }
+    return (
+      <div className="flex h-full min-h-0 flex-col overflow-hidden">
+        {renderFamilyTabs()}
+        <div className="min-h-0 flex-1 overflow-hidden">{renderDesktopPage(activePageMeta)}</div>
+      </div>
+    )
+  }
+
+  const renderDesktopPage = (activePageMeta: SettingsPageMeta) => {
 
     if (activePageMeta.kind === "split" && !skillsCatalogFullWidth) {
       return (

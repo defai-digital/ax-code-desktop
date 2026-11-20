@@ -19,7 +19,7 @@ export type SettingsPageSlug =
   | "sessions"
   | "notifications"
 
-export type SettingsPageGroup = "general" | "projects" | "models" | "coding" | "advanced"
+export type SettingsPageGroup = "general" | "projects" | "models" | "coding"
 
 export interface SettingsRuntimeContext {
   isWeb: boolean

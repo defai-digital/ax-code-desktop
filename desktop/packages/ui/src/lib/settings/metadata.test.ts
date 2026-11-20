@@ -32,10 +32,10 @@ describe("settings metadata", () => {
     expect(resolveAvailableSettingsSlug("skills.catalog", { isDesktop: true, isWeb: false })).toBe("skills.installed")
   })
 
-  it("keeps the read-only hooks route accessible under Advanced", () => {
+  it("keeps the read-only hooks route accessible under Coding", () => {
     const page = SETTINGS_PAGE_METADATA.find((entry) => entry.slug === "hooks")
     expect(page).toMatchObject({
-      group: "advanced",
+      group: "coding",
       kind: "single",
       keywords: expect.arrayContaining(["hooks", "lifecycle", "PreToolUse", "automation"]),
     })
