@@ -2797,14 +2797,6 @@ const dispatchTrayAction = async (action) => {
     if (target && !target.isDestroyed()) handOffToMainWindow("openchamber:tray-action", action)
     return
   }
-  if (action.type === "new-mini-chat") {
-    try {
-      await createMiniChatWindow({ mode: "draft" })
-    } catch (error) {
-      console.warn("[electron] failed to open mini chat from tray", error)
-    }
-    return
-  }
   if (action.type === "focus-session") {
     const target = await revealMainWindow()
     if (target && !target.isDestroyed() && action.sessionId) {
@@ -3365,13 +3357,6 @@ handleCommand("desktop_open_session_mini_chat_window", async (args) => {
   if (!sessionId) throw new Error("Session id is required")
   const directory = typeof args.directory === "string" ? args.directory.trim() : ""
   await createMiniChatWindow({ mode: "session", sessionId, directory })
-  return null
-})
-
-handleCommand("desktop_open_draft_mini_chat_window", async (args) => {
-  const directory = typeof args.directory === "string" ? args.directory.trim() : ""
-  const projectId = typeof args.projectId === "string" ? args.projectId.trim() : ""
-  await createMiniChatWindow({ mode: "draft", directory, projectId })
   return null
 })
 

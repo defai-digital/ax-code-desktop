@@ -34,11 +34,6 @@ export type DesktopCommandArgs = {
     url: string
   }
   desktop_notify: Record<string, unknown>
-  desktop_open_draft_mini_chat_window: {
-    directory?: string | null
-    projectId?: string | null
-    pinned?: boolean
-  }
   desktop_open_external_url: {
     url: string
   }

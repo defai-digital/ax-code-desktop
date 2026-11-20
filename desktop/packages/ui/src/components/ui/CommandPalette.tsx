@@ -111,7 +111,6 @@ export const CommandPalette: React.FC = () => {
 
   const activeSessions = useGlobalSessionsStore((s) => s.activeSessions)
   const currentDirectory = useDirectoryStore((s) => s.currentDirectory)
-  const activeProject = useProjectsStore((s) => s.getActiveProject())
   const effectiveDirectory = useEffectiveDirectory()
   const searchFiles = useFileSearchStore((s) => s.searchFiles)
   const { files: filesApi, git: gitApi } = useRuntimeAPIs()
@@ -512,23 +511,6 @@ export const CommandPalette: React.FC = () => {
         }),
       },
     ]
-    if (canUseLocalElectronDesktopIPC()) {
-      list.splice(1, 0, {
-        id: "new-mini-chat",
-        title: t("commandPalette.item.newMiniChat"),
-        icon: <Icon name="window" className="mr-2 h-4 w-4" />,
-        shortcutId: "new_mini_chat",
-        searchText: t("commandPalette.item.newMiniChat"),
-        onSelect: run(() => {
-          void invokeDesktop("desktop_open_draft_mini_chat_window", {
-            directory: normalizePath(currentDirectory || activeProject?.path || ""),
-            projectId: activeProject?.id ?? null,
-          }).catch((error) => {
-            console.warn("[command-palette] failed to open draft mini chat window", error)
-          })
-        }),
-      })
-    }
     return list
   }, [
     t,
@@ -547,8 +529,6 @@ export const CommandPalette: React.FC = () => {
     setTimelineDialogOpen,
     setCrossSessionSearchOpen,
     setThemeMode,
-    activeProject?.id,
-    activeProject?.path,
   ])
 
   // ---------------------------------------------------------------------------

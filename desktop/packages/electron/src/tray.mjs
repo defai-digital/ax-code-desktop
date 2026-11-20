@@ -301,7 +301,6 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
     template.push(
       { type: "separator" },
       { label: translate("New Session"), click: () => onAction({ type: "new-session" }) },
-      { label: translate("New Mini Chat"), click: () => onAction({ type: "new-mini-chat" }) },
       { label: translate("Show AX Code"), click: () => onAction({ type: "show-main-window" }) },
       { type: "separator" },
       { label: translate("Quit AX Code"), click: () => onAction({ type: "quit" }) },

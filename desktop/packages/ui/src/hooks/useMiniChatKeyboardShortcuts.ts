@@ -1,5 +1,4 @@
 import React from "react"
-import { canUseLocalElectronDesktopIPC, invokeDesktop } from "@/lib/desktop"
 import { eventMatchesShortcut, getEffectiveShortcutCombo } from "@/lib/shortcuts"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
@@ -27,17 +26,6 @@ export const useMiniChatKeyboardShortcuts = () => {
       if (eventMatchesShortcut(event, combo("focus_input"))) {
         event.preventDefault()
         focusChatInput()
-        return
-      }
-
-      if (canUseLocalElectronDesktopIPC() && eventMatchesShortcut(event, combo("new_mini_chat"))) {
-        event.preventDefault()
-        void invokeDesktop("desktop_open_draft_mini_chat_window", {
-          directory: currentDirectory || activeProject?.path || "",
-          projectId: activeProject?.id ?? null,
-        })?.catch((error) => {
-          console.warn("[mini-chat-shortcuts] failed to open draft mini chat window", error)
-        })
         return
       }
 

@@ -3,7 +3,6 @@
   "packages/electron/src/desktop-capture-page-policy.test.mjs",
   "packages/electron/src/desktop-file-search.test.mjs",
   "packages/electron/src/desktop-open-path-app.test.mjs",
-  "packages/electron/src/mini-chat-tray-action.test.mjs",
   "packages/electron/src/renderer-api-origin.test.mjs",
   "packages/electron/src/renderer-crash-policy.test.mjs",
   "packages/electron/src/renderer-handoff-readiness.test.mjs",

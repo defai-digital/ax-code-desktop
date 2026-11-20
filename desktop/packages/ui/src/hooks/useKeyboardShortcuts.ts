@@ -9,7 +9,6 @@ import { useAssistantStatus } from "@/hooks/useAssistantStatus"
 import { createWorktreeSession } from "@/lib/worktreeSessionCreator"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useAgentsStore } from "@/stores/useAgentsStore"
-import { canUseLocalElectronDesktopIPC, invokeDesktop } from "@/lib/desktop"
 import { showAxCodeStatus } from "@/lib/axCodeStatus"
 import { openProjectFolder } from "@/lib/projectOpen"
 import { useI18n } from "@/lib/i18n"
@@ -163,17 +162,6 @@ export const useKeyboardShortcuts = () => {
       if (eventMatchesShortcut(e, combo("open_project_folder"))) {
         e.preventDefault()
         void openProjectFolder({ t })
-        return
-      }
-
-      if (canUseLocalElectronDesktopIPC() && eventMatchesShortcut(e, combo("new_mini_chat"))) {
-        e.preventDefault()
-        void invokeDesktop("desktop_open_draft_mini_chat_window", {
-          directory: currentDirectory || activeProject?.path || "",
-          projectId: activeProject?.id ?? null,
-        }).catch((error) => {
-          console.warn("[keyboard-shortcuts] failed to open draft mini chat window", error)
-        })
         return
       }
 

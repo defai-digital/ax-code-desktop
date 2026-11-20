@@ -2507,7 +2507,6 @@ export const dict = {
   "commandPalette.empty.noResults": "No results found.",
   "commandPalette.empty.searchingFiles": "Searching files...",
   "commandPalette.item.newSession": "New Session",
-  "commandPalette.item.newMiniChat": "New Mini Chat Window",
   "commandPalette.item.newWorktreeDraft": "New Worktree Draft",
   "commandPalette.item.addProject": "Add Project",
   "commandPalette.item.addProjectByPath": "Add project by path or clone",
@@ -3124,8 +3123,6 @@ export const dict = {
   "miniChat.unavailable.description":
     "This session could not be loaded. It may have been deleted, archived, or opened from a different project context.",
   "sessions.sidebar.session.menu.openMiniChatWindow": "Open in Mini Chat Window",
-  "header.actions.newMiniChat": "New Mini Chat Window",
-  "header.actions.newMiniChatAria": "Open a new Mini Chat window",
   "header.actions.openSessionMiniChat": "Open Session in Mini Chat",
   "header.actions.openSessionMiniChatAria": "Open current session in Mini Chat",
   "header.windowControls.groupAria": "Window controls",
