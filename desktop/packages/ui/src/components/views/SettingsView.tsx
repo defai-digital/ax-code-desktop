@@ -603,11 +603,12 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
     }
 
     const handlePopState = (event: PopStateEvent) => {
-      if (settingsSlug !== "skills.installed") {
+      const detail = getSettingsDetailHistoryEntry(event.state)
+      // Back from a sibling page lands on a skill's detail entry while this still holds the sibling's slug.
+      if (settingsSlug !== "skills.installed" && detail?.page !== "skills.installed") {
         return
       }
 
-      const detail = getSettingsDetailHistoryEntry(event.state)
       if (detail?.page === "skills.installed") {
         setMobileStage("page-content")
         return
@@ -792,7 +793,8 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
               key={page.slug}
               type="button"
               aria-current={active ? "page" : undefined}
-              onClick={() => openPage(page.slug)}
+              // The current page is already open; opening it again would send a phone back to the page's list.
+              onClick={() => (active ? undefined : openPage(page.slug))}
               className={cn(
                 "h-7 rounded-md px-2.5 typography-ui-label",
                 active

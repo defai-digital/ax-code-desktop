@@ -27,6 +27,15 @@ export const SETTINGS_PAGES = [
   "Skills",
 ]
 
+const SETTINGS_FAMILY_LEAD = {
+  Chat: "Appearance",
+  Notifications: "Sessions",
+  Git: "Projects",
+  Behavior: "Agents",
+  Hooks: "Agents",
+  Skills: "Commands",
+}
+
 export class SettingsWebMcpAudit {
   constructor(session, artifacts = "") {
     this.session = session
@@ -77,6 +86,12 @@ export class SettingsWebMcpAudit {
     return waitForCondition(() => this.session.evaluate(expression), { timeoutMs: 10_000, label })
   }
   async page(name) {
+    // Pages that share a navigation entry are reached through the entry's first page, then the strip above the page.
+    const lead = SETTINGS_FAMILY_LEAD[name]
+    const listed = await this.session.evaluate(
+      `Array.from(document.querySelectorAll('[data-settings-view] button')).some(e => e.textContent.trim() === ${JSON.stringify(name)})`,
+    )
+    if (lead && !listed) await this.page(lead)
     await this.click(name, { role: "button" })
     await this.wait(
       `Array.from(document.querySelectorAll('[data-settings-view] button[aria-current="page"]')).some(e => e.textContent.trim() === ${JSON.stringify(name)})`,

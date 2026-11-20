@@ -8,12 +8,15 @@ import { SettingsWebMcpAudit } from "./settings-webmcp.mjs"
 
 const args = parseArgs(process.argv.slice(2))
 const expected = [
-  { id: "general", pages: ["Appearance", "Chat", "Sessions", "Notifications", "Shortcuts"] },
-  { id: "projects", pages: ["Projects", "Git"] },
+  { id: "general", pages: ["Appearance", "Sessions", "Shortcuts"] },
+  { id: "projects", pages: ["Projects"] },
   { id: "models", pages: ["Providers", "Local Models"] },
-  { id: "coding", pages: ["Agents", "Commands", "Skills", "MCP"] },
-  { id: "advanced", pages: ["Behavior", "Hooks"] },
+  { id: "coding", pages: ["Agents", "Commands", "MCP"] },
 ]
+// A search lists every page of the group, so nothing hides behind a shared entry.
+const codingSearch = [{ id: "coding", pages: ["Agents", "Behavior", "Hooks", "Commands", "Skills", "MCP"] }]
+const currentInStrip = name =>
+  `document.querySelector('[data-settings-family-tabs] [aria-current="page"]')?.textContent.trim() === '${name}' && document.querySelector('[data-settings-group="coding"] [aria-current="page"]')?.textContent.trim() === 'Agents'`
 const inventoryExpression = `Array.from(document.querySelectorAll('[data-settings-navigation] [data-settings-group]')).map(group => ({
   id: group.getAttribute('data-settings-group'), pages: Array.from(group.querySelectorAll('button')).map(button => button.textContent.trim()) }))`
 const outcome = await runHarness({
@@ -35,12 +38,12 @@ const outcome = await runHarness({
       await audit.page(page)
       await verify(`order after ${page}`)
     }
-    await audit.fill("Search settings", "Advanced")
-    await verify("Advanced search keeps order", [expected.at(-1)])
+    await audit.fill("Search settings", "Coding")
+    await verify("Coding search lists every page", codingSearch)
     await audit.page("Hooks")
     await audit.fill("Search settings", "")
     await verify("cleared search restores full order")
-    await audit.wait(`document.querySelector('[data-settings-group="advanced"] [aria-current="page"]')?.textContent.trim() === 'Hooks'`, "selected Hooks preserved after clear")
+    await audit.wait(currentInStrip("Hooks"), "selected Hooks preserved after clear")
     await audit.fill("Search settings", "response style")
     await audit.find("Behavior", { role: "button" })
     await audit.page("Behavior")
@@ -53,7 +56,7 @@ const outcome = await runHarness({
     await audit.wait(`document.querySelector('[data-settings-view]')?.textContent.includes('No settings match your search.')`, "empty search feedback")
     await audit.fill("Search settings", "")
     await verify("second search clear restores order")
-    await audit.wait(`document.querySelector('[data-settings-group="advanced"] [aria-current="page"]')?.textContent.trim() === 'Behavior'`, "search never redirects selected page")
+    await audit.wait(currentInStrip("Behavior"), "search never redirects selected page")
     await audit.wait(`document.querySelector('[data-settings-view] textarea')?.value === 'Unsent navigation draft'`, "filtering preserves unsaved draft")
     await audit.fill(prompt.name, originalPrompt)
     await audit.wait(`document.querySelector('[data-settings-view] textarea')?.value === ${JSON.stringify(originalPrompt)}`, "fixture draft restored without saving")
@@ -64,16 +67,16 @@ const outcome = await runHarness({
     await session.send("Emulation.setDeviceMetricsOverride", { width: 800, height: 700, deviceScaleFactor: 1, mobile: false })
     await audit.page("Hooks")
     await verify("narrow order")
-    await audit.capture("Settings Advanced narrow dark")
+    await audit.capture("Settings Hooks narrow dark")
     await audit.page("Appearance")
     await audit.click("Light")
     await audit.wait('document.documentElement.classList.contains("light")', "light theme")
     await verify("light order")
     await audit.capture("Settings Preferences narrow light")
     await audit.page("Hooks")
-    await audit.capture("Settings Advanced narrow light")
+    await audit.capture("Settings Hooks narrow light")
     if (args.artifacts) await fs.writeFile(path.join(args.artifacts, "navigation-receipt.json"), JSON.stringify({ readings, actions: audit.calls }, null, 2))
-    return { name: "settings-navigation-webmcp", ok: true, detail: "Fixed five-group order through page changes, Advanced/style search, empty/clear, reopen and narrow light/dark layouts; Hooks and Behavior remain discoverable" }
+    return { name: "settings-navigation-webmcp", ok: true, detail: "Fixed four-group order through page changes, Coding/style search, empty/clear, reopen and narrow light/dark layouts; Hooks and Behavior remain discoverable" }
   }],
 })
 outcome.lines.forEach(line => console.log(line))

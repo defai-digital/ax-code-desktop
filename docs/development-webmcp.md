@@ -309,7 +309,7 @@ refresh, retained content after a refresh error, retry and a completed late resp
 It captures wide/narrow and light/dark screenshots. It reads fixture Hooks data without executing commands or changing
 trust/configuration. Project menu transitions are checked through the specific selector's expanded state.
 
-For fixed Settings groups and Advanced discovery:
+For fixed Settings groups and the pages that share a navigation entry:
 
 ```sh
 node desktop/packages/electron/scripts/e2e/settings-navigation-webmcp.mjs --artifacts /tmp/ax-settings-navigation
@@ -317,7 +317,7 @@ node desktop/packages/electron/scripts/e2e/settings-navigation-webmcp.mjs --arti
 
 This journey checks group/item order through page changes, exact-group and response-style search, empty/clear states,
 close/reopen and narrow light/dark layouts. It verifies that filtering does not redirect the selected page and captures
-the Advanced Hooks/Behavior entries. It does not edit runtime behavior or activate hooks.
+Hooks and Behavior, which share the Agents entry. It does not edit runtime behavior or activate hooks.
 
 For the nested agent permission editor:
 
