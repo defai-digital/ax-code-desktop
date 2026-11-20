@@ -146,6 +146,10 @@ describe("runtime checks beside landing", () => {
     expect(seal?.dataset.versionSeal).toBe("stale")
     expect(seal?.dataset.sealReason).toBe("moved")
     expect(seal?.textContent).toContain("ccccccc \u2192 aaaaaaa")
+    // Passing counts about another commit must not stay green beside the stale seal.
+    const chip = container.querySelector<HTMLElement>("[data-checks-state]")!
+    expect(chip.hasAttribute("data-checks-outdated")).toBe(true)
+    expect(chip.className).not.toContain("status-success")
     expect(container.querySelector("[data-landing-evidence-outdated]")?.textContent).toBe(
       "Evidence is out of date. Run the checks again before you commit or push.",
     )

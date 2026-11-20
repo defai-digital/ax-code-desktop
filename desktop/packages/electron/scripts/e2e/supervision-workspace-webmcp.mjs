@@ -10,7 +10,7 @@ import { parseArgs, runHarness } from "./run.mjs"
 import { SettingsWebMcpAudit } from "./settings-webmcp.mjs"
 import { setDesktopViewport } from "./desktop-viewport.mjs"
 import { assertPathInsideDirectory } from "./scenario.mjs"
-import { focusPaletteForEscape, waitForGridReturn } from "./supervision-handoffs.mjs"
+import { focusPaletteForEscape } from "./supervision-handoffs.mjs"
 import { STUB_REVIEW_DIFFS } from "./stub-runtime.mjs"
 
 const exec = promisify(execFile)
@@ -116,9 +116,9 @@ const outcome = await runHarness({
       const state = await audit.all()
       const layout = await session.evaluate(`(() => {
         const visible = e => e.checkVisibility() && !e.closest('[aria-hidden="true"], [inert]')
-        const roots = Array.from(document.querySelectorAll('[data-session-grid], [data-mission-control], [data-workspace-navigation], [data-review-changes], [role="dialog"]:has([cmdk-root])')).filter(visible)
+        const roots = Array.from(document.querySelectorAll('[data-mission-control], [data-workspace-navigation], [data-review-changes], [role="dialog"]:has([cmdk-root])')).filter(visible)
         return roots.map(root => ({
-          kind: root.hasAttribute('data-session-grid') ? 'session-grid' : root.hasAttribute('data-mission-control') ? 'board' : root.hasAttribute('data-review-changes') ? 'review' : root.matches('[role="dialog"]') ? 'palette' : 'navigation',
+          kind: root.hasAttribute('data-mission-control') ? 'board' : root.hasAttribute('data-review-changes') ? 'review' : root.matches('[role="dialog"]') ? 'palette' : 'navigation',
           width: root.clientWidth, scrollWidth: root.scrollWidth, text: root.innerText,
           groups: Array.from(root.querySelectorAll('[role="rowgroup"]')).map(e => ({ name:e.getAttribute('aria-label'), rows:Array.from(e.querySelectorAll('.mission-control-row')).map(row=>row.id) })),
           verification: Array.from(root.querySelectorAll('.mission-control-row [data-checks-state]')).map(chip => ({
@@ -635,154 +635,9 @@ const outcome = await runHarness({
       return Boolean(doc?.querySelector('[data-chat-input]')?.checkVisibility()) && !doc.querySelector('[data-embedded-session-changes]')
     })()`, "the beside session returns to its chat")
     if (args.artifacts) await fs.writeFile(path.join(args.artifacts, "receipt.json"), JSON.stringify({ targets, calls: audit.calls }, null, 2))
-    // Session grid uses two independent embedded realms, each with its own composer.
-    await openBoard()
-    for (const target of targets) {
-      const label = await session.evaluate(`document.getElementById(${JSON.stringify(`mission-row-${target.id}`)})?.querySelector('input[type="checkbox"]')?.getAttribute('aria-label')`)
-      if (!label) throw new Error("Grid fixture selection checkbox is missing")
-      await audit.click(await observedControl(label, "input"), { role: "input" })
-    }
-    await audit.click("Open as grid")
-    await audit.wait(`(() => {
-      const grid = document.querySelector('[data-session-grid]')
-      const frames = Array.from(grid?.querySelectorAll('iframe') || [])
-      const targets = ${JSON.stringify(targets.map(target => ({ id: target.id, directories: pathForms(target.directory) })))}
-      return grid?.checkVisibility() && frames.length === 2 && targets.every(target => frames.some(frame => {
-        const url = new URL(frame.src)
-        const composer = frame.contentDocument?.querySelector('[data-chat-input]')
-        return url.searchParams.get('sessionId') === target.id && target.directories.includes(url.searchParams.get('directory')) &&
-          frame.checkVisibility() && frame.getBoundingClientRect().width >= 320 && composer?.checkVisibility()
-      }))
-    })()`, "two grid sessions visibly render their own composers")
-    await capture("session-grid-two")
-    await audit.click("Workspace", { role: "button" })
-    await audit.wait(`!document.querySelector('[data-session-grid]')`, "leave grid")
-    await audit.click("Session views", { role: "button" })
-    await audit.click("Session grid", { role: "menuitem" })
-    await audit.wait(`document.querySelector('[data-session-grid]')?.querySelectorAll('iframe').length === 2`, "return restores both grid panes")
-
-    // Free arrangement: drag to reorder, keyboard move, split, and pop a pane into the session window.
-    const arrangement = { drag: 0, keyboardMove: 0, split: 0, popOut: 0, popIn: 0, webmcpCalls: audit.calls.length }
-    const writeArrangement = async () => {
-      arrangement.webmcpCalls = audit.calls.length
-      if (!args.artifacts) return
-      await fs.mkdir(args.artifacts, { recursive: true })
-      await fs.writeFile(path.join(args.artifacts, "grid-arrangement.json"), JSON.stringify(arrangement, null, 2))
-    }
-    const gridSlots = () => session.evaluate(`(() => {
-      const panes = Array.from(document.querySelectorAll('[data-session-grid-slot]'))
-      return panes.map(pane => {
-        const rect = pane.getBoundingClientRect()
-        const handle = pane.querySelector('[data-session-grid-handle]')?.getBoundingClientRect()
-        return {
-          sessionId: pane.dataset.sessionGridSession || "",
-          left: rect.left, top: rect.top, width: rect.width, height: rect.height,
-          handle: handle ? { x: handle.left + Math.min(24, handle.width / 2), y: handle.top + handle.height / 2 } : null,
-        }
-      }).sort((a, b) => a.left - b.left || a.top - b.top)
-    })()`)
-    const orderedIds = async () => (await gridSlots()).map((pane) => pane.sessionId)
-    const beforeDrag = await orderedIds()
-    if (beforeDrag.length !== 2 || !beforeDrag[0] || !beforeDrag[1]) throw new Error(`Expected two grid sessions, saw ${beforeDrag.join(",")}`)
-    const dragFrom = (await gridSlots())[0]
-    const dragTo = (await gridSlots())[1]
-    if (!dragFrom.handle) throw new Error("Grid pane handle is missing")
-    const dropX = dragTo.left + dragTo.width / 2
-    const dropY = dragTo.top + dragTo.height / 2
-    await session.send("Input.dispatchMouseEvent", { type: "mousePressed", x: dragFrom.handle.x, y: dragFrom.handle.y, button: "left", clickCount: 1 })
-    for (let step = 1; step <= 8; step += 1) {
-      const x = dragFrom.handle.x + (dropX - dragFrom.handle.x) * (step / 8)
-      const y = dragFrom.handle.y + (dropY - dragFrom.handle.y) * (step / 8)
-      await session.send("Input.dispatchMouseEvent", { type: "mouseMoved", x, y, button: "left" })
-    }
-    await session.send("Input.dispatchMouseEvent", { type: "mouseReleased", x: dropX, y: dropY, button: "left", clickCount: 1 })
-    await waitForCondition(async () => {
-      const ids = await orderedIds()
-      return ids[0] === beforeDrag[1] && ids[1] === beforeDrag[0]
-    }, { label: "drag reorder swaps the two sessions" })
-    arrangement.drag = 1
-    await writeArrangement()
-    await session.evaluate(`document.querySelector('[data-session-grid-slot="0"] [data-session-grid-handle]')?.focus(); true`)
-    await session.send("Input.dispatchKeyEvent", { type: "keyDown", key: "ArrowRight", code: "ArrowRight", windowsVirtualKeyCode: 39, nativeVirtualKeyCode: 39 })
-    await session.send("Input.dispatchKeyEvent", { type: "keyUp", key: "ArrowRight", code: "ArrowRight", windowsVirtualKeyCode: 39, nativeVirtualKeyCode: 39 })
-    await waitForCondition(async () => {
-      const ids = await orderedIds()
-      return ids[0] === beforeDrag[0] && ids[1] === beforeDrag[1]
-    }, { label: "keyboard move restores the original order" })
-    arrangement.keyboardMove = 1
-    await writeArrangement()
-    await session.evaluate(`(() => {
-      const select = document.querySelector('[data-session-grid-split]')
-      const setter = Object.getOwnPropertyDescriptor(window.HTMLSelectElement.prototype, "value").set
-      setter.call(select, "bottom")
-      select.dispatchEvent(new Event("change", { bubbles: true }))
-      return true
-    })()`)
-    await waitForCondition(() => session.evaluate(`(() => {
-      const grid = document.querySelector('[data-session-grid]')
-      const panes = grid?.querySelectorAll('[data-session-grid-slot]') || []
-      const frames = grid?.querySelectorAll('iframe') || []
-      return panes.length === 3 && frames.length === 2 && (grid.innerText || "").includes("Choose a session to supervise here.")
-    })()`), { label: "split adds an empty pane" })
-    arrangement.split = 1
-    await writeArrangement()
-    const popName = await session.evaluate(`document.querySelector('[data-session-grid-popout]')?.getAttribute('aria-label')`)
-    if (!popName) throw new Error("Pop out control is missing")
-    const sessionsBeforePop = await session.evaluate(`Array.from(document.querySelectorAll('[data-session-grid] iframe')).map(frame => new URL(frame.src).searchParams.get('sessionId'))`)
-    const pagesBeforePop = await session.evaluate(`Array.from(document.querySelectorAll('[data-session-grid] [data-webmcp-session-page]')).map(node => node.getAttribute('data-webmcp-session-page'))`)
-    await audit.click(popName)
-    const popped = await waitForCondition(async () => {
-      const frameIds = await session.evaluate(`Array.from(document.querySelectorAll('[data-session-grid] iframe')).map(frame => new URL(frame.src).searchParams.get('sessionId'))`)
-      const pages = await session.evaluate(`Array.from(document.querySelectorAll('[data-session-grid] [data-webmcp-session-page]')).map(node => node.getAttribute('data-webmcp-session-page'))`)
-      const target = (await listTargets(debuggingPort)).find((entry) => entry.type === "page" && typeof entry.url === "string" && entry.url.includes("mini-chat.html"))
-      if (!target?.url) return null
-      const sessionId = new URL(target.url).searchParams.get("sessionId")
-      if (!sessionId || !sessionsBeforePop.includes(sessionId)) return null
-      if (frameIds.includes(sessionId) || pages.includes(sessionId)) return null
-      if (!frameIds.some((id) => id && id !== sessionId)) return null
-      return { id: target.id, sessionId, hasPage: pagesBeforePop.includes(sessionId), url: target.url, webSocketDebuggerUrl: target.webSocketDebuggerUrl }
-    }, { timeoutMs: 45_000, label: "pop out moves one session into its own window" })
-    arrangement.popOut = 1
-    await writeArrangement()
-    const miniSession = await CdpSession.connect(popped.webSocketDebuggerUrl)
-    try {
-      await miniSession.send("Runtime.enable")
-      await waitForCondition(
-        () => miniSession.evaluate(`document.documentElement.dataset.miniChatGridReturn === "true" && (${SHELL_READY_EXPRESSION})`),
-        { timeoutMs: 45_000, label: "mini-chat is ready to return" },
-      )
-      const returnName = await session.evaluate(`document.querySelector('[data-session-grid-return]')?.getAttribute('aria-label')`)
-      if (!returnName) throw new Error("Return control is missing")
-      await audit.click(returnName)
-      await waitForGridReturn(session, debuggingPort, popped)
-    } finally {
-      miniSession.close()
-    }
-    arrangement.popIn = 1
-    await writeArrangement()
-    if (args.artifacts) {
-      await fs.writeFile(
-        path.join(args.artifacts, "receipt.json"),
-        JSON.stringify({ targets, calls: audit.calls, arrangement }, null, 2),
-      )
-    }
-
-    await audit.click("Workspace", { role: "button" })
-    await openBoard()
-    await rowAction("Open —", targets[0])
-    await dispatchKey("p", "KeyP", 80, process.platform === "darwin" ? 4 : 2)
-    await audit.wait(`Boolean(document.querySelector('[cmdk-input]'))`, "split palette opened")
-    await audit.fill("Search files, sessions, commands...", "#124")
-    await audit.wait(`document.querySelector('[cmdk-item][aria-selected="true"]')?.getAttribute('data-value') === ${JSON.stringify(`session:${targets[1].id}`)}`, "chosen PR session is keyboard-selected")
-    await dispatchKey("Enter", "Enter", 13, 8)
-    await audit.wait(`(() => {
-      const frames = Array.from(document.querySelectorAll('[data-session-grid] iframe'))
-      return frames.length === 2 && frames.every((frame, index) => new URL(frame.src).searchParams.get('sessionId') === ${JSON.stringify(targets.map(target => target.id))}[index] && frame.contentDocument?.querySelector('[data-chat-input]')?.checkVisibility())
-    })()`, "Shift+Enter keeps current session first and opens chosen PR session beside it")
-    await capture("palette-split-open")
     if (readErrors.length) throw new Error(readErrors.join("; "))
 
-    return { name: "supervision-workspace", ok: true, detail: "Native WebMCP search/status/disclosure and project grouping, bulk selection and keyboard clearing, ranked palette sessions and state badges, PR/CI multi-select counts, PR number/state palette search, keyboard host/project scope and Shift+Enter split-open, draft review, two five-file fixture repositories, review progress and keyboard navigation, observed rail editor controls, This session/Last turn scopes with only the guarded landing action, and All restoration, composer toast clearance, a second project session opened beside the current chat with both composers and its own Changes, Files and Terminal tabs, pane resizing and dark/light layouts, and session-grid drag, keyboard reorder, split, and pop-out" }
+    return { name: "supervision-workspace", ok: true, detail: "Native WebMCP search/status/disclosure and project grouping, bulk selection and keyboard clearing, ranked palette sessions and state badges, PR/CI multi-select counts, PR number/state palette search, keyboard host/project scope, draft review, two five-file fixture repositories, review progress and keyboard navigation, observed rail editor controls, This session/Last turn scopes with only the guarded landing action, and All restoration, composer toast clearance, a second project session opened beside the current chat with both composers and its own Changes, Files and Terminal tabs, pane resizing and dark/light layouts" }
   }],
 })
 for (const line of outcome.lines) console.log(line)

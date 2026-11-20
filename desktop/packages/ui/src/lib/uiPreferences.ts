@@ -50,7 +50,7 @@ export interface UIPreferences {
   todoPanelHeight: number
   splitPaneEnabled: boolean
   splitPaneRatio: number
-  splitPaneRightTab: Exclude<MainTab, "chat" | "session-grid">
+  splitPaneRightTab: Exclude<MainTab, "chat">
   settingsPage: string
   settingsHasOpenedOnce: boolean
   settingsProjectsSelectedId: string | null

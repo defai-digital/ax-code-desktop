@@ -1,7 +1,6 @@
 {
   "all": [
     "supervision.missionControl.filter.pr",
-    "sessionGrid.layout.four",
     "axEngine.download.toast.progressWithMessage",
     "branchPickerDialog.badge.head",
     "chat.chatInput.linked.pr.number",
@@ -97,7 +96,6 @@
     "supervision.missionControl.pr.label",
     "chat.permissionCard.webmcp.how",
     "supervision.missionControl.peek.checksTotal",
-    "sessionGrid.focus",
     "app.embeddedSession.terminal",
     "diffView.landing.commits",
     "supervision.missionControl.child.countPlural",
@@ -238,7 +236,6 @@
     "supervision.missionControl.pr.label",
     "chat.permissionCard.webmcp.text",
     "supervision.missionControl.browser.chip",
-    "sessionGrid.layout",
     "app.embeddedSession.terminal",
     "app.embeddedSession.chat",
     "diffView.scope.branch",
@@ -454,7 +451,6 @@
   "pt-BR": [
     "supervision.missionControl.pr.label",
     "supervision.missionControl.peek.checksTotal",
-    "sessionGrid.layout",
     "app.embeddedSession.terminal",
     "diffView.landing.commits",
     "app.embeddedSession.chat",
@@ -543,7 +539,6 @@
   "it": [
     "supervision.missionControl.pr.label",
     "supervision.missionControl.browser.chip",
-    "sessionGrid.layout",
     "app.embeddedSession.chat",
     "diffView.scope.branch",
     "supervision.evidence.summarySingle",

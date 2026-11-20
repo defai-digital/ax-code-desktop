@@ -22,7 +22,6 @@ test("serialization keeps preferences and leaves window navigation/dialogs out",
     "isSessionCreateDialogOpen",
     "isSettingsDialogOpen",
     "browserPanel",
-    "sessionGrid",
   ])
     expect(saved).not.toHaveProperty(key)
 })

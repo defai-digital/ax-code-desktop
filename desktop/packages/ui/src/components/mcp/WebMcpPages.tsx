@@ -11,11 +11,10 @@ import { viewKeyFor, webMcpPageNeedsYou } from "@/lib/webMcpViewKey"
 const buttonClass =
   "rounded border border-border px-2 py-1 typography-micro hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
 
-export function WebMcpPageSwitcher({ selectedKey, onRetry, compact = false }: { selectedKey: string; onRetry: () => void; compact?: boolean }) {
+export function WebMcpPageSwitcher({ selectedKey, onRetry }: { selectedKey: string; onRetry: () => void }) {
   const { t } = useI18n()
   const { invoke, confirmDialog } = useWebMcpCloseConfirmation()
-  const allPages = useWebMcpPages()
-  const pages = compact ? allPages.filter((page) => page.key === selectedKey) : allPages
+  const pages = useWebMcpPages()
   const capacity = useWebMcpBrowserStore((state) => state.capacity)
   const [pending, setPending] = React.useState<string | null>(null)
   const [cancellations, setCancellations] = React.useState<Record<string, WebMcpCancellation[]>>({})
@@ -66,21 +65,20 @@ export function WebMcpPageSwitcher({ selectedKey, onRetry, compact = false }: { 
     .map(
       (page) => `${page.title} · ${page.sessionID} · ${page.project}: ${t(`webmcp.pages.access.${pageAccess(page)}`)}`,
     )
-  if (compact && !pages.length) return null
   return (
     <>
       {confirmDialog}
       <div role="status" aria-live="polite" aria-atomic="true" className="sr-only" data-webmcp-pages-status>
         {[poolMessage, ...announcements].filter(Boolean).join(". ")}
       </div>
-      <details ref={disclosure} className={compact ? "min-w-0 max-w-full rounded border border-border px-1.5 py-0.5 typography-micro" : "shrink-0 border-b border-border p-2 typography-meta"} data-webmcp-pages data-webmcp-pages-compact={compact || undefined} data-webmcp-session-page={compact ? pages[0]?.sessionID : undefined}>
+      <details ref={disclosure} className="shrink-0 border-b border-border p-2 typography-meta" data-webmcp-pages>
         <summary className="cursor-pointer break-all focus-visible:outline-none focus-visible:ring-2">
-          {compact ? `${pages[0].origin || t("webmcp.pages.blank")} · ${t(`webmcp.pages.access.${pageAccess(pages[0])}`)}` : t("webmcp.pages.title", { count: pages.length })}
+          {t("webmcp.pages.title", { count: pages.length })}
           {full ? ` · ${t("webmcp.pages.fullLabel")}` : ""}
-          {!compact && pages.some((page) => page.waiting) ? ` · ${t("webmcp.pages.waiting")}` : ""}
+          {pages.some((page) => page.waiting) ? ` · ${t("webmcp.pages.waiting")}` : ""}
         </summary>
-        {!compact && full && <p className="py-1">{poolMessage}</p>}
-        {!compact && full &&
+        {full && <p className="py-1">{poolMessage}</p>}
+        {full &&
           otherWindows.map((owner, index) => (
             <button
               key={owner.id}
@@ -110,23 +108,20 @@ export function WebMcpPageSwitcher({ selectedKey, onRetry, compact = false }: { 
                 key={page.key}
                 data-webmcp-page={page.key}
                 data-webmcp-session={page.sessionID}
-                className={compact ? "min-w-0" : "flex flex-wrap items-center gap-2"}
+                className="flex flex-wrap items-center gap-2"
               >
                 <button
                   type="button"
-                  className={`${buttonClass} min-w-0 ${compact ? "w-full" : "flex-1"} text-left break-all`}
+                  className={`${buttonClass} min-w-0 flex-1 text-left break-all`}
                   aria-current={selectedKey === page.key ? "page" : undefined}
                   aria-label={`${t("webmcp.pages.showNamed", { page: accessibleIdentity })} · ${t(`webmcp.pages.access.${pageAccess(page)}`)}${page.unloaded ? ` · ${t("webmcp.pages.unloaded")}` : ""}`}
-                  onClick={() => {
-                    showWebMcpPage(page, { keepGrid: compact })
-                    if (compact && disclosure.current) disclosure.current.open = false
-                  }}
+                  onClick={() => showWebMcpPage(page)}
                 >
-                  {compact ? t("webmcp.pages.show") : identity} · {t(`webmcp.pages.access.${pageAccess(page)}`)}
+                  {identity} · {t(`webmcp.pages.access.${pageAccess(page)}`)}
                   {page.unloaded ? ` · ${t("webmcp.pages.unloaded")}` : ""}
                 </button>
-                {!compact && page.waiting && <span className="text-[var(--status-warning)]">{t("webmcp.pages.waiting")}</span>}
-                {!compact && page.sessionID && (
+                {page.waiting && <span className="text-[var(--status-warning)]">{t("webmcp.pages.waiting")}</span>}
+                {page.sessionID && (
                   <button
                     type="button"
                     className={buttonClass}
@@ -137,7 +132,7 @@ export function WebMcpPageSwitcher({ selectedKey, onRetry, compact = false }: { 
                     {t("webmcp.pages.revoke")}
                   </button>
                 )}
-                {!compact && page.idle && !page.visible && selectedKey !== page.key && (
+                {page.idle && !page.visible && selectedKey !== page.key && (
                   <button
                     type="button"
                     className={buttonClass}

@@ -108,11 +108,13 @@ const startQuickDispatch = async (input: {
   }
   // A dispatch that never produced a session must not leave its worktree and branch behind. Once a session exists the
   // worktree is that session's home and stays.
+  let sendStarted = false
   const discardUnusedWorktree = async () => {
     if (!createdWorktree) return
-    // A send can fail after the runtime created the session but before the view moved to it. That session lives in
-    // this worktree, so the worktree is no longer unused.
-    if (getAllSyncSessions().some((item) => item.directory === createdWorktree?.path)) return
+    // A send can fail after the runtime created the session but before any store here learned of it. That session
+    // lives in this worktree, and removing the worktree would delete its files and branch. An unused worktree left
+    // behind can be removed by hand; deleted work cannot be recovered. So once the send started, keep it.
+    if (sendStarted) return
     await removeProjectWorktree(projectRef, createdWorktree, { deleteLocalBranch: true }).catch(() => {})
   }
 
@@ -164,15 +166,23 @@ const startQuickDispatch = async (input: {
   try {
     await useConfigStore.getState().activateDirectory(targetDirectory)
 
+    // The person moved on while the directory was activating: to another session (known or not), or to a draft for
+    // another directory. Sending now would deliver this prompt there instead of to a new session here.
+    const view = useSessionUIStore.getState()
+    const draftElsewhere =
+      view.newSessionDraft.open &&
+      Boolean(view.newSessionDraft.directoryOverride) &&
+      view.newSessionDraft.directoryOverride !== targetDirectory
+    if (token.superseded || token.createdSessionId || view.currentSessionId || draftElsewhere) {
+      throw new Error("superseded")
+    }
+
     const config = useConfigStore.getState()
     if (!config.currentProviderId || !config.currentModelId) {
       throw new Error("no-model")
     }
 
-    // The person picked another session while the directory was activating. Sending now would deliver this prompt
-    // to that session instead of a new one.
-    if (token.superseded) throw new Error("superseded")
-
+    sendStarted = true
     await useSessionUIStore
       .getState()
       .sendMessage(
@@ -313,24 +323,29 @@ export const QuickDispatchDialog: React.FC = () => {
     )
   })
   const [probedGitRepo, setProbedGitRepo] = React.useState<{ path: string; isGitRepo: boolean } | null>(null)
+  const [probeFailedPath, setProbeFailedPath] = React.useState<string | null>(null)
+  const [probeAttempt, setProbeAttempt] = React.useState(0)
   const selectedPath = selectedProject?.path ?? null
   React.useEffect(() => {
     if (!open || !selectedPath || knownGitRepo !== null) return
     let cancelled = false
-    // An answer from an earlier open may be out of date (the folder can become a repository in between).
-    setProbedGitRepo(null)
     // A failed probe leaves the state unknown and the start disabled: treating it as "not a repository" would
     // dispatch into the shared tree of a Git project.
     void checkIsGitRepository(selectedPath).then(
       (isGitRepo) => {
         if (!cancelled) setProbedGitRepo({ path: selectedPath, isGitRepo })
       },
-      () => {},
+      () => {
+        if (!cancelled) setProbeFailedPath(selectedPath)
+      },
     )
     return () => {
       cancelled = true
+      // An answer does not outlive its probe: the folder can become a repository before the dialog opens again.
+      setProbedGitRepo(null)
+      setProbeFailedPath(null)
     }
-  }, [open, selectedPath, knownGitRepo])
+  }, [open, selectedPath, knownGitRepo, probeAttempt])
   const gitRepoState = knownGitRepo ?? (probedGitRepo?.path === selectedPath ? probedGitRepo.isGitRepo : null)
   const isGitRepo = gitRepoState === true
   const effectiveIsolateWorktree = isGitRepo && isolateWorktree
@@ -385,7 +400,7 @@ export const QuickDispatchDialog: React.FC = () => {
       startingRef.current = false
       setStarting(false)
     }
-  }, [effectiveIsolateWorktree, openAfter, prompt, selectedProject, setQuickDispatchOpen, t])
+  }, [effectiveIsolateWorktree, gitRepoState, openAfter, prompt, selectedProject, setQuickDispatchOpen, t])
 
   const jumpTo = (item: (typeof recent)[number]) => {
     openSupervisedSession({
@@ -516,6 +531,22 @@ export const QuickDispatchDialog: React.FC = () => {
                       : "supervision.dispatch.sharedDirectoryHint",
                   )}
                 </p>
+              ) : null}
+              {gitRepoState === null ? (
+                probeFailedPath === selectedProject.path ? (
+                  <p data-dispatch-repo-check="failed" role="alert">
+                    {t("supervision.dispatch.repoCheckFailed")}{" "}
+                    <button
+                      type="button"
+                      className="underline underline-offset-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
+                      onClick={() => setProbeAttempt((attempt) => attempt + 1)}
+                    >
+                      {t("supervision.dispatch.repoCheckRetry")}
+                    </button>
+                  </p>
+                ) : (
+                  <p data-dispatch-repo-check="pending">{t("supervision.dispatch.repoChecking")}</p>
+                )
               ) : null}
               {effectiveIsolateWorktree ? (
                 <p data-dispatch-fail-closed-hint>{t("supervision.dispatch.failClosedHint")}</p>

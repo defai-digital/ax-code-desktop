@@ -1541,8 +1541,7 @@ export const Header: React.FC = () => {
       activeMainTab === "terminal" ||
       activeMainTab === "diff" ||
       activeMainTab === "files" ||
-      activeMainTab === "context" ||
-      activeMainTab === "session-grid"
+      activeMainTab === "context"
     ) {
       setActiveMainTab("chat")
     }
@@ -1861,7 +1860,7 @@ export const Header: React.FC = () => {
           <SessionIdChip sessionId={currentSessionId} className="shrink-0" />
         ) : null}
         {currentSessionId && !isNewSessionDraftOpen && openDirectory ? (
-          <SessionVersionSeal sessionId={currentSessionId} directory={openDirectory} className="ml-1 min-w-0 max-w-[14rem] shrink" />
+          <SessionVersionSeal sessionId={currentSessionId} directory={openDirectory} className="app-region-no-drag ml-1 min-w-0 max-w-[14rem] shrink" />
         ) : null}
       </div>
 

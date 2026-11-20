@@ -1,7 +1,7 @@
 import type { MainTab } from "@/stores/useUIStore"
 import { useUIStore } from "@/stores/useUIStore"
 
-export type BesideChatView = Exclude<MainTab, "chat" | "session-grid">
+export type BesideChatView = Exclude<MainTab, "chat">
 
 /**
  * The Files editor guards unsaved changes through the main-tab guard. Beside the chat it lives in the split

@@ -9,7 +9,6 @@ import { SupervisionMainOverlay } from "@/components/supervision/SupervisionOver
 import { QuickDispatchDialog } from "@/components/supervision/QuickDispatchDialog"
 import { InspectorRail } from "./InspectorRail"
 import { SplitPaneLayout } from "./SplitPaneLayout"
-import { isContextPanelHiddenUnderGrid } from "./contextPanelVisibility"
 import { resolveBesideChatRedirect } from "@/lib/supervision/besideChat"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
 import { ErrorBoundary } from "../ui/ErrorBoundary"
@@ -33,9 +32,6 @@ import { lazyWithChunkRecovery } from "@/lib/chunkLoadRecovery"
 
 import { ChatView } from "@/components/views/ChatView"
 
-const SessionGrid = lazyWithChunkRecovery(() =>
-  import("@/components/sessionGrid/SessionGrid").then((m) => ({ default: m.SessionGrid })),
-)
 const TerminalView = lazyWithChunkRecovery(() =>
   import("@/components/views/TerminalView").then((m) => ({ default: m.TerminalView })),
 )
@@ -76,7 +72,6 @@ export const MainLayout: React.FC = () => {
   const rightSidebarTab = useUIStore((state) => state.rightSidebarTab)
   const setRightSidebarOpen = useUIStore((state) => state.setRightSidebarOpen)
   const isBottomTerminalOpen = useUIStore((state) => state.isBottomTerminalOpen)
-  const gridBrowserOpen = useUIStore((state) => state.browserPanel.isOpen && state.browserPanel.focused)
   const activeMainTab = useUIStore((state) => state.activeMainTab)
   const setActiveMainTab = useUIStore((state) => state.setActiveMainTab)
   const splitPaneEnabled = useUIStore((state) => state.splitPaneEnabled)
@@ -188,10 +183,9 @@ export const MainLayout: React.FC = () => {
     if (!splitPaneEnabled) return null
     switch (splitPaneRightTab) {
       case "files":
-        // The split pane stays mounted but hidden while the session grid is the main tab.
         return (
           <React.Suspense fallback={null}>
-            <FilesView active={activeMainTab !== "session-grid"} />
+            <FilesView />
           </React.Suspense>
         )
       case "diff":
@@ -239,16 +233,10 @@ export const MainLayout: React.FC = () => {
       default:
         return null
     }
-  }, [activeMainTab, splitPaneEnabled, splitPaneRightTab])
+  }, [splitPaneEnabled, splitPaneRightTab])
 
   const secondaryView = React.useMemo(() => {
     switch (activeMainTab) {
-      case "session-grid":
-        return (
-          <React.Suspense fallback={null}>
-            <SessionGrid />
-          </React.Suspense>
-        )
       case "plan":
         return (
           <React.Suspense fallback={null}>
@@ -302,8 +290,7 @@ export const MainLayout: React.FC = () => {
     }
   }, [activeMainTab])
 
-  const isGridActive = activeMainTab === "session-grid"
-  const isChatActive = !isGridActive && (!isMobile || activeMainTab === "chat")
+  const isChatActive = !isMobile || activeMainTab === "chat"
   const visibleSidebarWidth = React.useMemo(() => {
     const rawWidth = sidebarWidth || SIDEBAR_CONTENT_WIDTH
     return Math.min(DESKTOP_SIDEBAR_MAX_WIDTH, Math.max(DESKTOP_SIDEBAR_MIN_WIDTH, rawWidth))
@@ -362,7 +349,7 @@ export const MainLayout: React.FC = () => {
               <div className="workspace-body relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
                 <SupervisionMainOverlay />
                 <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
-                  <SplitPaneLayout suspended={isGridActive || isRightSidebarOpen} rightContent={splitRightContent}>
+                  <SplitPaneLayout suspended={isRightSidebarOpen} rightContent={splitRightContent}>
                     <div className="flex flex-1 min-h-0 overflow-hidden" data-page-scroll-lock="true">
                       <div
                         className="relative flex flex-1 min-h-0 min-w-0 overflow-hidden"
@@ -374,7 +361,7 @@ export const MainLayout: React.FC = () => {
                               <ChatView />
                             </ErrorBoundary>
                           </div>
-                          {(isMobile || isGridActive) && secondaryView && (
+                          {isMobile && secondaryView && (
                             <div className="absolute inset-0 flex flex-col">
                               {isMobile && (
                                 <div className="flex h-8 flex-shrink-0 items-center border-b border-border/40 bg-sidebar px-2">
@@ -395,10 +382,7 @@ export const MainLayout: React.FC = () => {
                             </div>
                           )}
                         </main>
-                        {/* Keep the context panel mounted under the grid; a pane can reveal its page without leaving the grid. */}
-                        <div className={isContextPanelHiddenUnderGrid(activeMainTab, gridBrowserOpen) ? "hidden" : "contents"}>
-                          <ContextPanel />
-                        </div>
+                        <ContextPanel />
                       </div>
                     </div>
                   </SplitPaneLayout>
@@ -412,8 +396,7 @@ export const MainLayout: React.FC = () => {
                     ) : null}
                   </BottomTerminalDock>
                 </div>
-                {/* The rail's tools open beside the chat, which the grid covers; it returns with the workspace. */}
-                {!isGridActive && <InspectorRail />}
+                <InspectorRail />
               </div>
             </div>
           </div>

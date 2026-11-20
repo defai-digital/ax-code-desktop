@@ -125,7 +125,7 @@ project share that project's sign-in. Another project has its own. The agent act
 call for a hidden page waits, and the browser says "Agent call waiting for this page to be visible." Switching sessions
 hides a page instead of closing it. **Pages** in the browser pane lists every page this window holds, with its project,
 session, origin and access state, and lets you show a page or revoke one session's agent access. A waiting call also
-appears in Needs you, on that session's Mission Control row and in its session-grid slot. When four pages are live, opening
+appears in Needs you and on that session's Mission Control row. When four pages are live, opening
 another may unload the least recently used hidden page only when it is idle and has no detected unsaved-work signal or
 `beforeunload` handler. Pages with editable, custom/shadow, frame or drawing surfaces, prior keyboard/mouse input, or
 manual/agent actions are conservatively retained. An inconclusive probe also retains the page. Automatic closure honors

@@ -3361,8 +3361,6 @@ const senderWindow = (event) => (event ? BrowserWindow.fromWebContents(event.sen
 // Mini-chat is a small companion window that loads the dedicated mini-chat.html
 // entry; the renderer (ElectronMiniChatApp) reads mode/sessionId/directory/
 // projectId from the URL query string.
-const sessionMiniChatWindows = new Map()
-
 const createMiniChatWindow = async ({ mode, sessionId, directory, projectId }) => {
   applyRendererApiOrigin()
   const win = new BrowserWindow({
@@ -3375,14 +3373,6 @@ const createMiniChatWindow = async ({ mode, sessionId, directory, projectId }) =
     show: false,
     webPreferences: rendererWebPreferences(),
   })
-  if (mode === "session" && sessionId && directory) {
-    sessionMiniChatWindows.set(win, { sessionId, directory })
-    emitToAllWindows("openchamber:session-windows-changed", {})
-    win.once("closed", () => {
-      sessionMiniChatWindows.delete(win)
-      emitToAllWindows("openchamber:session-windows-changed", {})
-    })
-  }
   attachDesktopBrowserWebviewPolicy(win.webContents)
   attachAppWindowChrome(win)
   win.once("ready-to-show", () => win.show())
@@ -3413,10 +3403,6 @@ const createMiniChatWindow = async ({ mode, sessionId, directory, projectId }) =
   }
   return win
 }
-
-handleCommand("desktop_list_session_mini_chat_windows", async () =>
-  [...sessionMiniChatWindows.entries()].filter(([win]) => !win.isDestroyed()).map(([, target]) => target),
-)
 
 handleCommand("desktop_open_session_mini_chat_window", async (args) => {
   const sessionId = typeof args.sessionId === "string" ? args.sessionId.trim() : ""

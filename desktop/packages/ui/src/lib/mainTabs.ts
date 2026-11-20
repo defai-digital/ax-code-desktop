@@ -8,4 +8,3 @@ export type MainTab =
   | "context"
   | "wiki"
   | "board"
-  | "session-grid"

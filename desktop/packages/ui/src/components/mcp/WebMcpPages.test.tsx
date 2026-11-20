@@ -12,7 +12,6 @@ import { viewKeyFor } from "@/lib/webMcpViewKey"
 import { countSessionsWithWaitingPages } from "@/lib/webMcpViewKey"
 import { WebMcpPageSwitcher, WebMcpTrustSummary, WebMcpSessionPage } from "./WebMcpPages"
 import { NeedsYouPopover } from "@/components/supervision/NeedsYouPopover"
-import { SessionGrid } from "@/components/sessionGrid/SessionGrid"
 import { MissionControlRow } from "@/components/supervision/missionControl/MissionControlRow"
 import type { SupervisionRow } from "@/lib/supervision/rows"
 
@@ -188,37 +187,6 @@ test("Needs you surfaces a hidden waiting page even without a runtime approval",
   expect(container.querySelector("[data-webmcp-waiting]")?.textContent).not.toContain("Task B")
   fireEvent.click(container.querySelector("[data-webmcp-session-page]")!)
   expect(openSession).toHaveBeenCalledWith(expect.objectContaining({ directory: "/project-a" }))
-})
-
-test("session grid's compact switchers keep each page scoped and reachable without leaving the grid", () => {
-  useUIStore.setState({
-    activeMainTab: "session-grid",
-    sessionGrid: {
-      layout: 2,
-      ratios: { columns: 0.5, rows: 0.5 },
-      slots: [
-        { directory: "/project-a", sessionId: "ses_same" },
-        { directory: "/project-b", sessionId: "ses_same" },
-      ],
-    },
-  })
-  const { container } = render(<SessionGrid />)
-  const controls = container.querySelectorAll("[data-webmcp-pages-compact]")
-  expect(controls).toHaveLength(2)
-  expect(controls[0].querySelector("summary")?.textContent).toContain("https://a.test · Access waiting")
-  expect(controls[1].querySelector("summary")?.textContent).toContain("https://b.test · Access on")
-  expect(controls[0].querySelectorAll("[data-webmcp-page]")).toHaveLength(1)
-  expect(controls[0].querySelector('[data-webmcp-page]')?.getAttribute('data-webmcp-page')).toBe(a)
-  fireEvent.click(controls[0].querySelector("summary")!)
-  fireEvent.click(controls[0].querySelector('[data-webmcp-page] button')!)
-  expect(openSession).not.toHaveBeenCalled()
-  expect((controls[0] as HTMLDetailsElement).open).toBe(false)
-  expect(controls[0].querySelectorAll("[data-webmcp-page] button")).toHaveLength(1)
-  expect(controls[0].querySelector("[data-webmcp-page] button")?.textContent).toBe("Show page · Access waiting")
-  expect(useUIStore.getState().activeMainTab).toBe("session-grid")
-  expect(useUIStore.getState().browserPanel).toMatchObject({ isOpen: true, focused: true })
-  expect(useWebMcpBrowserStore.getState().activeKey).toBe(a)
-  expect(useWebMcpBrowserStore.getState().views[a].enabled).toBe(true)
 })
 
 test("Mission Control row exposes its own waiting page without selecting the row", () => {

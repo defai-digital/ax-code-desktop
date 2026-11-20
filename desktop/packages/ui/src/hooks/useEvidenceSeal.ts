@@ -27,7 +27,7 @@ export function useEvidenceSeal(
  */
 export function useSessionVerification(sessionId: string | null, directory: string | null): VerificationEvidence | null {
   const session = useSession(sessionId, directory ?? undefined)
-  const revision = sessionId && directory ? session?.time.updated : undefined
+  const revision = sessionId && directory ? session?.time?.updated : undefined
   const demand = React.useMemo(
     () => (sessionId && directory && revision !== undefined ? [{ sessionId, directory, updatedAt: revision }] : []),
     [sessionId, directory, revision],

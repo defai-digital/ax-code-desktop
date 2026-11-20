@@ -396,6 +396,13 @@ describe("QuickDispatchDialog worktree-first dispatch", () => {
 
     await render()
     await typePrompt("Too early")
+    const startButton = Array.from(document.querySelectorAll("button")).find(
+      (item) => item.textContent === dict["supervision.dispatch.start"],
+    )!
+    expect(startButton.disabled).toBe(true)
+    expect(document.querySelector("[data-dispatch-repo-check]")?.getAttribute("data-dispatch-repo-check")).toBe(
+      "pending",
+    )
     await clickStart()
 
     // The shortcut does not go through the disabled button.
@@ -425,6 +432,19 @@ describe("QuickDispatchDialog worktree-first dispatch", () => {
     })
 
     expect(openDraft).not.toHaveBeenCalled()
+    expect(document.querySelector("[data-dispatch-repo-check]")?.getAttribute("data-dispatch-repo-check")).toBe(
+      "failed",
+    )
+
+    // Checking again is the way out; once it answers, the dispatch isolates as usual.
+    live.checkIsGitRepository.mockResolvedValue(true)
+    await act(async () => {
+      document.querySelector<HTMLButtonElement>("[data-dispatch-repo-check] button")!.click()
+    })
+    expect(document.querySelector("[data-dispatch-repo-check]")).toBeNull()
+    expect(document.querySelector("[data-dispatch-isolation-hint]")?.textContent).toBe(
+      dict["supervision.dispatch.worktreeHint"],
+    )
   })
 
   test("removes the worktree it created when the dispatch never produced a session", async () => {
@@ -449,11 +469,8 @@ describe("QuickDispatchDialog worktree-first dispatch", () => {
   test("keeps the worktree when the send failed after the runtime created a session in it", async () => {
     vi.spyOn(useSessionUIStore.getState(), "openNewSessionDraft").mockImplementation(() => {})
     vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
-    vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockImplementation(async () => {
-      // The session exists on the runtime, but the view never moved to it.
-      live.syncSessions = [{ id: "ses_orphan", directory: "/repo/.worktrees/wt-1" }]
-      throw new Error("activation failed")
-    })
+    // The runtime may have created the session before the send failed, and no store here knows it yet.
+    vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockRejectedValue(new Error("activation failed"))
 
     await render()
     await typePrompt("Fails after create")

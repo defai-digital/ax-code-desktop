@@ -20,7 +20,6 @@ import { useSessionUIStore } from "@/sync/session-ui-store"
 import { SyncProvider, useSessions } from "@/sync/sync-context"
 import { resolveGlobalSessionDirectory, useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import { SyncRuntimeEffects } from "./AppEffects"
-import { MiniChatGridReturn } from "./MiniChatGridReturn"
 import {
   MINI_CHAT_PRESENCE_CHANNEL,
   type MiniChatPresenceMessage,
@@ -289,7 +288,6 @@ const ElectronMiniChatContent: React.FC<{ config: MiniChatConfig }> = ({ config 
     <>
       <MiniChatBootstrap config={config} />
       <MiniChatPresencePublisher />
-      <MiniChatGridReturn config={config} />
       <SyncRuntimeEffects embeddedBackgroundWorkEnabled={true} globalHousekeepingEnabled={false} />
       <MiniChatLayout mode={config.mode} autoOpenDraft={config.mode === "draft"} unavailable={sessionUnavailable} />
     </>

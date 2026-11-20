@@ -42,6 +42,9 @@ describe("VersionSeal", () => {
   test("a current seal names the commit the checks ran on and carries no verdict colour", () => {
     const chip = render({ state: "current", reason: "same-commit", head: "b4e19f2", checked: "b4e19f2" })
     expect(chip?.dataset.versionSeal).toBe("current")
+    // The reason is read once: from the hidden text, not again from a label or title on the chip.
+    expect(chip?.getAttribute("aria-label")).toBeNull()
+    expect(chip?.getAttribute("title")).toBeNull()
     expect(chip?.querySelector("[aria-hidden='true']:not(svg)")?.textContent).toBe(
       `b4e19f2 · ${dict["supervision.seal.word.current"]}`,
     )

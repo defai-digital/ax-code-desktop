@@ -368,7 +368,7 @@ it expects cumulative retention instead of accepting a fixed build. Keep before/
 
 Run `pnpm run e2e:desktop:workspace-ux -- --artifacts /tmp/ax-workspace-ux` after building.
 This isolated two-project journey checks Projects before the bounded starter list, starter disclosure, Files/sidebar
-handoffs, focused review and return, the session-grid view menu, Portfolio, and light/dark layouts at 1280 and 800 CSS
+handoffs, focused review and return, Portfolio, and light/dark layouts at 1280 and 800 CSS
 pixels. It verifies the same composer DOM node and unsent message after navigation. Screenshots accompany fresh native
 control inventories and pane measurements. The fixture does not call a provider or qualify live runtime capacity.
 

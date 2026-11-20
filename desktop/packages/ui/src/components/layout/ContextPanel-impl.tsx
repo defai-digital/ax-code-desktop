@@ -20,7 +20,6 @@ import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useInputStore } from "@/sync/input-store"
 import { ContextPanelContent } from "./ContextSidebarTab"
 import { getContextPanelRelativePathLabel } from "./contextPanelPathLabels"
-import { isContextPanelHiddenUnderGrid } from "./contextPanelVisibility"
 import {
   CONTEXT_PANEL_TAB_LABEL_MAX_CHARS as CONTEXT_TAB_LABEL_MAX_CHARS,
   contextPanelTabOpenedSince,
@@ -2176,7 +2175,6 @@ export const ContextPanel: React.FC = () => {
   const setSelectedFilePath = useFilesViewTabsStore((state) => state.setSelectedPath)
   const openContextPreview = useUIStore((state) => state.openContextPreview)
   const browserPanel = useUIStore((state) => state.browserPanel)
-  const activeMainTab = useUIStore((state) => state.activeMainTab)
   const focusContextBrowser = useUIStore((state) => state.focusContextBrowser)
   const closeContextBrowser = useUIStore((state) => state.closeContextBrowser)
   const { themeMode, lightThemeId, darkThemeId, currentTheme } = useThemeSystem()
@@ -2492,9 +2490,7 @@ export const ContextPanel: React.FC = () => {
   const hasFileTabs = React.useMemo(() => tabs.some((tab) => tab.mode === "file"), [tabs])
 
   const isFileTabActive = activeTab?.mode === "file"
-  // MainLayout hides the whole panel under the session grid; the files view must not poll there.
-  const isFilesViewActive =
-    isFileTabActive && !isContextPanelHiddenUnderGrid(activeMainTab, browserPanel.isOpen && browserPanel.focused)
+  const isFilesViewActive = isFileTabActive
 
   const header = (
     <header className="flex h-10 items-stretch border-b border-transparent">

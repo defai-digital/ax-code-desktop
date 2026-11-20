@@ -130,7 +130,7 @@ test("Tab reaches a labelled host/project filter; scope combines with PR search 
   await settle()
 })
 
-test("Shift+Enter opens the keyboard-selected session without entering retired session-grid", async () => {
+test("Shift+Enter opens the keyboard-selected session in the workspace", async () => {
   const open = vi.spyOn(useSessionUIStore.getState(), "setCurrentSession").mockImplementation(() => {})
   render(<CommandPalette />)
   fireEvent.change(input(), { target: { value: "#PR" } })
@@ -163,7 +163,7 @@ test("plain Enter opens normally and Shift+Enter on the current session does not
 })
 
 test.each(["selected child", "current child", "missing current", "selected directory", "current directory"])(
-  "Shift+Enter opens normally when the grid cannot resolve the %s",
+  "Shift+Enter opens normally for the %s",
   async (scenario) => {
     const child = { ...sessions[0], id: "child", title: "Child session", parentID: "open" }
     useGlobalSessionsStore.setState({ activeSessions: [...sessions, child] })
@@ -181,7 +181,6 @@ test.each(["selected child", "current child", "missing current", "selected direc
     if (scenario === "current child") useSessionUIStore.setState({ currentSessionId: "child" })
     if (scenario === "missing current") useSessionUIStore.setState({ currentSessionId: "missing" })
     const open = vi.spyOn(useSessionUIStore.getState(), "setCurrentSession").mockImplementation(() => {})
-    const grid = useUIStore.getState().sessionGrid
     render(<CommandPalette />)
     fireEvent.change(input(), { target: { value: scenario === "selected child" ? "Child session" : "#124" } })
     await settle()
@@ -191,7 +190,6 @@ test.each(["selected child", "current child", "missing current", "selected direc
       scenario === "selected child" ? "/alpha" : "/beta",
     )
     expect(useUIStore.getState().activeMainTab).toBe("chat")
-    expect(useUIStore.getState().sessionGrid).toBe(grid)
     expect(useUIStore.getState().isCommandPaletteOpen).toBe(false)
   },
 )

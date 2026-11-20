@@ -14,8 +14,8 @@ const PERSISTED_SPLIT_PANE_RIGHT_TABS = {
   context: true,
   wiki: true,
   board: true,
-} as const satisfies Record<Exclude<MainTab, "chat" | "session-grid">, true>
+} as const satisfies Record<Exclude<MainTab, "chat">, true>
 
-export function isPersistedSplitPaneRightTab(value: unknown): value is Exclude<MainTab, "chat" | "session-grid"> {
+export function isPersistedSplitPaneRightTab(value: unknown): value is Exclude<MainTab, "chat"> {
   return typeof value === "string" && Object.prototype.hasOwnProperty.call(PERSISTED_SPLIT_PANE_RIGHT_TABS, value)
 }
