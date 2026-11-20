@@ -85,6 +85,23 @@ describe("beside-chat views and the Files unsaved-changes guard", () => {
     expect(useUIStore.getState().splitPaneEnabled).toBe(true)
   })
 
+  test("on mobile the toggle covers the chat with the last view and then returns to it", () => {
+    useUIStore.setState({ isMobile: true, activeMainTab: "chat", splitPaneEnabled: false, splitPaneRightTab: "git" })
+    expect(toggleBesideChat()).toBe(true)
+    expect(useUIStore.getState().activeMainTab).toBe("git")
+    expect(toggleBesideChat()).toBe(true)
+    expect(useUIStore.getState().activeMainTab).toBe("chat")
+    expect(useUIStore.getState().splitPaneEnabled).toBe(false)
+  })
+
+  test("on mobile cycling advances from the view that is covering the chat", () => {
+    useUIStore.setState({ isMobile: true, activeMainTab: "chat", splitPaneEnabled: false })
+    cycleBesideChat()
+    expect(useUIStore.getState().activeMainTab).toBe("git")
+    cycleBesideChat()
+    expect(useUIStore.getState().activeMainTab).toBe("files")
+  })
+
   test("cycling walks Git, Files and Context and starts at Git from any other view", () => {
     useUIStore.setState({ splitPaneEnabled: false, splitPaneRightTab: "files" })
     cycleBesideChat()

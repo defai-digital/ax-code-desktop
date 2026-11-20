@@ -30,7 +30,7 @@ describe("AX Code layout", () => {
     )
     // What stays up here is the browser panel and the unified right inspector toggle.
     expect(group).toContain("<WebMcpHeaderButton")
-    expect(group).toContain("pressed={splitPaneEnabled}")
+    expect(group).toContain("toggleBesideChat()")
     // Terminal, split pane and plan each had a second button beside the rail's. Two buttons for one feature made
     // people wonder which to press; the rail keeps them and their shortcuts still work.
     for (const duplicate of ["toggleBottomTerminal", "toggleSplitPane", "isBottomTerminalOpen", "showPlanTab"]) {

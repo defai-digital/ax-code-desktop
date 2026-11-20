@@ -744,9 +744,9 @@ function localRendererOrigin() {
   return getDevRendererUrl() || (app.isPackaged ? PACKAGED_RENDERER_ORIGIN : `http://127.0.0.1:${serverPort}`)
 }
 
-// Builds the main window without loading the renderer. Startup creates it
-// before the local server is ready so the opening artwork plays inside the
-// main window; createWindow() below loads the renderer into it later.
+// Builds the main window, hidden, without loading the renderer. Startup creates
+// it before the local server is ready; createWindow() below loads the renderer
+// into it later and ready-to-show reveals it.
 function createMainWindowShell() {
   applyRendererReadiness(RENDERER_READINESS_EVENT.RESET)
   mainWindow = new BrowserWindow({
@@ -3820,9 +3820,9 @@ app.on("will-quit", () => {
 })
 
 app.on("before-quit", (event) => {
-  // Hold every normal quit request while ending playback and service cleanup
-  // run concurrently. Explicit restart paths already set isQuitting and bypass
-  // artwork. Only the coordinator's final quit may pass its waiting guard.
+  // Hold every normal quit request while service cleanup runs. Explicit restart
+  // paths already set isQuitting and do their own cleanup. Only the
+  // coordinator's final quit may pass its waiting guard.
   if (isQuitting && quitCoordinator.state === "idle") {
     const cleanup = shutdownCleanupPromise
     if (cleanup) {

@@ -59,6 +59,12 @@ export function closeBesideChat(view: BesideChatView): boolean {
 export function toggleBesideChat(): boolean {
   const ui = useUIStore.getState()
   const view = ui.splitPaneRightTab === "terminal" ? "files" : ui.splitPaneRightTab
+  if (ui.isMobile) {
+    // No pane beside the chat on mobile: the view covers it, and leaving goes through the main-tab guard.
+    if (ui.activeMainTab === "chat") return openBesideChat(view)
+    ui.setActiveMainTab("chat")
+    return useUIStore.getState().activeMainTab === "chat"
+  }
   return ui.splitPaneEnabled ? closeBesideChat(view) : openBesideChat(view)
 }
 
@@ -67,7 +73,8 @@ const INSPECTOR_CYCLE: readonly BesideChatView[] = ["git", "files", "context"]
 /** Open the inspector on the next of Git, Files and Context. Any other view starts the cycle at Git. */
 export function cycleBesideChat(): boolean {
   const ui = useUIStore.getState()
-  const index = ui.splitPaneEnabled ? INSPECTOR_CYCLE.indexOf(ui.splitPaneRightTab) : -1
+  const shown = ui.isMobile ? ui.activeMainTab : ui.splitPaneEnabled ? ui.splitPaneRightTab : "chat"
+  const index = shown === "chat" ? -1 : INSPECTOR_CYCLE.indexOf(shown)
   return openBesideChat(INSPECTOR_CYCLE[(index + 1) % INSPECTOR_CYCLE.length])
 }
 

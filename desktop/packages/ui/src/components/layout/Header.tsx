@@ -1753,7 +1753,7 @@ export const Header: React.FC = () => {
           title={t("header.actions.rightSidebarWithShortcut", { shortcut: shortcutLabel("toggle_right_sidebar") })}
           ariaLabel={t("header.actions.toggleRightSidebarAria")}
           onClick={() => toggleBesideChat()}
-          pressed={splitPaneEnabled}
+          pressed={isMobile ? activeMainTab !== "chat" : splitPaneEnabled}
           className={HEADER_PANEL_BUTTON_CLASS}
           Icon={"layout-right"}
         />

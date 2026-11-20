@@ -41,4 +41,20 @@ describe("quit coordination", () => {
     expect(quit).toHaveBeenCalledTimes(1)
     expect(logger.warn).toHaveBeenCalledTimes(1)
   })
+
+  it("cancels when a page refuses to close, and a later quit can still finish", async () => {
+    const quit = vi.fn(),
+      onCancelled = vi.fn(),
+      logger = { warn: vi.fn() }
+    const refusal = Object.assign(new Error("page refused"), { code: "BROWSER_CLOSURE_REFUSED" })
+    const stopServices = vi.fn().mockRejectedValueOnce(refusal).mockResolvedValueOnce(undefined)
+    const coordinator = createQuitCoordinator({ onStarting: () => {}, onCancelled, stopServices, quit, logger })
+    await coordinator.handle({ preventDefault: vi.fn() })
+    expect(quit).not.toHaveBeenCalled()
+    expect(onCancelled).toHaveBeenCalledTimes(1)
+    expect(coordinator.state).toBe("idle")
+    await coordinator.handle({ preventDefault: vi.fn() })
+    expect(quit).toHaveBeenCalledTimes(1)
+    expect(coordinator.state).toBe("ready")
+  })
 })
