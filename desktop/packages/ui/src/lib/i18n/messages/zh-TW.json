@@ -5500,5 +5500,17 @@
   "supervision.dispatch.isolateWorktree": "在新的 Git worktree 中隔離執行",
   "supervision.dispatch.worktreeHint": "僅隔離新分支上的檔案；本機埠、憑證與外部寫入仍為共享。",
   "supervision.dispatch.sharedDirectoryHint": "在共享的專案目錄中執行。",
-  "supervision.dispatch.worktreeFailed": "無法為本次派工建立 Git worktree。"
+  "supervision.dispatch.worktreeFailed": "無法為本次派工建立 Git worktree。",
+  "supervision.seal.word.stale": "已過時",
+  "supervision.seal.word.current": "目前提交",
+  "supervision.seal.word.uncommitted": "未提交",
+  "supervision.seal.word.unconfirmed": "未確認",
+  "supervision.seal.reason.moved": "檢查執行於 {checked}。目前 HEAD 已變為 {head}，因此結果不再對應目前的工作樹。",
+  "supervision.seal.reason.sameCommit": "檢查是在目前的提交 {head} 上執行，且沒有未提交的變更。Desktop 無法確認檢查執行時的檔案內容完全相同。",
+  "supervision.seal.reason.mixed": "檢查是在不同的提交上執行，因此無法描述同一個工作樹。",
+  "supervision.seal.reason.dirty": "檢查是在 {head} 上執行。現在有未提交的變更，檢查可能沒有涵蓋它們。",
+  "supervision.seal.reason.noHead": "檢查執行於 {checked}。此處無法確定目前的提交。",
+  "supervision.seal.reason.unread": "檢查執行於 {checked}。最近一次讀取失敗，此狀態可能已過時。",
+  "supervision.seal.staleWarning": "驗證記錄已過時。請在提交或推送前重新執行檢查。",
+  "supervision.dispatch.failClosedHint": "如果無法建立 worktree，則不會派發任何任務。"
 }

@@ -5500,5 +5500,17 @@
   "supervision.dispatch.isolateWorktree": "Изолировать в новом Git worktree",
   "supervision.dispatch.worktreeHint": "Изолирует файлы в новой ветке; порты, учетные данные и внешние записи остаются общими.",
   "supervision.dispatch.sharedDirectoryHint": "Выполняется в общем каталоге проекта.",
-  "supervision.dispatch.worktreeFailed": "Не удалось создать Git worktree для запуска."
+  "supervision.dispatch.worktreeFailed": "Не удалось создать Git worktree для запуска.",
+  "supervision.seal.word.stale": "устарело",
+  "supervision.seal.word.current": "этот коммит",
+  "supervision.seal.word.uncommitted": "без коммита",
+  "supervision.seal.word.unconfirmed": "не подтверждено",
+  "supervision.seal.reason.moved": "Проверки выполнялись на {checked}. HEAD теперь указывает на {head}, поэтому они больше не соответствуют этому рабочему дереву.",
+  "supervision.seal.reason.sameCommit": "Проверки выполнялись на {head}, текущем коммите, и незакоммиченных изменений нет. Desktop не может подтвердить, что файлы были идентичны на момент выполнения.",
+  "supervision.seal.reason.mixed": "Проверки выполнялись на разных коммитах и не описывают одно дерево.",
+  "supervision.seal.reason.dirty": "Проверки выполнялись на {head}. Сейчас есть незакоммиченные изменения, которые они могут не охватывать.",
+  "supervision.seal.reason.noHead": "Проверки выполнялись на {checked}. Текущий коммит здесь неизвестен.",
+  "supervision.seal.reason.unread": "Проверки выполнялись на {checked}. Последнее чтение не удалось, поэтому данные могут быть устаревшими.",
+  "supervision.seal.staleWarning": "Данные проверки устарели. Запустите проверки повторно перед коммитом или отправкой.",
+  "supervision.dispatch.failClosedHint": "Если не удаётся создать worktree, ничего не отправляется."
 }

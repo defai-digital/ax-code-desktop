@@ -5500,5 +5500,17 @@
   "supervision.dispatch.isolateWorktree": "Aislar en un nuevo Git worktree",
   "supervision.dispatch.worktreeHint": "Aísla los archivos en una nueva rama; puertos, credenciales y escrituras externas siguen compartidos.",
   "supervision.dispatch.sharedDirectoryHint": "Se ejecuta en el directorio compartido del proyecto.",
-  "supervision.dispatch.worktreeFailed": "No se pudo crear un Git worktree para el envío."
+  "supervision.dispatch.worktreeFailed": "No se pudo crear un Git worktree para el envío.",
+  "supervision.seal.word.stale": "desactualizado",
+  "supervision.seal.word.current": "este commit",
+  "supervision.seal.word.uncommitted": "sin commit",
+  "supervision.seal.word.unconfirmed": "sin confirmar",
+  "supervision.seal.reason.moved": "Las comprobaciones se ejecutaron en {checked}. HEAD ahora es {head}, por lo que ya no describen este árbol.",
+  "supervision.seal.reason.sameCommit": "Las comprobaciones se ejecutaron en {head}, el commit actual, y no hay cambios sin confirmar. Desktop no puede confirmar que los archivos fueran idénticos cuando se ejecutaron.",
+  "supervision.seal.reason.mixed": "Las comprobaciones se ejecutaron en commits distintos, así que no describen un único árbol.",
+  "supervision.seal.reason.dirty": "Las comprobaciones se ejecutaron en {head}. Ahora hay cambios sin confirmar que quizá no cubran.",
+  "supervision.seal.reason.noHead": "Las comprobaciones se ejecutaron en {checked}. Aquí no se conoce el commit actual.",
+  "supervision.seal.reason.unread": "Las comprobaciones se ejecutaron en {checked}. Falló la última lectura, por lo que esto puede estar desactualizado.",
+  "supervision.seal.staleWarning": "La evidencia está desactualizada. Vuelve a ejecutar las comprobaciones antes de hacer commit o push.",
+  "supervision.dispatch.failClosedHint": "Si no se puede crear el worktree, no se despacha nada."
 }

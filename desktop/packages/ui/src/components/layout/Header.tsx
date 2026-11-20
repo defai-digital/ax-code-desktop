@@ -77,6 +77,7 @@ import { ConnectedNotificationCenter } from "@/components/notifications/Connecte
 import { useNotificationStore } from "@/stores/useNotificationStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { NeedsYouButton } from "@/components/supervision/NeedsYouButton"
+import { SessionVersionSeal } from "@/components/supervision/SessionVersionSeal"
 import { closeBesideChat, openBesideChat } from "@/lib/supervision/openBesideChat"
 import { shouldStartWindowDrag } from "@/lib/windowDrag"
 import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
@@ -1858,6 +1859,9 @@ export const Header: React.FC = () => {
         </SessionSwitcherDropdown>
         {currentSessionId && !isNewSessionDraftOpen ? (
           <SessionIdChip sessionId={currentSessionId} className="shrink-0" />
+        ) : null}
+        {currentSessionId && !isNewSessionDraftOpen && openDirectory ? (
+          <SessionVersionSeal sessionId={currentSessionId} directory={openDirectory} className="ml-1 min-w-0 max-w-[14rem] shrink" />
         ) : null}
       </div>
 

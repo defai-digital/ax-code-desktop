@@ -132,6 +132,59 @@ describe("runtime checks beside landing", () => {
     },
   )
 
+  test("checks that ran on another commit are sealed stale and warned about, without blocking the commit", async () => {
+    mocks.risk.mockResolvedValue({
+      data: {
+        envelopes: [
+          { ...envelope("passed"), sourceState: { available: true, commit: "c".repeat(40), dirtyDigest: "content-v1:aa" } },
+        ],
+      },
+    })
+    const { container } = render(<Harness />)
+    await flush()
+    const seal = container.querySelector<HTMLElement>("[data-version-seal]")
+    expect(seal?.dataset.versionSeal).toBe("stale")
+    expect(seal?.dataset.sealReason).toBe("moved")
+    expect(seal?.textContent).toContain("ccccccc \u2192 aaaaaaa")
+    expect(container.querySelector("[data-landing-evidence-outdated]")?.textContent).toBe(
+      "Evidence is out of date. Run the checks again before you commit or push.",
+    )
+    expect((screen.getByRole("button", { name: "Commit 1 staged files" }) as HTMLButtonElement).disabled).toBe(false)
+  })
+
+  test("checks on this commit are not sealed current while there are uncommitted changes", async () => {
+    mocks.risk.mockResolvedValue({
+      data: {
+        envelopes: [
+          { ...envelope("passed"), sourceState: { available: true, commit: "a".repeat(40), dirtyDigest: "content-v1:aa" } },
+        ],
+      },
+    })
+    const { container } = render(<Harness />)
+    await flush()
+    const seal = container.querySelector<HTMLElement>("[data-version-seal]")
+    expect(seal?.dataset.versionSeal).toBe("unverified")
+    expect(seal?.dataset.sealReason).toBe("dirty")
+    expect(container.querySelector("[data-landing-evidence-outdated]")).toBeNull()
+  })
+
+  test("checks on this commit with nothing uncommitted are sealed current", async () => {
+    status = { ...status, isClean: true, files: [] }
+    useGitStore.getState().restoreStatus(directory, status)
+    mocks.risk.mockResolvedValue({
+      data: {
+        envelopes: [
+          { ...envelope("passed"), sourceState: { available: true, commit: "a".repeat(40), dirtyDigest: "content-v1:aa" } },
+        ],
+      },
+    })
+    const { container } = render(<Harness />)
+    await flush()
+    const seal = container.querySelector<HTMLElement>("[data-version-seal]")
+    expect(seal?.dataset.versionSeal).toBe("current")
+    expect(seal?.textContent).toContain("aaaaaaa")
+  })
+
   test("a failed refresh visibly marks older passing evidence stale and warns without blocking", async () => {
     mocks.risk
       .mockResolvedValueOnce({ data: { envelopes: [envelope("passed")] } })

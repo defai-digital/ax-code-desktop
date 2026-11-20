@@ -25,6 +25,8 @@ import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 import { retryRemoteActivityPreview } from "@/hooks/useRemoteActivityPreviews"
 import { ChecksChip, GoalBudgetLeft } from "./MissionControlChecks"
+import { VersionSeal } from "../VersionSeal"
+import { useEvidenceSeal } from "@/hooks/useEvidenceSeal"
 
 export interface MissionControlRowProps {
   row: SupervisionRowData
@@ -75,6 +77,8 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
   const branch = useGitBranchLabel(row.directory)
   const formatEvidence = useFormatEvidence()
   const evidenceLabel = formatEvidence(row.evidence)
+  const seal = useEvidenceSeal(row.checks, row.directory)
+  const blocked = needsHuman(row.state)
   // What the agent is doing is the point of scanning the board, so it shows in every density and next to a goal or
   // error line (which stay first) rather than being the first thing dropped.
   const activity = row.activity ?? null
@@ -160,12 +164,15 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
         onClick={handleSelectClick}
         onDoubleClick={handleDoubleClick}
         className={cn(
-          "mission-control-row cursor-pointer border-l-2",
+          // The decision rail: solid for a request or a failure, dashed and neutral for expired evidence.
+          "mission-control-row cursor-pointer border-l-[3px]",
           row.state === "error"
             ? "border-l-[var(--status-error)]"
-            : needsHuman(row.state)
+            : blocked
               ? "border-l-[var(--status-warning)]"
-              : "border-l-transparent",
+              : seal.state === "stale"
+                ? "border-l-muted-foreground [border-left-style:dashed]"
+                : "border-l-transparent",
           selected && "bg-interactive-hover/50",
         )}
       >
@@ -293,7 +300,7 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
             </span>
           ) : null}
           {waitingPage ? <span data-webmcp-waiting-session={row.sessionId}
-            className="rounded border border-[var(--status-warning)]/50 px-1.5 py-0.5 typography-micro text-[var(--status-warning)]">
+            className="rounded border border-[var(--status-warning)]/50 px-1.5 py-0.5 typography-micro text-foreground">
             {t("webmcp.pages.waiting")}
           </span> : null}
           {branch ? (
@@ -303,7 +310,8 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
             </span>
           ) : null}
           <MissionControlPullRequest pr={row.pullRequest} />
-          {row.checks ? <ChecksChip checks={row.checks} /> : null}
+          {row.checks ? <ChecksChip checks={row.checks} outdated={seal.state === "stale"} /> : null}
+          {row.checks ? <VersionSeal seal={seal} /> : null}
           <GoalBudgetLeft goal={row.goal} />
           {evidenceLabel && row.evidence ? (
             <span className="mission-evidence min-w-0">
@@ -334,8 +342,11 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
               {t("supervision.missionControl.action.compare")}
             </button>
           ) : null}
+          {/* Only a row that is waiting on a person gets the filled action; every other row stays quiet. */}
           <Button
             size="sm"
+            variant={blocked ? "default" : "outline"}
+            data-mission-primary={blocked ? "decision" : "quiet"}
             className="normal-case min-w-0 max-w-full min-h-8 h-auto whitespace-normal px-3 py-1 typography-meta"
             onClick={handlePrimaryClick}
             onDoubleClick={handleActionDoubleClick}

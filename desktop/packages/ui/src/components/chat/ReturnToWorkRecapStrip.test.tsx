@@ -113,6 +113,26 @@ describe("return to work recap strip", () => {
     expect(container.textContent).toContain("supervision.recap.stale")
   })
 
+  test("a stale recap is dashed and neutral with the stale mark, and a fresh one carries no verdict mark", () => {
+    renderStrip({ sessionUpdatedAt: RECAP.time + 500 })
+    const fresh = container.querySelector<HTMLElement>("[data-return-to-work-recap]")!
+    expect(fresh.hasAttribute("data-recap-stale")).toBe(false)
+    // A recap is a summary, not a verification result: it must not show a success mark.
+    expect(fresh.querySelector("[data-status-mark]")).toBeNull()
+
+    renderStrip({ sessionUpdatedAt: RECAP.time + 60_000 })
+    const stale = container.querySelector<HTMLElement>("[data-return-to-work-recap]")!
+    expect(stale.hasAttribute("data-recap-stale")).toBe(true)
+    expect(stale.className).toContain("border-dashed")
+    expect(stale.className).not.toMatch(/status-(warning|error|success)/)
+    expect(stale.querySelector("[data-status-mark]")?.getAttribute("data-status-mark")).toBe("stale")
+  })
+
+  test("shows the version seal the caller supplies", () => {
+    renderStrip({ seal: <span data-test-seal="">b4e19f2</span> })
+    expect(container.querySelector("[data-test-seal]")?.textContent).toBe("b4e19f2")
+  })
+
   test("refreshes the recap and shows the new text", async () => {
     requestSessionRecap.mockResolvedValue({ text: "Fresh recap", time: NOW, scope: "conversation" })
     renderStrip()

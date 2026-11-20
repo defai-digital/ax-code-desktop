@@ -5500,5 +5500,17 @@
   "supervision.dispatch.isolateWorktree": "In neuem Git-Worktree isolieren",
   "supervision.dispatch.worktreeHint": "Isoliert Dateien auf einem neuen Branch; Ports, Zugangsdaten und externe Schreibzugriffe bleiben geteilt.",
   "supervision.dispatch.sharedDirectoryHint": "Läuft im gemeinsamen Projektverzeichnis.",
-  "supervision.dispatch.worktreeFailed": "Git-Worktree für den Versand konnte nicht erstellt werden."
+  "supervision.dispatch.worktreeFailed": "Git-Worktree für den Versand konnte nicht erstellt werden.",
+  "supervision.seal.word.stale": "veraltet",
+  "supervision.seal.word.current": "dieser Commit",
+  "supervision.seal.word.uncommitted": "nicht committet",
+  "supervision.seal.word.unconfirmed": "unbestätigt",
+  "supervision.seal.reason.moved": "Prüfungen liefen auf {checked}. HEAD ist jetzt {head}, daher beschreiben sie diesen Arbeitsbaum nicht mehr.",
+  "supervision.seal.reason.sameCommit": "Die Prüfungen liefen auf {head}, dem aktuellen Commit, und es gibt keine nicht committeten Änderungen. Desktop kann nicht bestätigen, dass die Dateien bei der Ausführung identisch waren.",
+  "supervision.seal.reason.mixed": "Die Prüfungen liefen auf unterschiedlichen Commits und beschreiben daher keinen einheitlichen Stand.",
+  "supervision.seal.reason.dirty": "Die Prüfungen liefen auf {head}. Es gibt jetzt nicht committete Änderungen, die sie möglicherweise nicht abdecken.",
+  "supervision.seal.reason.noHead": "Prüfungen liefen auf {checked}. Der aktuelle Commit ist hier nicht bekannt.",
+  "supervision.seal.reason.unread": "Prüfungen liefen auf {checked}. Der letzte Lesevorgang ist fehlgeschlagen, daher ist dies möglicherweise veraltet.",
+  "supervision.seal.staleWarning": "Die Nachweise sind veraltet. Führen Sie die Prüfungen vor dem Committen oder Pushen erneut aus.",
+  "supervision.dispatch.failClosedHint": "Wenn der Worktree nicht erstellt werden kann, wird nichts gestartet."
 }

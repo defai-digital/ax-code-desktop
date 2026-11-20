@@ -5500,5 +5500,17 @@
   "supervision.dispatch.isolateWorktree": "Cô lập trong một Git worktree mới",
   "supervision.dispatch.worktreeHint": "Chỉ cô lập tệp trên nhánh mới; cổng, thông tin xác thực và ghi bên ngoài vẫn dùng chung.",
   "supervision.dispatch.sharedDirectoryHint": "Chạy trong thư mục dự án dùng chung.",
-  "supervision.dispatch.worktreeFailed": "Không thể tạo Git worktree cho tác vụ."
+  "supervision.dispatch.worktreeFailed": "Không thể tạo Git worktree cho tác vụ.",
+  "supervision.seal.word.stale": "đã cũ",
+  "supervision.seal.word.current": "commit này",
+  "supervision.seal.word.uncommitted": "chưa commit",
+  "supervision.seal.word.unconfirmed": "chưa xác nhận",
+  "supervision.seal.reason.moved": "Các bước kiểm tra đã chạy trên {checked}. HEAD hiện là {head}, nên chúng không còn phản ánh cây làm việc này.",
+  "supervision.seal.reason.sameCommit": "Các kiểm tra đã chạy trên {head}, commit hiện tại, và không có thay đổi nào chưa commit. Desktop không thể xác nhận các tệp giống hệt khi kiểm tra chạy.",
+  "supervision.seal.reason.mixed": "Các kiểm tra đã chạy trên những commit khác nhau nên không mô tả cùng một cây.",
+  "supervision.seal.reason.dirty": "Các kiểm tra đã chạy trên {head}. Hiện có các thay đổi chưa commit mà chúng có thể không bao quát.",
+  "supervision.seal.reason.noHead": "Các bước kiểm tra đã chạy trên {checked}. Không xác định được commit hiện tại tại đây.",
+  "supervision.seal.reason.unread": "Các bước kiểm tra đã chạy trên {checked}. Lần đọc gần nhất đã thất bại nên thông tin này có thể đã cũ.",
+  "supervision.seal.staleWarning": "Bằng chứng kiểm tra đã cũ. Hãy chạy lại các bước kiểm tra trước khi commit hoặc push.",
+  "supervision.dispatch.failClosedHint": "Nếu không thể tạo worktree, sẽ không có gì được điều phối."
 }

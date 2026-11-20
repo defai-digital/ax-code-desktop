@@ -10,7 +10,17 @@ function checksStateKey(state: VerificationEvidenceState): I18nKey {
   return `supervision.missionControl.checks.state.${state}` as I18nKey
 }
 
-export function ChecksChip({ checks }: { checks: VerificationEvidence }) {
+interface ChecksChipProps {
+  checks: VerificationEvidence
+  /**
+   * The counts describe a tree that no longer exists. They are still shown, but without a verdict colour: a green
+   * count beside a stale seal would read as "verified".
+   */
+  outdated?: boolean
+}
+
+export function ChecksChip(props: ChecksChipProps) {
+  const { checks, outdated = false } = props
   const { t, number } = useI18n()
   const label =
     checks.state === "none"
@@ -32,13 +42,16 @@ export function ChecksChip({ checks }: { checks: VerificationEvidence }) {
         "mission-checks rounded border border-border/60 px-1.5 py-0.5 typography-micro",
         checks.stale
           ? "border-dashed text-muted-foreground"
-          : [
+          : outdated
+            ? "text-muted-foreground"
+            : [
               checks.state === "passed" && "text-[var(--status-success)]",
               checks.state === "failed" && "text-[var(--status-error)]",
               (checks.state === "pending" || checks.state === "none") && "text-muted-foreground",
             ],
       )}
       data-checks-stale={checks.stale ? "" : undefined}
+      data-checks-outdated={outdated ? "" : undefined}
       data-checks-state={checks.state}
       data-checks-passed={checks.passed}
       data-checks-failed={checks.failed}

@@ -7,6 +7,15 @@
 
 export type VerificationEvidenceState = "passed" | "failed" | "pending" | "none"
 
+/**
+ * The commit the checks ran on, as each envelope's `sourceState` reports it. The runtime's `dirtyDigest` is a
+ * fingerprint of the file contents, present for clean and edited trees alike, so it cannot say whether the tree had
+ * uncommitted changes and is not read here.
+ */
+export interface VerificationSource {
+  commit: string
+}
+
 export interface VerificationEvidence {
   state: VerificationEvidenceState
   passed: number
@@ -15,6 +24,12 @@ export interface VerificationEvidence {
   updatedAt?: number
   /** Set when the latest read failed and this is an older result; it is not shown or filtered as current. */
   stale?: boolean
+  /**
+   * The one commit every check ran on, or `"mixed"` when the envelopes name different commits. Otherwise omitted
+   * when any envelope does not say which commit it ran on, so a partly unattributed result is never presented as
+   * bound to a commit.
+   */
+  source?: VerificationSource | "mixed"
 }
 
 const WORKFLOWS = new Set(["review", "debug", "qa"])
@@ -51,6 +66,16 @@ function envelopeUpdatedAt(envelope: Record<string, unknown>): number | null | u
 }
 
 /**
+ * The commit an envelope ran on, or undefined when it does not attribute one. Attribution is optional provenance:
+ * a `sourceState` Desktop cannot read leaves the result unattributed and never hides the counts.
+ */
+function envelopeCommit(envelope: Record<string, unknown>): string | undefined {
+  const source = envelope.sourceState
+  if (!isRecord(source) || source.available !== true) return undefined
+  return typeof source.commit === "string" && source.commit ? source.commit : undefined
+}
+
+/**
  * Normalize one risk payload. Returns null when `envelopes` is missing or any
  * envelope is not the pinned schema, so a newer payload is not shown as counts.
  * An empty `envelopes` array is a recorded absence (`state: "none"`).
@@ -61,6 +86,8 @@ export function normalizeVerificationEvidence(payload: unknown): VerificationEvi
   let failed = 0
   let pending = 0
   let updatedAt: number | undefined
+  let commit: string | "mixed" | undefined
+  let unattributed = false
   for (const envelope of payload.envelopes) {
     if (!isRecord(envelope)) return null
     if (envelope.schemaVersion !== 1) return null
@@ -75,9 +102,22 @@ export function normalizeVerificationEvidence(payload: unknown): VerificationEvi
     const endedAt = envelopeUpdatedAt(envelope)
     if (endedAt === null) return null
     if (endedAt !== undefined) updatedAt = updatedAt === undefined ? endedAt : Math.max(updatedAt, endedAt)
+    const ranOn = envelopeCommit(envelope)
+    if (ranOn === undefined) unattributed = true
+    else if (commit === undefined) commit = ranOn
+    else if (commit !== ranOn) commit = "mixed"
   }
   const total = payload.envelopes.length
   const state: VerificationEvidenceState =
     total === 0 ? "none" : failed > 0 ? "failed" : pending > 0 ? "pending" : "passed"
-  return { state, passed, failed, total, ...(updatedAt !== undefined ? { updatedAt } : {}) }
+  const boundSource: VerificationEvidence["source"] =
+    commit === "mixed" ? "mixed" : unattributed || commit === undefined ? undefined : { commit }
+  return {
+    state,
+    passed,
+    failed,
+    total,
+    ...(updatedAt !== undefined ? { updatedAt } : {}),
+    ...(boundSource !== undefined ? { source: boundSource } : {}),
+  }
 }

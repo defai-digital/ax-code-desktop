@@ -25,7 +25,9 @@ import { requestDecisionKey, useRequestDecisionStore } from "@/stores/useRequest
 
 import { PermissionBatchBar } from "./PermissionBatchBar"
 import { RequestActionCard } from "./RequestActionCard"
+import { StatusMark } from "./StatusMark"
 import { SupervisionGoalLine } from "./SupervisionGoalLine"
+import { SUPERVISION_PRESENTATION } from "@/lib/supervision/presentation"
 
 type NeedsYouPopoverProps = {
   onClose: () => void
@@ -163,7 +165,8 @@ export const NeedsYouPopover: React.FC<NeedsYouPopoverProps> = ({ onClose }) => 
                   >
                     <span className="flex min-w-0 items-center gap-2">
                       <span className="min-w-0 flex-1 truncate typography-ui-label text-foreground">{row.title}</span>
-                      <span className="shrink-0 typography-micro text-[var(--status-warning)]">
+                      <span className="inline-flex shrink-0 items-center gap-1 typography-micro text-foreground">
+                        <StatusMark kind={SUPERVISION_PRESENTATION[row.state].mark} />
                         {row.state === "error"
                           ? t("projects.home.needsYou.error")
                           : row.state === "goal"

@@ -5500,5 +5500,17 @@
   "supervision.dispatch.isolateWorktree": "Isola in un nuovo Git worktree",
   "supervision.dispatch.worktreeHint": "Isola i file su un nuovo branch; porte, credenziali e scritture esterne restano condivise.",
   "supervision.dispatch.sharedDirectoryHint": "Eseguito nella directory condivisa del progetto.",
-  "supervision.dispatch.worktreeFailed": "Impossibile creare un Git worktree per l'invio."
+  "supervision.dispatch.worktreeFailed": "Impossibile creare un Git worktree per l'invio.",
+  "supervision.seal.word.stale": "obsoleto",
+  "supervision.seal.word.current": "questo commit",
+  "supervision.seal.word.uncommitted": "non committato",
+  "supervision.seal.word.unconfirmed": "non confermato",
+  "supervision.seal.reason.moved": "I controlli sono stati eseguiti su {checked}. HEAD ora è {head}, quindi non descrivono più questo albero.",
+  "supervision.seal.reason.sameCommit": "I controlli sono stati eseguiti su {head}, il commit corrente, e non ci sono modifiche non committate. Desktop non può confermare che i file fossero identici al momento dell'esecuzione.",
+  "supervision.seal.reason.mixed": "I controlli sono stati eseguiti su commit diversi, quindi non descrivono un unico albero.",
+  "supervision.seal.reason.dirty": "I controlli sono stati eseguiti su {head}. Ora ci sono modifiche non committate che potrebbero non coprire.",
+  "supervision.seal.reason.noHead": "I controlli sono stati eseguiti su {checked}. Il commit corrente non è noto qui.",
+  "supervision.seal.reason.unread": "I controlli sono stati eseguiti su {checked}. L'ultima lettura non è riuscita, quindi questo stato potrebbe essere obsoleto.",
+  "supervision.seal.staleWarning": "Le prove sono obsolete. Esegui di nuovo i controlli prima di fare commit o push.",
+  "supervision.dispatch.failClosedHint": "Se non è possibile creare il worktree, non viene inviato nulla."
 }

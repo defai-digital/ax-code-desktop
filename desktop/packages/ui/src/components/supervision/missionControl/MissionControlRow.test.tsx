@@ -18,6 +18,7 @@ vi.mock("@/lib/i18n", () => ({
 const { retryPreview } = vi.hoisted(() => ({ retryPreview: vi.fn() }))
 vi.mock("@/hooks/useRemoteActivityPreviews", () => ({ retryRemoteActivityPreview: retryPreview }))
 import { MissionControlRow } from "./MissionControlRow"
+import { useGitStore } from "@/stores/useGitStore"
 
 const row: SupervisionRow = {
   sessionId: "s1",
@@ -72,6 +73,53 @@ describe("Mission Control row interaction", () => {
         </div>,
       ),
     )
+  test("only a row waiting on a person gets the filled action", () => {
+    const primary = (state: Parameters<typeof render>[0]) => {
+      render(state)
+      return container.querySelector<HTMLElement>("[data-mission-primary]")!
+    }
+    const filled = primary("permission").className
+    const quiet = primary("idle").className
+    // The two must really be drawn differently, not just labelled differently.
+    expect(filled).not.toBe(quiet)
+    for (const state of ["permission", "question", "goal"] as const) {
+      expect(primary(state).dataset.missionPrimary).toBe("decision")
+      expect(primary(state).className).toBe(filled)
+    }
+    for (const state of ["review", "running", "error", "idle"] as const) {
+      expect(primary(state).dataset.missionPrimary).toBe("quiet")
+      expect(primary(state).className).toBe(quiet)
+    }
+  })
+
+  test("checks that ran on another commit seal the row stale with a dashed neutral rail", () => {
+    const head = "b".repeat(40)
+    useGitStore.setState({
+      directories: new Map([["/repo", { status: { headOid: head, isClean: true, files: [] } } as never]]),
+    })
+    const checks = { state: "passed" as const, passed: 2, failed: 0, total: 2 }
+    render("idle", { checks: { ...checks, source: { commit: "a".repeat(40) } } })
+    const rowElement = container.querySelector<HTMLElement>("#mission-row-s1")!
+    expect(container.querySelector("[data-version-seal]")?.getAttribute("data-version-seal")).toBe("stale")
+    expect(rowElement.className).toContain("[border-left-style:dashed]")
+    // Passing counts on an expired result must not stay green beside the stale seal.
+    const chip = container.querySelector<HTMLElement>("[data-checks-state]")!
+    expect(chip.hasAttribute("data-checks-outdated")).toBe(true)
+    expect(chip.className).not.toContain("status-success")
+    expect(rowElement.className).not.toMatch(/border-l-\[var\(--status/)
+
+    render("idle", { checks: { ...checks, source: { commit: head } } })
+    expect(container.querySelector("[data-version-seal]")?.getAttribute("data-version-seal")).toBe("current")
+    expect(container.querySelector<HTMLElement>("#mission-row-s1")!.className).toContain("border-l-transparent")
+
+    // A request outranks expired evidence on the rail: the decision is what the person must see first.
+    render("permission", { checks: { ...checks, source: { commit: "a".repeat(40) } } })
+    expect(container.querySelector<HTMLElement>("#mission-row-s1")!.className).toContain(
+      "border-l-[var(--status-warning)]",
+    )
+    useGitStore.setState({ directories: new Map() })
+  })
+
   test("primary and remove actions do not select the row; row selection returns focus to the grid", () => {
     render()
     const buttons = container.querySelectorAll("button")

@@ -130,4 +130,64 @@ describe("normalizeVerificationEvidence", () => {
       }),
     ).toBeNull()
   })
+
+  const ranOn = (commit: string, dirtyDigest: string | null = "content-v1:aa") => ({
+    sourceState: { available: true, commit, dirtyDigest },
+  })
+
+  test("binds the result to the one commit every check ran on, whatever the content fingerprint", () => {
+    expect(
+      normalizeVerificationEvidence({
+        envelopes: [
+          envelope({ passed: true, status: "passed" }, ranOn("abc", "content-v1:aa")),
+          envelope({ passed: true, status: "passed" }, ranOn("abc", "content-v1:bb")),
+          envelope({ passed: true, status: "passed" }, ranOn("abc", null)),
+        ],
+      })?.source,
+    ).toEqual({ commit: "abc" })
+  })
+
+  test("reports mixed when checks ran on different commits", () => {
+    expect(
+      normalizeVerificationEvidence({
+        envelopes: [
+          envelope({ passed: true, status: "passed" }, ranOn("abc")),
+          envelope({ passed: true, status: "passed" }, ranOn("def")),
+        ],
+      })?.source,
+    ).toBe("mixed")
+  })
+
+  test("different commits stay mixed even when another check names none", () => {
+    expect(
+      normalizeVerificationEvidence({
+        envelopes: [
+          envelope({ passed: true, status: "passed" }, ranOn("abc")),
+          envelope({ passed: true, status: "passed" }, ranOn("def")),
+          envelope({ passed: true, status: "passed" }),
+        ],
+      })?.source,
+    ).toBe("mixed")
+  })
+
+  test("leaves the result unbound, with its counts, when any check does not name a readable commit", () => {
+    for (const sourceState of [
+      undefined,
+      null,
+      "abc",
+      { available: false, commit: null, dirtyDigest: null },
+      { available: "yes", commit: "abc", dirtyDigest: null },
+      { available: true, commit: 7, dirtyDigest: null },
+      { available: true, commit: "", dirtyDigest: null },
+      { available: true, commit: null },
+    ]) {
+      const evidence = normalizeVerificationEvidence({
+        envelopes: [
+          envelope({ passed: true, status: "passed" }, ranOn("abc")),
+          envelope({ passed: false, status: "failed" }, sourceState === undefined ? {} : { sourceState }),
+        ],
+      })
+      expect(evidence).toEqual({ state: "failed", passed: 1, failed: 1, total: 2 })
+    }
+  })
 })

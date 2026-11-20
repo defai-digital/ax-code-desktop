@@ -1,8 +1,9 @@
-import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
 import { SUPERVISION_PRESENTATION } from "@/lib/supervision/presentation"
 import type { SupervisionState } from "@/lib/supervision/sessionState"
 import { cn } from "@/lib/utils"
+
+import { StatusMark } from "./StatusMark"
 
 interface SupervisionStateBadgeProps {
   state: SupervisionState
@@ -19,22 +20,12 @@ export function SupervisionStateBadge(props: SupervisionStateBadgeProps) {
       data-supervision-state={state}
       aria-label={label}
       className={cn(
-        "inline-flex max-w-full items-center gap-1.5 rounded-full border px-2 py-1 typography-meta",
-        meta.tone,
+        "inline-flex max-w-full items-center gap-1.5 rounded-md border border-border px-2 py-1 typography-meta",
+        // The word stays in the foreground colour: the mark is the only coloured part of a state.
+        state === "idle" ? "text-muted-foreground" : "text-foreground",
       )}
     >
-      {state === "running" || state === "idle" ? (
-        <span
-          aria-hidden="true"
-          className={cn(
-            "h-1.5 w-1.5 shrink-0 rounded-full",
-            meta.dot,
-            state === "running" && "motion-safe:animate-pulse",
-          )}
-        />
-      ) : (
-        <Icon name={meta.icon} className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-      )}
+      <StatusMark kind={meta.mark} className={state === "running" ? "motion-safe:animate-spin" : undefined} />
       <span className="min-w-0 [overflow-wrap:anywhere]">{label}</span>
     </span>
   )

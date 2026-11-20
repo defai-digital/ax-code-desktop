@@ -5500,5 +5500,17 @@
   "supervision.dispatch.isolateWorktree": "新しい Git worktree で分離実行",
   "supervision.dispatch.worktreeHint": "新しいブランチ上のファイルのみ分離します。ポート、認証情報、外部書き込みは共有されます。",
   "supervision.dispatch.sharedDirectoryHint": "共有プロジェクトディレクトリで実行します。",
-  "supervision.dispatch.worktreeFailed": "ディスパッチ用の Git worktree を作成できませんでした。"
+  "supervision.dispatch.worktreeFailed": "ディスパッチ用の Git worktree を作成できませんでした。",
+  "supervision.seal.word.stale": "古い",
+  "supervision.seal.word.current": "このコミット",
+  "supervision.seal.word.uncommitted": "未コミット",
+  "supervision.seal.word.unconfirmed": "未確認",
+  "supervision.seal.reason.moved": "チェックは {checked} で実行されました。現在の HEAD は {head} のため、この作業ツリーの状態とは一致しません。",
+  "supervision.seal.reason.sameCommit": "チェックは現在のコミット {head} で実行され、未コミットの変更はありません。実行時のファイルが同一だったかどうかは Desktop では確認できません。",
+  "supervision.seal.reason.mixed": "チェックは異なるコミットで実行されたため、1 つのツリーの状態を表していません。",
+  "supervision.seal.reason.dirty": "チェックは {head} で実行されました。現在は未コミットの変更があり、チェックの対象外の可能性があります。",
+  "supervision.seal.reason.noHead": "チェックは {checked} で実行されました。ここでは現在のコミットが不明です。",
+  "supervision.seal.reason.unread": "チェックは {checked} で実行されました。最新の読み込みに失敗したため、情報が古い可能性があります。",
+  "supervision.seal.staleWarning": "検証結果が古くなっています。コミットやプッシュの前にチェックを再実行してください。",
+  "supervision.dispatch.failClosedHint": "worktree を作成できない場合、何もディスパッチされません。"
 }

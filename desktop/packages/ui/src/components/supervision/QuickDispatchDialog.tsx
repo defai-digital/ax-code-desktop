@@ -110,6 +110,9 @@ const startQuickDispatch = async (input: {
   // worktree is that session's home and stays.
   const discardUnusedWorktree = async () => {
     if (!createdWorktree) return
+    // A send can fail after the runtime created the session but before the view moved to it. That session lives in
+    // this worktree, so the worktree is no longer unused.
+    if (getAllSyncSessions().some((item) => item.directory === createdWorktree?.path)) return
     await removeProjectWorktree(projectRef, createdWorktree, { deleteLocalBranch: true }).catch(() => {})
   }
 
@@ -135,12 +138,17 @@ const startQuickDispatch = async (input: {
     }
   }
 
-  session.openNewSessionDraft({
-    selectedProjectId: input.project.id,
-    directoryOverride: targetDirectory,
-    // The dispatch is always an Agent prompt; the project's own work mode is not its to change.
-    preserveWorkMode: true,
-  })
+  try {
+    session.openNewSessionDraft({
+      selectedProjectId: input.project.id,
+      directoryOverride: targetDirectory,
+      // The dispatch is always an Agent prompt; the project's own work mode is not its to change.
+      preserveWorkMode: true,
+    })
+  } catch {
+    await discardUnusedWorktree()
+    return { ok: false, reason: "failed" }
+  }
 
   const known = knownSessionIds(previousSessionId)
   let token = createDispatchToken()
@@ -160,6 +168,10 @@ const startQuickDispatch = async (input: {
     if (!config.currentProviderId || !config.currentModelId) {
       throw new Error("no-model")
     }
+
+    // The person picked another session while the directory was activating. Sending now would deliver this prompt
+    // to that session instead of a new one.
+    if (token.superseded) throw new Error("superseded")
 
     await useSessionUIStore
       .getState()
@@ -305,11 +317,16 @@ export const QuickDispatchDialog: React.FC = () => {
   React.useEffect(() => {
     if (!open || !selectedPath || knownGitRepo !== null) return
     let cancelled = false
-    void checkIsGitRepository(selectedPath)
-      .catch(() => false)
-      .then((isGitRepo) => {
+    // An answer from an earlier open may be out of date (the folder can become a repository in between).
+    setProbedGitRepo(null)
+    // A failed probe leaves the state unknown and the start disabled: treating it as "not a repository" would
+    // dispatch into the shared tree of a Git project.
+    void checkIsGitRepository(selectedPath).then(
+      (isGitRepo) => {
         if (!cancelled) setProbedGitRepo({ path: selectedPath, isGitRepo })
-      })
+      },
+      () => {},
+    )
     return () => {
       cancelled = true
     }
@@ -323,7 +340,8 @@ export const QuickDispatchDialog: React.FC = () => {
   const startShortcut = formatShortcutForDisplay("mod+enter")
 
   const start = React.useCallback(async () => {
-    if (!selectedProject || !prompt.trim() || startingRef.current) return
+    // The keyboard shortcut reaches here without the disabled button, so the repository check is enforced again.
+    if (!selectedProject || !prompt.trim() || startingRef.current || gitRepoState === null) return
     const project = selectedProject
     startingRef.current = true
     setStarting(true)
@@ -498,6 +516,9 @@ export const QuickDispatchDialog: React.FC = () => {
                       : "supervision.dispatch.sharedDirectoryHint",
                   )}
                 </p>
+              ) : null}
+              {effectiveIsolateWorktree ? (
+                <p data-dispatch-fail-closed-hint>{t("supervision.dispatch.failClosedHint")}</p>
               ) : null}
               {currentModelId && activeDirectoryKey === selectedProject.path ? (
                 <p>{t("supervision.dispatch.targetModel", { model: currentModelId })}</p>

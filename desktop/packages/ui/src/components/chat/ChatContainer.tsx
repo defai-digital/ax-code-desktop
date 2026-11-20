@@ -4,6 +4,7 @@ import type { Message, Part, Session } from "@defai-digital/ax-code-sdk/v2"
 
 import { ChatInput } from "./ChatInput"
 import { ReturnToWorkRecapStrip } from "./ReturnToWorkRecapStrip"
+import { SessionVersionSeal } from "@/components/supervision/SessionVersionSeal"
 import { SinceYouLeftStrip } from "@/components/supervision/SinceYouLeftStrip"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
 import { readSessionRecap } from "@/lib/supervision/sessionRecap"
@@ -1192,6 +1193,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
               onReviewChanges={() => {
                 openBesideChat("diff")
               }}
+              seal={
+                syncDirectory ? <SessionVersionSeal sessionId={currentSessionId} directory={syncDirectory} /> : null
+              }
             />
           </div>
         )}

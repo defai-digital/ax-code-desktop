@@ -5500,5 +5500,17 @@
   "supervision.dispatch.isolateWorktree": "Isoler dans un nouveau Git worktree",
   "supervision.dispatch.worktreeHint": "Isole les fichiers sur une nouvelle branche ; ports, identifiants et écritures externes restent partagés.",
   "supervision.dispatch.sharedDirectoryHint": "Exécuté dans le répertoire partagé du projet.",
-  "supervision.dispatch.worktreeFailed": "Impossible de créer un Git worktree pour cet envoi."
+  "supervision.dispatch.worktreeFailed": "Impossible de créer un Git worktree pour cet envoi.",
+  "supervision.seal.word.stale": "obsolète",
+  "supervision.seal.word.current": "ce commit",
+  "supervision.seal.word.uncommitted": "non commité",
+  "supervision.seal.word.unconfirmed": "non confirmé",
+  "supervision.seal.reason.moved": "Les vérifications ont été exécutées sur {checked}. HEAD est maintenant sur {head}, elles ne décrivent donc plus cet arbre.",
+  "supervision.seal.reason.sameCommit": "Les vérifications ont été exécutées sur {head}, le commit actuel, et il n'y a aucune modification non validée. Desktop ne peut pas confirmer que les fichiers étaient identiques lors de leur exécution.",
+  "supervision.seal.reason.mixed": "Les vérifications ont été exécutées sur des commits différents ; elles ne décrivent donc pas un seul arbre.",
+  "supervision.seal.reason.dirty": "Les vérifications ont été exécutées sur {head}. Il y a maintenant des modifications non validées qu'elles ne couvrent peut-être pas.",
+  "supervision.seal.reason.noHead": "Les vérifications ont été exécutées sur {checked}. Le commit actuel est inconnu ici.",
+  "supervision.seal.reason.unread": "Les vérifications ont été exécutées sur {checked}. La dernière lecture a échoué, ce résultat est donc peut-être obsolète.",
+  "supervision.seal.staleWarning": "Les preuves sont obsolètes. Relancez les vérifications avant de faire un commit ou un push.",
+  "supervision.dispatch.failClosedHint": "Si le worktree ne peut pas être créé, rien n'est lancé."
 }

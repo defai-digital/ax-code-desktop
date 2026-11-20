@@ -22,6 +22,11 @@ const live = vi.hoisted(() => ({
   })),
   removeProjectWorktree: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({})),
   checkIsGitRepository: vi.fn<(directory: string) => Promise<boolean>>(async () => true),
+  syncSessions: [] as Array<{ id: string; directory: string }>,
+}))
+vi.mock("@/sync/sync-refs", async (original) => ({
+  ...(await original<typeof import("@/sync/sync-refs")>()),
+  getAllSyncSessions: () => live.syncSessions,
 }))
 vi.mock("@/hooks/useSupervisionRows", () => ({ useSupervisionRows: () => live.rows }))
 vi.mock("@/sync/sync-context", () => ({ useAllLiveSessions: () => [] }))
@@ -257,6 +262,7 @@ describe("QuickDispatchDialog worktree-first dispatch", () => {
     document.body.appendChild(container)
     root = createRoot(container)
     live.rows = []
+    live.syncSessions = []
     live.createWorktreeWithDefaults.mockReset()
     live.createWorktreeWithDefaults.mockResolvedValue({ path: "/repo/.worktrees/wt-1" })
     live.removeProjectWorktree.mockReset()
@@ -392,9 +398,33 @@ describe("QuickDispatchDialog worktree-first dispatch", () => {
     await typePrompt("Too early")
     await clickStart()
 
+    // The shortcut does not go through the disabled button.
+    await act(async () => {
+      document
+        .querySelector("textarea")!
+        .dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", metaKey: true, bubbles: true }))
+    })
+
     expect(document.querySelector("[data-dispatch-isolation-hint]")).toBeNull()
     expect(openDraft).not.toHaveBeenCalled()
     expect(live.createWorktreeWithDefaults).not.toHaveBeenCalled()
+  })
+
+  test("a failed repository check keeps the start closed instead of dispatching into the shared tree", async () => {
+    useGitStore.setState({ directories: new Map(), repoSummaries: new Map() })
+    live.checkIsGitRepository.mockRejectedValue(new Error("offline"))
+    const openDraft = vi.spyOn(useSessionUIStore.getState(), "openNewSessionDraft").mockImplementation(() => {})
+
+    await render()
+    await typePrompt("Probe failed")
+    await clickStart()
+    await act(async () => {
+      document
+        .querySelector("textarea")!
+        .dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", ctrlKey: true, bubbles: true }))
+    })
+
+    expect(openDraft).not.toHaveBeenCalled()
   })
 
   test("removes the worktree it created when the dispatch never produced a session", async () => {
@@ -414,5 +444,43 @@ describe("QuickDispatchDialog worktree-first dispatch", () => {
       { deleteLocalBranch: true },
     )
     expect(errorToast).toHaveBeenCalledWith(dict["chat.chatInput.toast.noModelSelected"])
+  })
+
+  test("keeps the worktree when the send failed after the runtime created a session in it", async () => {
+    vi.spyOn(useSessionUIStore.getState(), "openNewSessionDraft").mockImplementation(() => {})
+    vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
+    vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockImplementation(async () => {
+      // The session exists on the runtime, but the view never moved to it.
+      live.syncSessions = [{ id: "ses_orphan", directory: "/repo/.worktrees/wt-1" }]
+      throw new Error("activation failed")
+    })
+
+    await render()
+    await typePrompt("Fails after create")
+    await clickStart()
+
+    expect(live.createWorktreeWithDefaults).toHaveBeenCalled()
+    expect(live.removeProjectWorktree).not.toHaveBeenCalled()
+  })
+
+  test("does not send the prompt to a session the person switched to while the worktree was activating", async () => {
+    useSessionUIStore.setState({ currentSessionId: null })
+    live.syncSessions = [{ id: "ses_existing", directory: "/repo" }]
+    vi.spyOn(useSessionUIStore.getState(), "openNewSessionDraft").mockImplementation(() => {})
+    vi.spyOn(useConfigStore.getState(), "activateDirectory").mockImplementation(async () => {
+      useSessionUIStore.setState({ currentSessionId: "ses_existing" })
+    })
+    const sendSessionMsg = vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockResolvedValue()
+
+    await render()
+    await typePrompt("Switched away")
+    await clickStart()
+
+    expect(sendSessionMsg).not.toHaveBeenCalled()
+    expect(live.removeProjectWorktree).toHaveBeenCalledWith(
+      { id: "project", path: "/repo" },
+      { path: "/repo/.worktrees/wt-1" },
+      { deleteLocalBranch: true },
+    )
   })
 })

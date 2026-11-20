@@ -5500,5 +5500,17 @@
   "supervision.dispatch.isolateWorktree": "Yeni bir Git worktree içinde yalıt",
   "supervision.dispatch.worktreeHint": "Yalnızca yeni daldaki dosyaları yalıtır; portlar, kimlik bilgileri ve dış yazmalar paylaşılmaya devam eder.",
   "supervision.dispatch.sharedDirectoryHint": "Paylaşılan proje dizininde çalışır.",
-  "supervision.dispatch.worktreeFailed": "Gönderim için Git worktree oluşturulamadı."
+  "supervision.dispatch.worktreeFailed": "Gönderim için Git worktree oluşturulamadı.",
+  "supervision.seal.word.stale": "güncel değil",
+  "supervision.seal.word.current": "bu commit",
+  "supervision.seal.word.uncommitted": "commit edilmemiş",
+  "supervision.seal.word.unconfirmed": "doğrulanmamış",
+  "supervision.seal.reason.moved": "Kontroller {checked} üzerinde çalıştırıldı. HEAD artık {head} olduğundan bu çalışma ağacını yansıtmıyor.",
+  "supervision.seal.reason.sameCommit": "Denetimler geçerli commit olan {head} üzerinde çalıştı ve commit edilmemiş değişiklik yok. Desktop, çalıştıkları sırada dosyaların aynı olduğunu doğrulayamaz.",
+  "supervision.seal.reason.mixed": "Denetimler farklı commit'lerde çalıştı, bu yüzden tek bir ağacı tanımlamıyor.",
+  "supervision.seal.reason.dirty": "Denetimler {head} üzerinde çalıştı. Şu anda kapsamayabilecekleri commit edilmemiş değişiklikler var.",
+  "supervision.seal.reason.noHead": "Kontroller {checked} üzerinde çalıştırıldı. Geçerli commit burada bilinmiyor.",
+  "supervision.seal.reason.unread": "Kontroller {checked} üzerinde çalıştırıldı. Son okuma başarısız olduğu için bu bilgi güncel olmayabilir.",
+  "supervision.seal.staleWarning": "Doğrulama verileri güncel değil. Commit veya push yapmadan önce kontrolleri yeniden çalıştırın.",
+  "supervision.dispatch.failClosedHint": "Worktree oluşturulamazsa hiçbir şey gönderilmez."
 }
