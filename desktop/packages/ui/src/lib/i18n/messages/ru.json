@@ -5496,5 +5496,9 @@
   "supervision.recap.refreshing": "Обновление...",
   "supervision.recap.reviewChanges": "Проверить изменения",
   "supervision.recap.dismiss": "Скрыть сводку",
-  "supervision.recap.updatedAgo": "Обновлено {age}"
+  "supervision.recap.updatedAgo": "Обновлено {age}",
+  "supervision.dispatch.isolateWorktree": "Изолировать в новом Git worktree",
+  "supervision.dispatch.worktreeHint": "Изолирует файлы в новой ветке; порты, учетные данные и внешние записи остаются общими.",
+  "supervision.dispatch.sharedDirectoryHint": "Выполняется в общем каталоге проекта.",
+  "supervision.dispatch.worktreeFailed": "Не удалось создать Git worktree для запуска."
 }

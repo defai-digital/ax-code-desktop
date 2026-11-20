@@ -5496,5 +5496,9 @@
   "supervision.recap.refreshing": "重新整理中...",
   "supervision.recap.reviewChanges": "檢視變更",
   "supervision.recap.dismiss": "關閉摘要",
-  "supervision.recap.updatedAgo": "更新於 {age}"
+  "supervision.recap.updatedAgo": "更新於 {age}",
+  "supervision.dispatch.isolateWorktree": "在新的 Git worktree 中隔離執行",
+  "supervision.dispatch.worktreeHint": "僅隔離新分支上的檔案；本機埠、憑證與外部寫入仍為共享。",
+  "supervision.dispatch.sharedDirectoryHint": "在共享的專案目錄中執行。",
+  "supervision.dispatch.worktreeFailed": "無法為本次派工建立 Git worktree。"
 }

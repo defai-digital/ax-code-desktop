@@ -5496,5 +5496,9 @@
   "supervision.recap.refreshing": "새로고침 중...",
   "supervision.recap.reviewChanges": "변경 사항 검토",
   "supervision.recap.dismiss": "요약 닫기",
-  "supervision.recap.updatedAgo": "{age} 전 업데이트"
+  "supervision.recap.updatedAgo": "{age} 전 업데이트",
+  "supervision.dispatch.isolateWorktree": "새 Git worktree에서 격리 실행",
+  "supervision.dispatch.worktreeHint": "새 브랜치의 파일만 격리됩니다. 포트, 자격 증명 및 외부 쓰기는 공유됩니다.",
+  "supervision.dispatch.sharedDirectoryHint": "공유 프로젝트 디렉터리에서 실행됩니다.",
+  "supervision.dispatch.worktreeFailed": "디스패치용 Git worktree를 생성할 수 없습니다."
 }

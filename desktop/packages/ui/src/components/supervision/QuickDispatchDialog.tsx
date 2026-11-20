@@ -16,8 +16,12 @@ import { toast } from "@/components/ui"
 import { useSupervisionRows } from "@/hooks/useSupervisionRows"
 import type { ProjectEntry } from "@/lib/api/types"
 import { axCodeClient } from "@/lib/ax-code/client"
+import { generateBranchName } from "@/lib/git/branchNameGenerator"
 import { useI18n } from "@/lib/i18n"
 import { formatShortcutForDisplay, getEffectiveShortcutCombo } from "@/lib/shortcuts"
+import { checkIsGitRepository } from "@/lib/gitApi"
+import { createWorktreeWithDefaults } from "@/lib/worktrees/worktreeCreate"
+import { removeProjectWorktree } from "@/lib/worktrees/worktreeManager"
 import {
   createDispatchToken,
   dispatchStillShowingAttempt,
@@ -30,6 +34,7 @@ import { openSupervisedSession } from "@/lib/supervision/openSession"
 import { cn } from "@/lib/utils"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
+import { useGitStore } from "@/stores/useGitStore"
 import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import { MESSAGE_QUEUE_MAX_PER_SESSION, useMessageQueueStore } from "@/stores/messageQueueStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
@@ -71,7 +76,7 @@ const labelForCreatedSession = (sessionId: string, prompt: string): string => {
 
 type QuickDispatchResult =
   | { ok: true }
-  | { ok: false; reason: "no-model" | "failed" }
+  | { ok: false; reason: "no-model" | "failed" | "worktree-failed" }
   | { ok: false; reason: "created"; sessionId: string; label: string; directory: string }
 
 /**
@@ -85,7 +90,29 @@ const startQuickDispatch = async (input: {
   project: ProjectEntry
   prompt: string
   openAfter: boolean
+  isolateWorktree: boolean
 }): Promise<QuickDispatchResult> => {
+  let targetDirectory = input.project.path
+  const projectRef = { id: input.project.id, path: input.project.path }
+  let createdWorktree: Awaited<ReturnType<typeof createWorktreeWithDefaults>> | null = null
+  if (input.isolateWorktree) {
+    try {
+      createdWorktree = await createWorktreeWithDefaults(projectRef, { preferredName: generateBranchName() })
+      if (!createdWorktree?.path) {
+        return { ok: false, reason: "worktree-failed" }
+      }
+      targetDirectory = createdWorktree.path
+    } catch {
+      return { ok: false, reason: "worktree-failed" }
+    }
+  }
+  // A dispatch that never produced a session must not leave its worktree and branch behind. Once a session exists the
+  // worktree is that session's home and stays.
+  const discardUnusedWorktree = async () => {
+    if (!createdWorktree) return
+    await removeProjectWorktree(projectRef, createdWorktree, { deleteLocalBranch: true }).catch(() => {})
+  }
+
   const session = useSessionUIStore.getState()
   const previousSessionId = session.currentSessionId
   const previousSessionDirectory = previousSessionId ? session.getDirectoryForSession(previousSessionId) : null
@@ -110,7 +137,7 @@ const startQuickDispatch = async (input: {
 
   session.openNewSessionDraft({
     selectedProjectId: input.project.id,
-    directoryOverride: input.project.path,
+    directoryOverride: targetDirectory,
     // The dispatch is always an Agent prompt; the project's own work mode is not its to change.
     preserveWorkMode: true,
   })
@@ -127,7 +154,7 @@ const startQuickDispatch = async (input: {
   }
 
   try {
-    await useConfigStore.getState().activateDirectory(input.project.path)
+    await useConfigStore.getState().activateDirectory(targetDirectory)
 
     const config = useConfigStore.getState()
     if (!config.currentProviderId || !config.currentModelId) {
@@ -156,7 +183,7 @@ const startQuickDispatch = async (input: {
       openSupervisedSession({
         sessionId: completion.sessionId,
         projectId: input.project.id,
-        directory: useSessionUIStore.getState().getDirectoryForSession(completion.sessionId) ?? input.project.path,
+        directory: useSessionUIStore.getState().getDirectoryForSession(completion.sessionId) ?? targetDirectory,
       })
     } else if (completion.type === "restore") {
       await restorePreviousView()
@@ -177,9 +204,10 @@ const startQuickDispatch = async (input: {
         reason: "created",
         sessionId,
         label: labelForCreatedSession(sessionId, input.prompt),
-        directory: useSessionUIStore.getState().getDirectoryForSession(sessionId) ?? input.project.path,
+        directory: useSessionUIStore.getState().getDirectoryForSession(sessionId) ?? targetDirectory,
       }
     }
+    if (!token.createdSessionId) await discardUnusedWorktree()
     if (failure.report === "no-model") return { ok: false, reason: "no-model" }
     return { ok: false, reason: "failed" }
   } finally {
@@ -204,6 +232,7 @@ export const QuickDispatchDialog: React.FC = () => {
   const [filter, setFilter] = React.useState("")
   const [prompt, setPrompt] = React.useState("")
   const [openAfter, setOpenAfter] = React.useState(false)
+  const [isolateWorktree, setIsolateWorktree] = React.useState(true)
   const [starting, setStarting] = React.useState(false)
   const startingRef = React.useRef(false)
   const promptRef = React.useRef<HTMLTextAreaElement>(null)
@@ -213,6 +242,7 @@ export const QuickDispatchDialog: React.FC = () => {
     setPrompt("")
     setFilter("")
     setOpenAfter(false)
+    setIsolateWorktree(true)
     const projectsState = useProjectsStore.getState()
     setProjectId(projectsState.activeProjectId ?? projectsState.projects[0]?.id ?? null)
     const timer = window.setTimeout(() => promptRef.current?.focus(), 0)
@@ -260,7 +290,35 @@ export const QuickDispatchDialog: React.FC = () => {
   }, [recentSessionIds, rows, sessions])
 
   const selectedProject = projects.find((project) => project.id === projectId) ?? null
-  const canStart = Boolean(selectedProject && prompt.trim() && !starting)
+  // Projects that were never opened have no Git state loaded, so an unknown answer is probed instead of read as
+  // "not a repository": that would silently turn isolation off for exactly the projects dispatched from afar.
+  const knownGitRepo = useGitStore((state) => {
+    if (!selectedProject) return false
+    return (
+      state.repoSummaries.get(selectedProject.path)?.isGitRepo ??
+      state.directories.get(selectedProject.path)?.isGitRepo ??
+      null
+    )
+  })
+  const [probedGitRepo, setProbedGitRepo] = React.useState<{ path: string; isGitRepo: boolean } | null>(null)
+  const selectedPath = selectedProject?.path ?? null
+  React.useEffect(() => {
+    if (!open || !selectedPath || knownGitRepo !== null) return
+    let cancelled = false
+    void checkIsGitRepository(selectedPath)
+      .catch(() => false)
+      .then((isGitRepo) => {
+        if (!cancelled) setProbedGitRepo({ path: selectedPath, isGitRepo })
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [open, selectedPath, knownGitRepo])
+  const gitRepoState = knownGitRepo ?? (probedGitRepo?.path === selectedPath ? probedGitRepo.isGitRepo : null)
+  const isGitRepo = gitRepoState === true
+  const effectiveIsolateWorktree = isGitRepo && isolateWorktree
+  // Starting while the repository check is open could dispatch into the shared tree of a Git project.
+  const canStart = Boolean(selectedProject && prompt.trim() && !starting && gitRepoState !== null)
   const dispatchShortcut = formatShortcutForDisplay(getEffectiveShortcutCombo("open_quick_dispatch", shortcutOverrides))
   const startShortcut = formatShortcutForDisplay("mod+enter")
 
@@ -270,13 +328,22 @@ export const QuickDispatchDialog: React.FC = () => {
     startingRef.current = true
     setStarting(true)
     try {
-      const result = await startQuickDispatch({ project, prompt: prompt.trim(), openAfter })
+      const result = await startQuickDispatch({
+        project,
+        prompt: prompt.trim(),
+        openAfter,
+        isolateWorktree: effectiveIsolateWorktree,
+      })
       if (result.ok) {
         setQuickDispatchOpen(false)
         return
       }
       if (result.reason === "no-model") {
         toast.error(t("chat.chatInput.toast.noModelSelected"))
+        return
+      }
+      if (result.reason === "worktree-failed") {
+        toast.error(t("supervision.dispatch.worktreeFailed"))
         return
       }
       if (result.reason === "created") {
@@ -300,7 +367,7 @@ export const QuickDispatchDialog: React.FC = () => {
       startingRef.current = false
       setStarting(false)
     }
-  }, [openAfter, prompt, selectedProject, setQuickDispatchOpen, t])
+  }, [effectiveIsolateWorktree, openAfter, prompt, selectedProject, setQuickDispatchOpen, t])
 
   const jumpTo = (item: (typeof recent)[number]) => {
     openSupervisedSession({
@@ -423,6 +490,15 @@ export const QuickDispatchDialog: React.FC = () => {
           {selectedProject ? (
             <div className="typography-micro text-muted-foreground">
               <p>{t("supervision.dispatch.targetPreview", { path: selectedProject.path })}</p>
+              {gitRepoState !== null ? (
+                <p data-dispatch-isolation-hint>
+                  {t(
+                    effectiveIsolateWorktree
+                      ? "supervision.dispatch.worktreeHint"
+                      : "supervision.dispatch.sharedDirectoryHint",
+                  )}
+                </p>
+              ) : null}
               {currentModelId && activeDirectoryKey === selectedProject.path ? (
                 <p>{t("supervision.dispatch.targetModel", { model: currentModelId })}</p>
               ) : null}
@@ -459,6 +535,31 @@ export const QuickDispatchDialog: React.FC = () => {
             <Checkbox checked={openAfter} onChange={setOpenAfter} ariaLabel={t("supervision.dispatch.openSession")} />
             <span className="typography-ui-label text-foreground">{t("supervision.dispatch.openSession")}</span>
           </div>
+
+          {isGitRepo ? (
+            <div
+              className="flex cursor-pointer items-center gap-2"
+              role="button"
+              tabIndex={0}
+              aria-pressed={isolateWorktree}
+              data-dispatch-isolate-worktree
+              onClick={() => setIsolateWorktree(!isolateWorktree)}
+              onKeyDown={(event) => {
+                if (event.key === " " && event.target !== event.currentTarget) return
+                if (event.key === " " || event.key === "Enter") {
+                  event.preventDefault()
+                  setIsolateWorktree(!isolateWorktree)
+                }
+              }}
+            >
+              <Checkbox
+                checked={isolateWorktree}
+                onChange={setIsolateWorktree}
+                ariaLabel={t("supervision.dispatch.isolateWorktree")}
+              />
+              <span className="typography-ui-label text-foreground">{t("supervision.dispatch.isolateWorktree")}</span>
+            </div>
+          ) : null}
         </div>
 
         <DialogFooter className="sm:items-center">

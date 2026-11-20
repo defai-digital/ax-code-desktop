@@ -5496,5 +5496,9 @@
   "supervision.recap.refreshing": "Wird aktualisiert...",
   "supervision.recap.reviewChanges": "Änderungen prüfen",
   "supervision.recap.dismiss": "Zusammenfassung schließen",
-  "supervision.recap.updatedAgo": "Aktualisiert {age}"
+  "supervision.recap.updatedAgo": "Aktualisiert {age}",
+  "supervision.dispatch.isolateWorktree": "In neuem Git-Worktree isolieren",
+  "supervision.dispatch.worktreeHint": "Isoliert Dateien auf einem neuen Branch; Ports, Zugangsdaten und externe Schreibzugriffe bleiben geteilt.",
+  "supervision.dispatch.sharedDirectoryHint": "Läuft im gemeinsamen Projektverzeichnis.",
+  "supervision.dispatch.worktreeFailed": "Git-Worktree für den Versand konnte nicht erstellt werden."
 }

@@ -5496,5 +5496,9 @@
   "supervision.recap.refreshing": "Memuat ulang...",
   "supervision.recap.reviewChanges": "Tinjau perubahan",
   "supervision.recap.dismiss": "Tutup ringkasan",
-  "supervision.recap.updatedAgo": "Diperbarui {age}"
+  "supervision.recap.updatedAgo": "Diperbarui {age}",
+  "supervision.dispatch.isolateWorktree": "Isolasi di Git worktree baru",
+  "supervision.dispatch.worktreeHint": "Mengisolasi file di cabang baru; port, kredensial, dan penulisan eksternal tetap berbagi.",
+  "supervision.dispatch.sharedDirectoryHint": "Berjalan di direktori proyek bersama.",
+  "supervision.dispatch.worktreeFailed": "Tidak dapat membuat Git worktree untuk pengiriman."
 }

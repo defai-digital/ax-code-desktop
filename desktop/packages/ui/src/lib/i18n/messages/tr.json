@@ -5496,5 +5496,9 @@
   "supervision.recap.refreshing": "Yenileniyor...",
   "supervision.recap.reviewChanges": "Değişiklikleri incele",
   "supervision.recap.dismiss": "Özeti kapat",
-  "supervision.recap.updatedAgo": "{age} önce güncellendi"
+  "supervision.recap.updatedAgo": "{age} önce güncellendi",
+  "supervision.dispatch.isolateWorktree": "Yeni bir Git worktree içinde yalıt",
+  "supervision.dispatch.worktreeHint": "Yalnızca yeni daldaki dosyaları yalıtır; portlar, kimlik bilgileri ve dış yazmalar paylaşılmaya devam eder.",
+  "supervision.dispatch.sharedDirectoryHint": "Paylaşılan proje dizininde çalışır.",
+  "supervision.dispatch.worktreeFailed": "Gönderim için Git worktree oluşturulamadı."
 }

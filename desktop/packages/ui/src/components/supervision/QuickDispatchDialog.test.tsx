@@ -6,6 +6,7 @@ import { dict } from "@/lib/i18n/messages/en"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { toast } from "@/components/ui"
 import { useConfigStore } from "@/stores/useConfigStore"
+import { useGitStore } from "@/stores/useGitStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useMessageQueueStore } from "@/stores/messageQueueStore"
@@ -14,10 +15,26 @@ import { useWorkModeStore } from "@/stores/useWorkModeStore"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
 import type { SupervisionRow } from "@/lib/supervision/rows"
 
-const live = vi.hoisted(() => ({ rows: [] as SupervisionRow[] }))
+const live = vi.hoisted(() => ({
+  rows: [] as SupervisionRow[],
+  createWorktreeWithDefaults: vi.fn<(...args: unknown[]) => Promise<{ path: string }>>(async () => ({
+    path: "/repo/.worktrees/wt-1",
+  })),
+  removeProjectWorktree: vi.fn<(...args: unknown[]) => Promise<unknown>>(async () => ({})),
+  checkIsGitRepository: vi.fn<(directory: string) => Promise<boolean>>(async () => true),
+}))
 vi.mock("@/hooks/useSupervisionRows", () => ({ useSupervisionRows: () => live.rows }))
 vi.mock("@/sync/sync-context", () => ({ useAllLiveSessions: () => [] }))
 vi.mock("@/lib/supervision/openSession", () => ({ openSupervisedSession: vi.fn() }))
+vi.mock("@/lib/worktrees/worktreeCreate", () => ({
+  createWorktreeWithDefaults: (...args: unknown[]) => live.createWorktreeWithDefaults(...args),
+}))
+vi.mock("@/lib/worktrees/worktreeManager", () => ({
+  removeProjectWorktree: (...args: unknown[]) => live.removeProjectWorktree(...args),
+}))
+vi.mock("@/lib/gitApi", () => ({
+  checkIsGitRepository: (directory: string) => live.checkIsGitRepository(directory),
+}))
 
 const { QuickDispatchDialog } = await import("./QuickDispatchDialog")
 
@@ -226,5 +243,176 @@ describe("QuickDispatchDialog recent sessions", () => {
     expect(useSupervisionStore.getState().quickDispatchOpen).toBe(true)
     expect(openSupervisedSession).not.toHaveBeenCalled()
     if (failure !== "send-failed") expect(send).not.toHaveBeenCalled()
+  })
+})
+
+describe("QuickDispatchDialog worktree-first dispatch", () => {
+  let root: Root
+  let container: HTMLDivElement
+  let errorToast: ReturnType<typeof vi.spyOn>
+
+  beforeEach(() => {
+    ;(globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true
+    container = document.createElement("div")
+    document.body.appendChild(container)
+    root = createRoot(container)
+    live.rows = []
+    live.createWorktreeWithDefaults.mockReset()
+    live.createWorktreeWithDefaults.mockResolvedValue({ path: "/repo/.worktrees/wt-1" })
+    live.removeProjectWorktree.mockReset()
+    live.removeProjectWorktree.mockResolvedValue({})
+    live.checkIsGitRepository.mockReset()
+    live.checkIsGitRepository.mockResolvedValue(true)
+    useProjectsStore.setState({ projects: [{ id: "project", path: "/repo" }], activeProjectId: "project" })
+    useGitStore.setState({ directories: new Map([["/repo", { isGitRepo: true } as never]]) })
+    useSupervisionStore.setState({ quickDispatchOpen: true, recentSessionIds: [] })
+    useConfigStore.setState({
+      activeDirectoryKey: "/repo",
+      currentProviderId: "p1",
+      currentModelId: "m1",
+      currentAgentName: "",
+      currentVariant: undefined,
+    })
+    errorToast = vi.spyOn(toast, "error").mockImplementation(() => "toast")
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+    useGitStore.setState({ directories: new Map() })
+    vi.restoreAllMocks()
+    vi.clearAllMocks()
+  })
+
+  const render = async () => {
+    await act(async () =>
+      root.render(
+        <I18nProvider>
+          <QuickDispatchDialog />
+        </I18nProvider>,
+      ),
+    )
+  }
+
+  const typePrompt = async (value: string) => {
+    await act(async () => {
+      const input = document.querySelector("textarea")!
+      Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")!.set!.call(input, value)
+      input.dispatchEvent(new Event("input", { bubbles: true }))
+    })
+  }
+
+  const clickStart = async () => {
+    await act(async () => {
+      const button = Array.from(document.querySelectorAll("button")).find(
+        (item) => item.textContent === dict["supervision.dispatch.start"],
+      )!
+      button.click()
+    })
+  }
+
+  test("defaults to Git worktree isolation and dispatches into the created worktree path", async () => {
+    const openDraft = vi.spyOn(useSessionUIStore.getState(), "openNewSessionDraft").mockImplementation(() => {})
+    const activateDir = vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
+    const sendSessionMsg = vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockResolvedValue()
+
+    await render()
+    expect(document.querySelector("[data-dispatch-isolation-hint]")?.textContent).toBe(
+      dict["supervision.dispatch.worktreeHint"],
+    )
+    await typePrompt("Implement feature safely")
+    await clickStart()
+
+    expect(live.createWorktreeWithDefaults).toHaveBeenCalledOnce()
+    expect(openDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ selectedProjectId: "project", directoryOverride: "/repo/.worktrees/wt-1" }),
+    )
+    expect(activateDir).toHaveBeenCalledWith("/repo/.worktrees/wt-1")
+    expect(sendSessionMsg).toHaveBeenCalledOnce()
+  })
+
+  test("dispatches to shared directory when worktree isolation is unchecked", async () => {
+    const openDraft = vi.spyOn(useSessionUIStore.getState(), "openNewSessionDraft").mockImplementation(() => {})
+    vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
+    vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockResolvedValue()
+
+    await render()
+    await act(async () => {
+      document.querySelector<HTMLElement>("[data-dispatch-isolate-worktree]")!.click()
+    })
+    expect(document.querySelector("[data-dispatch-isolation-hint]")?.textContent).toBe(
+      dict["supervision.dispatch.sharedDirectoryHint"],
+    )
+    await typePrompt("Quick tweak in main dir")
+    await clickStart()
+
+    expect(live.createWorktreeWithDefaults).not.toHaveBeenCalled()
+    expect(openDraft).toHaveBeenCalledWith(
+      expect.objectContaining({ selectedProjectId: "project", directoryOverride: "/repo" }),
+    )
+  })
+
+  test("aborts without mutating the shared directory when worktree creation fails", async () => {
+    live.createWorktreeWithDefaults.mockRejectedValue(new Error("git worktree add failed"))
+    const openDraft = vi.spyOn(useSessionUIStore.getState(), "openNewSessionDraft").mockImplementation(() => {})
+
+    await render()
+    await typePrompt("Needs isolation")
+    await clickStart()
+
+    expect(errorToast).toHaveBeenCalledWith(dict["supervision.dispatch.worktreeFailed"])
+    expect(openDraft).not.toHaveBeenCalled()
+    expect(useSupervisionStore.getState().quickDispatchOpen).toBe(true)
+  })
+
+  test("probes a project with no loaded Git state instead of dispatching into its shared tree", async () => {
+    useGitStore.setState({ directories: new Map(), repoSummaries: new Map() })
+    const openDraft = vi.spyOn(useSessionUIStore.getState(), "openNewSessionDraft").mockImplementation(() => {})
+    vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
+    vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockResolvedValue()
+
+    await render()
+    expect(live.checkIsGitRepository).toHaveBeenCalledWith("/repo")
+    expect(document.querySelector("[data-dispatch-isolation-hint]")?.textContent).toBe(
+      dict["supervision.dispatch.worktreeHint"],
+    )
+    await typePrompt("Dispatched from afar")
+    await clickStart()
+
+    expect(live.createWorktreeWithDefaults).toHaveBeenCalledOnce()
+    expect(openDraft).toHaveBeenCalledWith(expect.objectContaining({ directoryOverride: "/repo/.worktrees/wt-1" }))
+  })
+
+  test("cannot start while the repository check is still open", async () => {
+    useGitStore.setState({ directories: new Map(), repoSummaries: new Map() })
+    live.checkIsGitRepository.mockReturnValue(new Promise<boolean>(() => {}))
+    const openDraft = vi.spyOn(useSessionUIStore.getState(), "openNewSessionDraft").mockImplementation(() => {})
+
+    await render()
+    await typePrompt("Too early")
+    await clickStart()
+
+    expect(document.querySelector("[data-dispatch-isolation-hint]")).toBeNull()
+    expect(openDraft).not.toHaveBeenCalled()
+    expect(live.createWorktreeWithDefaults).not.toHaveBeenCalled()
+  })
+
+  test("removes the worktree it created when the dispatch never produced a session", async () => {
+    useConfigStore.setState({ currentProviderId: "", currentModelId: "" })
+    vi.spyOn(useSessionUIStore.getState(), "openNewSessionDraft").mockImplementation(() => {})
+    vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
+    const sendSessionMsg = vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockResolvedValue()
+
+    await render()
+    await typePrompt("No model configured")
+    await clickStart()
+
+    expect(sendSessionMsg).not.toHaveBeenCalled()
+    expect(live.removeProjectWorktree).toHaveBeenCalledWith(
+      { id: "project", path: "/repo" },
+      { path: "/repo/.worktrees/wt-1" },
+      { deleteLocalBranch: true },
+    )
+    expect(errorToast).toHaveBeenCalledWith(dict["chat.chatInput.toast.noModelSelected"])
   })
 })

@@ -5496,5 +5496,9 @@
   "supervision.recap.refreshing": "更新中...",
   "supervision.recap.reviewChanges": "変更をレビュー",
   "supervision.recap.dismiss": "要約を閉じる",
-  "supervision.recap.updatedAgo": "{age} に更新"
+  "supervision.recap.updatedAgo": "{age} に更新",
+  "supervision.dispatch.isolateWorktree": "新しい Git worktree で分離実行",
+  "supervision.dispatch.worktreeHint": "新しいブランチ上のファイルのみ分離します。ポート、認証情報、外部書き込みは共有されます。",
+  "supervision.dispatch.sharedDirectoryHint": "共有プロジェクトディレクトリで実行します。",
+  "supervision.dispatch.worktreeFailed": "ディスパッチ用の Git worktree を作成できませんでした。"
 }

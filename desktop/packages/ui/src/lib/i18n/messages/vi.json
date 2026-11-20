@@ -5496,5 +5496,9 @@
   "supervision.recap.refreshing": "Đang làm mới...",
   "supervision.recap.reviewChanges": "Xem lại thay đổi",
   "supervision.recap.dismiss": "Ẩn tóm tắt",
-  "supervision.recap.updatedAgo": "Cập nhật {age}"
+  "supervision.recap.updatedAgo": "Cập nhật {age}",
+  "supervision.dispatch.isolateWorktree": "Cô lập trong một Git worktree mới",
+  "supervision.dispatch.worktreeHint": "Chỉ cô lập tệp trên nhánh mới; cổng, thông tin xác thực và ghi bên ngoài vẫn dùng chung.",
+  "supervision.dispatch.sharedDirectoryHint": "Chạy trong thư mục dự án dùng chung.",
+  "supervision.dispatch.worktreeFailed": "Không thể tạo Git worktree cho tác vụ."
 }
