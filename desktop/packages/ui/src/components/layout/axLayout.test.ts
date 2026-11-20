@@ -28,12 +28,12 @@ describe("AX Code layout", () => {
       header.indexOf("data-header-panels"),
       header.indexOf("</div>", header.indexOf("data-header-panels")),
     )
-    // What stays up here has no rail entry: the browser panel and the right sidebar.
+    // What stays up here is the browser panel and the unified right inspector toggle.
     expect(group).toContain("<WebMcpHeaderButton")
-    expect(group).toContain("pressed={isRightSidebarOpen}")
+    expect(group).toContain("pressed={splitPaneEnabled}")
     // Terminal, split pane and plan each had a second button beside the rail's. Two buttons for one feature made
     // people wonder which to press; the rail keeps them and their shortcuts still work.
-    for (const duplicate of ["toggleBottomTerminal", "toggleSplitPane", "isBottomTerminalOpen", "splitPaneEnabled", "showPlanTab"]) {
+    for (const duplicate of ["toggleBottomTerminal", "toggleSplitPane", "isBottomTerminalOpen", "showPlanTab"]) {
       expect(header).not.toContain(duplicate)
     }
     const rail = source("layout/InspectorRail.tsx")

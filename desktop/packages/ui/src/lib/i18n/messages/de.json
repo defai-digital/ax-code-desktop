@@ -5489,5 +5489,12 @@
   "supervision.navigation.portfolio": "Projektübersicht",
   "splitPane.focusPanel": "Bereich fokussieren",
   "splitPane.restoreSplit": "Geteilte Ansicht wiederherstellen",
-  "splitPane.backToConversation": "Zurück zum Gespräch"
+  "splitPane.backToConversation": "Zurück zum Gespräch",
+  "supervision.recap.title": "Zusammenfassung",
+  "supervision.recap.stale": "Möglicherweise veraltet",
+  "supervision.recap.refresh": "Zusammenfassung aktualisieren",
+  "supervision.recap.refreshing": "Wird aktualisiert...",
+  "supervision.recap.reviewChanges": "Änderungen prüfen",
+  "supervision.recap.dismiss": "Zusammenfassung schließen",
+  "supervision.recap.updatedAgo": "Aktualisiert {age}"
 }

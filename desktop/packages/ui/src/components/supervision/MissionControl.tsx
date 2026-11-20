@@ -1,4 +1,3 @@
-import { openSessionGrid } from "@/lib/supervision/openSessionGrid"
 import React from "react"
 
 import { toast } from "@/components/ui"
@@ -802,7 +801,6 @@ export const MissionControl: React.FC<MissionControlProps> = ({ variant = "embed
       </span>
       {bulkRows.length > 0 ? (
         <MissionControlBulkBar
-          onOpenGrid={() => openSessionGrid(bulkRows)}
           count={bulkRows.length}
           runningCount={runningCount}
           busy={bulkBusy}

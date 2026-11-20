@@ -2,6 +2,7 @@ import type { ChildSessionSummary } from "./childSessions"
 import type { MultiRunIdentity } from "@/lib/multirun/identity"
 import type { ActivityPreview } from "./activityPreview"
 import type { SessionGoalSnapshot } from "./goal"
+import type { SessionRecap } from "./sessionRecap"
 import type { SupervisionEvidence, SupervisionState } from "./sessionState"
 import type { VerificationEvidence } from "./verificationEvidence"
 
@@ -34,6 +35,8 @@ export interface SupervisionRow {
    * todo and parts are not loaded. Omitted on rows built before activity existed.
    */
   activity?: ActivityPreview | null
+  /** Last runtime-projected plain-text recap for returning to an idle session. */
+  lastRecap?: SessionRecap | null
   errorMessage?: string
   /** Validated `metadata.multiRun` of the session; absent for sessions without it. */
   multiRun?: MultiRunIdentity

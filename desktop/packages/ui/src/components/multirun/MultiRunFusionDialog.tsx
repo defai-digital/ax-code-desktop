@@ -25,7 +25,9 @@ import type { WorktreeMetadata } from "@/types/worktree"
 import { useAllLiveSessions } from "@/sync/sync-context"
 import { getSyncMessages, getSyncParts } from "@/sync/sync-refs"
 import { flattenAssistantTextParts } from "@/lib/messages/messageText"
+import { readMultiRunIdentity } from "@/lib/multirun/identity"
 import { getFusionSessionTitle, parseMultiRunSessionTitle } from "@/lib/multirun/title"
+import { multiRunGroupKeyForRow } from "@/lib/supervision/multiRunGroups"
 import { renderMagicPrompt } from "@/lib/magicPrompts"
 import { AgentSelector } from "./AgentSelector"
 import { ModelMultiSelect, generateInstanceId, type ModelSelectionWithId } from "./ModelMultiSelect"
@@ -120,7 +122,12 @@ export function MultiRunFusionDialog({
   const [excludedSessionIds, setExcludedSessionIds] = React.useState<ReadonlySet<string>>(() => new Set())
   const [isStarting, setIsStarting] = React.useState(false)
 
+  const identity = React.useMemo(() => readMultiRunIdentity(session), [session])
   const parsed = React.useMemo(() => parseMultiRunSessionTitle(session.title), [session.title])
+  const currentGroupKey = React.useMemo(
+    () => multiRunGroupKeyForRow({ title: session.title, multiRun: identity }, parseMultiRunSessionTitle),
+    [identity, session.title],
+  )
   const allSessions = React.useMemo(() => {
     const byId = new Map<string, Session>()
     for (const candidate of liveSessions) byId.set(candidate.id, candidate)
@@ -131,7 +138,7 @@ export function MultiRunFusionDialog({
   }, [activeSessions, archivedSessions, liveSessions, session])
 
   React.useEffect(() => {
-    if (!open || !parsed) return
+    if (!open || !currentGroupKey) return
 
     const currentDirectory =
       useSessionUIStore.getState().getDirectoryForSession(session.id) ?? resolveGlobalSessionDirectory(session)
@@ -143,9 +150,11 @@ export function MultiRunFusionDialog({
     )
     const nextSources = allSessions
       .map((candidate): FusionSource | null => {
-        const candidateParsed = parseMultiRunSessionTitle(candidate.title)
-        if (!candidateParsed || candidateParsed.groupSlug !== parsed.groupSlug || candidateParsed.fusion) return null
-        if ((candidateParsed.runGroup ?? null) !== (parsed.runGroup ?? null)) return null
+        const candidateKey = multiRunGroupKeyForRow(
+          { title: candidate.title, multiRun: readMultiRunIdentity(candidate) },
+          parseMultiRunSessionTitle,
+        )
+        if (!candidateKey || candidateKey !== currentGroupKey) return null
         if (excludedSessionIds.has(candidate.id)) return null
         const directory =
           useSessionUIStore.getState().getDirectoryForSession(candidate.id) ?? resolveGlobalSessionDirectory(candidate)
@@ -165,7 +174,7 @@ export function MultiRunFusionDialog({
       .sort((a, b) => (a.session.time?.created ?? 0) - (b.session.time?.created ?? 0))
 
     setSources(nextSources)
-  }, [allSessions, availableWorktreesByProject, excludedSessionIds, open, parsed, projects, session, session.id])
+  }, [allSessions, availableWorktreesByProject, currentGroupKey, excludedSessionIds, open, projects, session, session.id])
 
   React.useEffect(() => {
     if (!open) setExcludedSessionIds(new Set())
@@ -176,7 +185,7 @@ export function MultiRunFusionDialog({
     | { variants?: Record<string, unknown> }
     | undefined
   const variantKeys = selectedProviderModel?.variants ? Object.keys(selectedProviderModel.variants) : []
-  const canStart = Boolean(parsed && providerID && modelID && sources.length > 0 && !isStarting)
+  const canStart = Boolean(currentGroupKey && providerID && modelID && sources.length > 0 && !isStarting)
 
   const handleModelSelect = React.useCallback((model: ModelSelectionWithId) => {
     setSelectedModelSelection([model])
@@ -191,7 +200,7 @@ export function MultiRunFusionDialog({
     t("multirun.fusion.model.placeholder")
 
   const handleStart = async () => {
-    if (!parsed || !providerID || !modelID) return
+    if (!currentGroupKey || !providerID || !modelID) return
     setIsStarting(true)
     try {
       const sourceTexts = await Promise.all(sources.map((source) => getLastAssistantText(source)))
@@ -211,7 +220,10 @@ export function MultiRunFusionDialog({
       }
 
       const directory = sources[0]?.projectDirectory ?? sources[0]?.directory ?? null
-      const fusionTitle = getFusionSessionTitle(parsed.groupSlug, providerID, modelID, parsed.runGroup)
+      const fallbackParsed = sources.map((source) => parseMultiRunSessionTitle(source.session.title)).find(Boolean)
+      const fusionGroupSlug = parsed?.groupSlug ?? fallbackParsed?.groupSlug ?? identity?.groupId ?? "fusion"
+      const fusionRunGroup = parsed?.runGroup ?? fallbackParsed?.runGroup
+      const fusionTitle = getFusionSessionTitle(fusionGroupSlug, providerID, modelID, fusionRunGroup)
       const [visiblePrompt, instructionsPrompt] = await Promise.all([
         renderMagicPrompt("session.fusion.visible"),
         renderMagicPrompt("session.fusion.instructions"),

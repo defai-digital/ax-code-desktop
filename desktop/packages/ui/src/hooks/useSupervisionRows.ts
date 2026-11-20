@@ -32,6 +32,7 @@ import {
   latestUnseenTreeSessionErrorMessage,
 } from "@/lib/supervision/sessionErrorMessage"
 import { goalNeedsPerson, goalRevision } from "@/lib/supervision/goal"
+import { readSessionRecap } from "@/lib/supervision/sessionRecap"
 import { verificationEvidenceFor } from "@/lib/supervision/verificationEvidenceCache"
 import { useSessionGoalStore } from "@/stores/useSessionGoalStore"
 import { useSyncNotificationStore } from "@/sync/notification-store"
@@ -152,6 +153,7 @@ function useComputedSupervisionRows(): SupervisionRow[] {
         goal,
         checks: verificationEvidenceFor(input.id, input.directory ?? null, verificationEntries),
         activity: activityBySession.get(input.id) ?? null,
+        lastRecap: readSessionRecap(session),
         ...(errorMessage ? { errorMessage } : {}),
         ...(multiRun ? { multiRun } : {}),
       })

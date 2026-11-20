@@ -5489,5 +5489,12 @@
   "supervision.navigation.portfolio": "프로젝트 개요",
   "splitPane.focusPanel": "패널에 집중",
   "splitPane.restoreSplit": "분할 보기 복원",
-  "splitPane.backToConversation": "대화로 돌아가기"
+  "splitPane.backToConversation": "대화로 돌아가기",
+  "supervision.recap.title": "요약",
+  "supervision.recap.stale": "오래되었을 수 있음",
+  "supervision.recap.refresh": "요약 새로고침",
+  "supervision.recap.refreshing": "새로고침 중...",
+  "supervision.recap.reviewChanges": "변경 사항 검토",
+  "supervision.recap.dismiss": "요약 닫기",
+  "supervision.recap.updatedAgo": "{age} 전 업데이트"
 }

@@ -5489,5 +5489,12 @@
   "supervision.navigation.portfolio": "Danh mục dự án",
   "splitPane.focusPanel": "Tập trung vào bảng",
   "splitPane.restoreSplit": "Khôi phục chế độ chia đôi",
-  "splitPane.backToConversation": "Quay lại cuộc trò chuyện"
+  "splitPane.backToConversation": "Quay lại cuộc trò chuyện",
+  "supervision.recap.title": "Tóm tắt",
+  "supervision.recap.stale": "Có thể đã cũ",
+  "supervision.recap.refresh": "Làm mới tóm tắt",
+  "supervision.recap.refreshing": "Đang làm mới...",
+  "supervision.recap.reviewChanges": "Xem lại thay đổi",
+  "supervision.recap.dismiss": "Ẩn tóm tắt",
+  "supervision.recap.updatedAgo": "Cập nhật {age}"
 }

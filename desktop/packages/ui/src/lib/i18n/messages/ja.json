@@ -5489,5 +5489,12 @@
   "supervision.navigation.portfolio": "プロジェクト一覧",
   "splitPane.focusPanel": "パネルに集中",
   "splitPane.restoreSplit": "分割表示に戻す",
-  "splitPane.backToConversation": "会話に戻る"
+  "splitPane.backToConversation": "会話に戻る",
+  "supervision.recap.title": "要約",
+  "supervision.recap.stale": "古い可能性があります",
+  "supervision.recap.refresh": "要約を更新",
+  "supervision.recap.refreshing": "更新中...",
+  "supervision.recap.reviewChanges": "変更をレビュー",
+  "supervision.recap.dismiss": "要約を閉じる",
+  "supervision.recap.updatedAgo": "{age} に更新"
 }

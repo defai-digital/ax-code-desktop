@@ -5489,5 +5489,12 @@
   "supervision.navigation.portfolio": "Cartera de proyectos",
   "splitPane.focusPanel": "Ampliar panel",
   "splitPane.restoreSplit": "Restaurar vista dividida",
-  "splitPane.backToConversation": "Volver a la conversación"
+  "splitPane.backToConversation": "Volver a la conversación",
+  "supervision.recap.title": "Resumen",
+  "supervision.recap.stale": "Puede estar desactualizado",
+  "supervision.recap.refresh": "Actualizar resumen",
+  "supervision.recap.refreshing": "Actualizando...",
+  "supervision.recap.reviewChanges": "Revisar cambios",
+  "supervision.recap.dismiss": "Cerrar resumen",
+  "supervision.recap.updatedAgo": "Actualizado {age}"
 }

@@ -535,4 +535,54 @@ describe("Mission Control stale preview", () => {
     )
     expect(container.querySelector("[data-activity-retry]")).toBeNull()
   })
+
+  test("shows lastRecap on an idle row when no goal or error is present", () => {
+    const { container } = renderDom(
+      <MissionControlRow
+        row={{
+          ...row,
+          state: "idle",
+          goal: null,
+          lastRecap: { text: "Added unit tests for recap strip", time: 1_700_000_000_000, scope: "conversation" },
+        }}
+        selected={false}
+        bulkSelected={false}
+        onToggleSelection={vi.fn()}
+        expanded={false}
+        activeWorkingSetId={null}
+        primaryLabel="Open"
+        onToggleDetails={vi.fn()}
+        onSelect={vi.fn()}
+        onOpen={vi.fn()}
+        onPrimary={vi.fn()}
+        onRemoveFromSet={vi.fn()}
+      />,
+    )
+    expect(container.querySelector("[data-mission-recap]")?.textContent).toBe("Added unit tests for recap strip")
+  })
+
+  test("hides lastRecap when the row is running", () => {
+    const { container } = renderDom(
+      <MissionControlRow
+        row={{
+          ...row,
+          state: "running",
+          goal: null,
+          lastRecap: { text: "Older recap", time: 1_700_000_000_000, scope: "turn" },
+        }}
+        selected={false}
+        bulkSelected={false}
+        onToggleSelection={vi.fn()}
+        expanded={false}
+        activeWorkingSetId={null}
+        primaryLabel="Open"
+        onToggleDetails={vi.fn()}
+        onSelect={vi.fn()}
+        onOpen={vi.fn()}
+        onPrimary={vi.fn()}
+        onRemoveFromSet={vi.fn()}
+      />,
+    )
+    expect(container.querySelector("[data-mission-recap]")).toBeNull()
+  })
 })

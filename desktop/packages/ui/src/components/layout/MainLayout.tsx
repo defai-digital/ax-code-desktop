@@ -2,8 +2,7 @@ import React from "react"
 import { Header } from "./Header"
 import { BottomTerminalDock } from "./BottomTerminalDock"
 import { Sidebar, SIDEBAR_CONTENT_WIDTH } from "./Sidebar"
-import { RightSidebar, RIGHT_SIDEBAR_CONTENT_WIDTH } from "./RightSidebar"
-import { ProjectContextPanel, RightSidebarTabs } from "./RightSidebarTabs"
+import { ProjectContextPanel } from "./RightSidebarTabs"
 import { ContextPanel } from "./ContextPanel"
 import { WorkspaceNavigation } from "@/components/supervision/WorkspaceNavigation"
 import { SupervisionMainOverlay } from "@/components/supervision/SupervisionOverlays"
@@ -65,8 +64,6 @@ const GitHubBoardView = lazyWithChunkRecovery(() =>
 
 const DESKTOP_SIDEBAR_MIN_WIDTH = 280
 const DESKTOP_SIDEBAR_MAX_WIDTH = 500
-const DESKTOP_RIGHT_SIDEBAR_MIN_WIDTH = 360
-const DESKTOP_RIGHT_SIDEBAR_MAX_WIDTH = 860
 const SIDEBAR_CORNER_SIZE = 10
 
 const sidebarCornerBackground = (position: string) =>
@@ -76,6 +73,8 @@ export const MainLayout: React.FC = () => {
   const { t } = useI18n()
   const isSidebarOpen = useUIStore((state) => state.isSidebarOpen)
   const isRightSidebarOpen = useUIStore((state) => state.isRightSidebarOpen)
+  const rightSidebarTab = useUIStore((state) => state.rightSidebarTab)
+  const setRightSidebarOpen = useUIStore((state) => state.setRightSidebarOpen)
   const isBottomTerminalOpen = useUIStore((state) => state.isBottomTerminalOpen)
   const gridBrowserOpen = useUIStore((state) => state.browserPanel.isOpen && state.browserPanel.focused)
   const activeMainTab = useUIStore((state) => state.activeMainTab)
@@ -92,7 +91,6 @@ export const MainLayout: React.FC = () => {
   const { isMobile, isTablet } = useDeviceInfo()
   useResponsivePanels({ isMobile, isTablet })
   const sidebarWidth = useUIStore((state) => state.sidebarWidth)
-  const rightSidebarWidth = useUIStore((state) => state.rightSidebarWidth)
 
   // Trigger native desktop update checks shortly after mount, then repeat periodically.
   const checkForUpdates = useUpdateStore((state) => state.checkForUpdates)
@@ -150,6 +148,14 @@ export const MainLayout: React.FC = () => {
     if (!view) return
     openBesideChat(view)
   }, [activeMainTab, isMobile])
+
+  // Unify legacy RightSidebar open requests into the single SplitPane inspector so
+  // two right-side drawers never compete for width.
+  React.useEffect(() => {
+    if (!isRightSidebarOpen) return
+    openBesideChat(rightSidebarTab)
+    setRightSidebarOpen(false)
+  }, [isRightSidebarOpen, rightSidebarTab, setRightSidebarOpen])
 
   React.useEffect(() => {
     if (typeof window === "undefined") {
@@ -302,10 +308,6 @@ export const MainLayout: React.FC = () => {
     const rawWidth = sidebarWidth || SIDEBAR_CONTENT_WIDTH
     return Math.min(DESKTOP_SIDEBAR_MAX_WIDTH, Math.max(DESKTOP_SIDEBAR_MIN_WIDTH, rawWidth))
   }, [sidebarWidth])
-  const visibleRightSidebarWidth = React.useMemo(() => {
-    const rawWidth = rightSidebarWidth || RIGHT_SIDEBAR_CONTENT_WIDTH
-    return Math.min(DESKTOP_RIGHT_SIDEBAR_MAX_WIDTH, Math.max(DESKTOP_RIGHT_SIDEBAR_MIN_WIDTH, rawWidth))
-  }, [rightSidebarWidth])
 
   return (
     <DiffWorkerProvider>
@@ -343,28 +345,6 @@ export const MainLayout: React.FC = () => {
                 background: sidebarCornerBackground("100% 0%"),
               }}
             />
-            <div
-              aria-hidden
-              className="pointer-events-none absolute top-0 z-0 bg-sidebar transition-[right,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
-              style={{
-                right: `${isRightSidebarOpen ? visibleRightSidebarWidth : 0}px`,
-                opacity: isRightSidebarOpen ? 1 : 0,
-                width: "10px",
-                height: "10px",
-                background: sidebarCornerBackground("0 100%"),
-              }}
-            />
-            <div
-              aria-hidden
-              className="pointer-events-none absolute bottom-0 z-0 bg-sidebar transition-[right,opacity] duration-200 ease-[cubic-bezier(0.22,1,0.36,1)] motion-reduce:transition-none"
-              style={{
-                right: `${isRightSidebarOpen ? visibleRightSidebarWidth : 0}px`,
-                opacity: isRightSidebarOpen ? 1 : 0,
-                width: "10px",
-                height: "10px",
-                background: sidebarCornerBackground("0 0"),
-              }}
-            />
             <Sidebar isOpen={isSidebarOpen} isMobile={isMobile} className="border-0">
               <SessionSidebar />
             </Sidebar>
@@ -374,7 +354,7 @@ export const MainLayout: React.FC = () => {
                 "bg-background",
                 "border border-border/50 rounded-[10px]",
                 !isSidebarOpen && "border-l-transparent",
-                !isRightSidebarOpen && "border-r-transparent",
+                "border-r-transparent",
               )}
               data-page-scroll-lock="true"
             >
@@ -436,11 +416,6 @@ export const MainLayout: React.FC = () => {
                 {!isGridActive && <InspectorRail />}
               </div>
             </div>
-            <RightSidebar isOpen={isRightSidebarOpen} className="border-0">
-              <ErrorBoundary>
-                <RightSidebarTabs />
-              </ErrorBoundary>
-            </RightSidebar>
           </div>
         </div>
 

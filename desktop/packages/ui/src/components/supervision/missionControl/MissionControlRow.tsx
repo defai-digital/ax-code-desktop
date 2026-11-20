@@ -236,6 +236,15 @@ export const MissionControlRow: React.FC<MissionControlRowProps> = ({
             {row.state === "error" && row.errorMessage ? <span className="block">{row.errorMessage}</span> : null}
             <SupervisionGoalLine goal={row.goal} className="typography-meta text-muted-foreground" />
           </span>
+        ) : row.state === "idle" && row.lastRecap?.text ? (
+          <span
+            role="gridcell"
+            data-mission-recap
+            className="mission-description min-w-0 line-clamp-2 typography-meta text-muted-foreground [overflow-wrap:anywhere]"
+            title={row.lastRecap.text}
+          >
+            {row.lastRecap.text}
+          </span>
         ) : null}
         <span
           role="gridcell"

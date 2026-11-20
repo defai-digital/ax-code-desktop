@@ -5489,5 +5489,12 @@
   "supervision.navigation.portfolio": "專案總覽",
   "splitPane.focusPanel": "專注面板",
   "splitPane.restoreSplit": "恢復分割檢視",
-  "splitPane.backToConversation": "返回對話"
+  "splitPane.backToConversation": "返回對話",
+  "supervision.recap.title": "回桌摘要",
+  "supervision.recap.stale": "可能已過期",
+  "supervision.recap.refresh": "重新整理摘要",
+  "supervision.recap.refreshing": "重新整理中...",
+  "supervision.recap.reviewChanges": "檢視變更",
+  "supervision.recap.dismiss": "關閉摘要",
+  "supervision.recap.updatedAgo": "更新於 {age}"
 }

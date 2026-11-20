@@ -5489,5 +5489,12 @@
   "supervision.navigation.portfolio": "Proje portföyü",
   "splitPane.focusPanel": "Panele odaklan",
   "splitPane.restoreSplit": "Bölünmüş görünümü geri yükle",
-  "splitPane.backToConversation": "Konuşmaya dön"
+  "splitPane.backToConversation": "Konuşmaya dön",
+  "supervision.recap.title": "Özet",
+  "supervision.recap.stale": "Güncel olmayabilir",
+  "supervision.recap.refresh": "Özeti yenile",
+  "supervision.recap.refreshing": "Yenileniyor...",
+  "supervision.recap.reviewChanges": "Değişiklikleri incele",
+  "supervision.recap.dismiss": "Özeti kapat",
+  "supervision.recap.updatedAgo": "{age} önce güncellendi"
 }

@@ -130,7 +130,8 @@ test("Tab reaches a labelled host/project filter; scope combines with PR search 
   await settle()
 })
 
-test("Shift+Enter opens the keyboard-selected session beside the current session without replacing it", async () => {
+test("Shift+Enter opens the keyboard-selected session without entering retired session-grid", async () => {
+  const open = vi.spyOn(useSessionUIStore.getState(), "setCurrentSession").mockImplementation(() => {})
   render(<CommandPalette />)
   fireEvent.change(input(), { target: { value: "#PR" } })
   await settle()
@@ -140,12 +141,8 @@ test("Shift+Enter opens the keyboard-selected session beside the current session
   expect(document.querySelector('[cmdk-item][aria-selected="true"]')?.getAttribute("data-value")).toBe("session:draft")
   fireEvent.keyDown(input(), { key: "Enter", shiftKey: true })
   await settle()
-  expect(useUIStore.getState().activeMainTab).toBe("session-grid")
-  expect(useUIStore.getState().sessionGrid.slots).toEqual([
-    { sessionId: "open", directory: "/alpha" },
-    { sessionId: "draft", directory: "/beta" },
-  ])
-  expect(useSessionUIStore.getState().currentSessionId).toBe("open")
+  expect(useUIStore.getState().activeMainTab).toBe("chat")
+  expect(open).toHaveBeenCalledWith("draft", "/beta")
   expect(useUIStore.getState().isCommandPaletteOpen).toBe(false)
 })
 

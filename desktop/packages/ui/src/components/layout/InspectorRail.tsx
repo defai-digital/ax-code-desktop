@@ -34,7 +34,6 @@ const ENTRIES: RailEntry[] = [
   { view: "board", icon: "git-pull-request", labelKey: "splitPane.tab.board" },
   { view: "plan", icon: "list-check-2", labelKey: "splitPane.tab.plan" },
   { view: "context", icon: "layout-column", labelKey: "splitPane.tab.context" },
-  { view: "wiki", icon: "node-tree", labelKey: "wiki.graph.title" },
 ]
 
 const TERMINAL_ENTRY: RailEntry = {

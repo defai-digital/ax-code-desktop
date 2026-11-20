@@ -5489,5 +5489,12 @@
   "supervision.navigation.portfolio": "Portofolio proyek",
   "splitPane.focusPanel": "Fokus pada panel",
   "splitPane.restoreSplit": "Pulihkan tampilan terbagi",
-  "splitPane.backToConversation": "Kembali ke percakapan"
+  "splitPane.backToConversation": "Kembali ke percakapan",
+  "supervision.recap.title": "Ringkasan",
+  "supervision.recap.stale": "Mungkin sudah usang",
+  "supervision.recap.refresh": "Muat ulang ringkasan",
+  "supervision.recap.refreshing": "Memuat ulang...",
+  "supervision.recap.reviewChanges": "Tinjau perubahan",
+  "supervision.recap.dismiss": "Tutup ringkasan",
+  "supervision.recap.updatedAgo": "Diperbarui {age}"
 }

@@ -3,7 +3,10 @@ import { revealToolPart } from "@/lib/revealToolPart"
 import type { Message, Part, Session } from "@defai-digital/ax-code-sdk/v2"
 
 import { ChatInput } from "./ChatInput"
+import { ReturnToWorkRecapStrip } from "./ReturnToWorkRecapStrip"
 import { SinceYouLeftStrip } from "@/components/supervision/SinceYouLeftStrip"
+import { openBesideChat } from "@/lib/supervision/openBesideChat"
+import { readSessionRecap } from "@/lib/supervision/sessionRecap"
 import { shouldAutoOpenChatDraft } from "./chatDraftState"
 import { DraftPresetChips } from "./DraftPresetChips"
 import { ActivityBreadcrumb } from "./ActivityBreadcrumb"
@@ -43,6 +46,7 @@ import { preloadMarkdownRenderer } from "./markdownRendererChunk"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useStreamingStore } from "@/sync/streaming"
 import {
+  useSession,
   useSessionMessageCount,
   useSessionMessageRecords,
   useDirectorySync,
@@ -397,6 +401,14 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
   React.useEffect(() => scheduleIdleTask(preloadMarkdownRenderer), [])
   // Session UI state
   const currentSessionId = useSessionUIStore((s) => s.currentSessionId)
+  const currentSession = useSession(currentSessionId ?? "")
+  const currentSessionRecap = React.useMemo(() => readSessionRecap(currentSession), [currentSession])
+  const currentSessionHasChanges = Boolean(
+    currentSession?.summary &&
+      ((currentSession.summary.files ?? 0) > 0 ||
+        (currentSession.summary.additions ?? 0) > 0 ||
+        (currentSession.summary.deletions ?? 0) > 0),
+  )
   const openNewSessionDraft = useSessionUIStore((s) => s.openNewSessionDraft)
   const setCurrentSession = useSessionUIStore((s) => s.setCurrentSession)
   const newSessionDraft = useSessionUIStore((s) => s.newSessionDraft)
@@ -1168,6 +1180,21 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
           />
         )}
         {currentSessionId && !isDesktopExpandedInput && <ActivityBreadcrumb sessionId={currentSessionId} />}
+        {currentSessionId && !isDesktopExpandedInput && (
+          <div className="mx-auto w-full max-w-3xl px-3 pb-1.5">
+            <ReturnToWorkRecapStrip
+              sessionId={currentSessionId}
+              directory={syncDirectory ?? null}
+              sessionUpdatedAt={currentSession?.time?.updated ?? null}
+              initialRecap={currentSessionRecap}
+              isIdle={!sessionIsWorking}
+              hasChanges={currentSessionHasChanges}
+              onReviewChanges={() => {
+                openBesideChat("diff")
+              }}
+            />
+          </div>
+        )}
         {hookActivityRows}
         {promptReadOnly ? <ReadOnlyPromptBanner /> : <ChatInput scrollToBottom={resumeToLatestInstant} />}
       </div>

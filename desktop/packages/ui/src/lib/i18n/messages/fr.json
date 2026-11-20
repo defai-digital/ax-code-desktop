@@ -5489,5 +5489,12 @@
   "supervision.navigation.portfolio": "Portefeuille de projets",
   "splitPane.focusPanel": "Agrandir le panneau",
   "splitPane.restoreSplit": "Rétablir la vue partagée",
-  "splitPane.backToConversation": "Revenir à la conversation"
+  "splitPane.backToConversation": "Revenir à la conversation",
+  "supervision.recap.title": "Résumé",
+  "supervision.recap.stale": "Peut être obsolète",
+  "supervision.recap.refresh": "Actualiser le résumé",
+  "supervision.recap.refreshing": "Actualisation...",
+  "supervision.recap.reviewChanges": "Examiner les modifications",
+  "supervision.recap.dismiss": "Fermer le résumé",
+  "supervision.recap.updatedAgo": "Mis à jour {age}"
 }

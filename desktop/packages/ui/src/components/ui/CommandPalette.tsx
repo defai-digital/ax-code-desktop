@@ -1,8 +1,6 @@
 import { useMissionControlPullRequests } from "@/hooks/useMissionControlPullRequests"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { missionProjectKey } from "@/lib/supervision/missionControl"
-import { openSessionGrid } from "@/lib/supervision/openSessionGrid"
-import { resolveGridSession } from "@/lib/supervision/sessionGrid"
 import React from "react"
 import {
   Command,
@@ -198,13 +196,6 @@ export const CommandPalette: React.FC = () => {
   // ---------------------------------------------------------------------------
   const supervisionCommands = React.useMemo<CommandEntry[]>(() => {
     const list: CommandEntry[] = [
-      {
-        id: "supervision:session-grid",
-        title: t("sessionGrid.open"),
-        icon: <Icon name="window" className="mr-2 h-4 w-4" />,
-        searchText: "session grid panes side by side",
-        onSelect: run(() => openSessionGrid()),
-      },
       {
         id: "supervision:mission-control",
         title: t("supervision.commandPalette.missionControl"),
@@ -452,6 +443,21 @@ export const CommandPalette: React.FC = () => {
           if (currentDirectory) openContextOverview(currentDirectory)
         }),
       },
+      ...(currentDirectory && canUseLocalElectronDesktopIPC()
+        ? [
+            {
+              id: "open-wiki-viewer",
+              title: t("wiki.graph.openViewer"),
+              icon: <Icon name="node-tree" className="mr-2 h-4 w-4" />,
+              searchText: `${t("wiki.graph.title")} ${t("wiki.graph.openViewer")} wiki graph`,
+              onSelect: run(() => {
+                void invokeDesktop("desktop_open_wiki_viewer", { directory: currentDirectory }).catch(() => {
+                  toast.error(t("wiki.graph.viewerFailed"))
+                })
+              }),
+            },
+          ]
+        : []),
       {
         id: "open-settings",
         title: t("commandPalette.item.openSettings"),
@@ -766,24 +772,15 @@ export const CommandPalette: React.FC = () => {
 
   const handleSplitSession = (session: Session) => {
     const chosenDirectory = resolveGlobalSessionDirectory(session)
-    const current = activeSessions.find((item) => item.id === currentSessionId)
-    const currentDir =
-      (current && resolveGlobalSessionDirectory(current)) ||
-      rowBySession.get(currentSessionId ?? "")?.directory
-    const currentSlot = currentSessionId && currentDir ? { sessionId: currentSessionId, directory: currentDir } : null
-    const chosenSlot = chosenDirectory ? { sessionId: session.id, directory: chosenDirectory } : null
-    if (
-      !currentSlot ||
-      !chosenSlot ||
-      session.id === currentSessionId ||
-      !resolveGridSession(currentSlot, sourceRows) ||
-      !resolveGridSession(chosenSlot, sourceRows)
-    ) {
-      handleOpenSession(session)
+    if (canOpenSessionWindow()) {
+      void openSessionWindow(
+        { sessionId: session.id, directory: chosenDirectory ?? null },
+        t("supervision.navigation.openInWindowFailed"),
+      )
+      close()
       return
     }
-    openSessionGrid([currentSlot, chosenSlot])
-    close()
+    handleOpenSession(session)
   }
 
   const handleOpenFile = React.useCallback(

@@ -69,9 +69,6 @@ const FilesView = lazyWithChunkRecovery(() =>
 const PlanView = lazyWithChunkRecovery(() =>
   import("@/components/views/PlanView").then((m) => ({ default: m.PlanView })),
 )
-const DashboardPanel = lazyWithChunkRecovery(() =>
-  import("@/components/dashboard/DashboardPanel").then((m) => ({ default: m.DashboardPanel })),
-)
 
 const CONTEXT_PANEL_MIN_WIDTH = 380
 const CONTEXT_PANEL_MAX_WIDTH = 1400
@@ -2186,7 +2183,10 @@ export const ContextPanel: React.FC = () => {
 
   // The browser is a single global panel; only non-browser tabs are per-directory.
   const tabs = React.useMemo(
-    () => (panelState?.tabs ?? []).filter((tab) => isContextPanelMode(tab.mode) && tab.mode !== "browser"),
+    () =>
+      (panelState?.tabs ?? []).filter(
+        (tab) => isContextPanelMode(tab.mode) && tab.mode !== "browser" && tab.mode !== "dashboard",
+      ),
     [panelState?.tabs],
   )
   const browserOpen = Boolean(browserPanel?.isOpen)
@@ -2479,10 +2479,6 @@ export const ContextPanel: React.FC = () => {
         rawUrl={activeTab.targetPath ?? ""}
         onNavigate={(url) => openContextPreview(effectiveDirectory, url)}
       />
-    ) : activeTab?.mode === "dashboard" ? (
-      <React.Suspense fallback={null}>
-        <DashboardPanel directory={effectiveDirectory} />
-      </React.Suspense>
     ) : (
       <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
         <Icon name="global" className="h-12 w-12 text-muted-foreground" />

@@ -5489,5 +5489,12 @@
   "supervision.navigation.portfolio": "项目总览",
   "splitPane.focusPanel": "聚焦面板",
   "splitPane.restoreSplit": "恢复分屏视图",
-  "splitPane.backToConversation": "返回对话"
+  "splitPane.backToConversation": "返回对话",
+  "supervision.recap.title": "返回摘要",
+  "supervision.recap.stale": "可能已过期",
+  "supervision.recap.refresh": "刷新摘要",
+  "supervision.recap.refreshing": "正在刷新...",
+  "supervision.recap.reviewChanges": "查看变更",
+  "supervision.recap.dismiss": "关闭摘要",
+  "supervision.recap.updatedAgo": "更新于 {age}"
 }

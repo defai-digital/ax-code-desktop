@@ -77,7 +77,7 @@ import { ConnectedNotificationCenter } from "@/components/notifications/Connecte
 import { useNotificationStore } from "@/stores/useNotificationStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { NeedsYouButton } from "@/components/supervision/NeedsYouButton"
-import { ActivityButton } from "@/components/supervision/ActivityButton"
+import { closeBesideChat, openBesideChat } from "@/lib/supervision/openBesideChat"
 import { shouldStartWindowDrag } from "@/lib/windowDrag"
 import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
 import type { IconName } from "@/components/icon/icons"
@@ -774,8 +774,7 @@ export const Header: React.FC = () => {
   const isMobile = useUIStore((state) => state.isMobile)
   const missionControlOpen = useSupervisionStore((state) => state.missionControlOpen)
   const toggleSidebar = useUIStore((state) => state.toggleSidebar)
-  const isRightSidebarOpen = useUIStore((state) => state.isRightSidebarOpen)
-  const toggleRightSidebar = useUIStore((state) => state.toggleRightSidebar)
+  const splitPaneEnabled = useUIStore((state) => state.splitPaneEnabled)
   const openContextOverview = useUIStore((state) => state.openContextOverview)
   const openContextPlan = useUIStore((state) => state.openContextPlan)
   const closeContextPanel = useUIStore((state) => state.closeContextPanel)
@@ -1541,7 +1540,8 @@ export const Header: React.FC = () => {
       activeMainTab === "terminal" ||
       activeMainTab === "diff" ||
       activeMainTab === "files" ||
-      activeMainTab === "context"
+      activeMainTab === "context" ||
+      activeMainTab === "session-grid"
     ) {
       setActiveMainTab("chat")
     }
@@ -1719,7 +1719,6 @@ export const Header: React.FC = () => {
       />
       <SyncStatusIndicator />
       <NeedsYouButton />
-      <ActivityButton />
       {isMobile ? (
         <HeaderIconActionButton
           title={t("supervision.missionControl.toggleAria")}
@@ -1753,8 +1752,16 @@ export const Header: React.FC = () => {
         <HeaderIconActionButton
           title={t("header.actions.rightSidebarWithShortcut", { shortcut: shortcutLabel("toggle_right_sidebar") })}
           ariaLabel={t("header.actions.toggleRightSidebarAria")}
-          onClick={toggleRightSidebar}
-          pressed={isRightSidebarOpen}
+          onClick={() => {
+            const ui = useUIStore.getState()
+            const targetTab = ui.splitPaneRightTab === "terminal" ? "files" : ui.splitPaneRightTab
+            if (ui.splitPaneEnabled) {
+              closeBesideChat(targetTab)
+            } else {
+              openBesideChat(targetTab)
+            }
+          }}
+          pressed={splitPaneEnabled}
           className={HEADER_PANEL_BUTTON_CLASS}
           Icon={"layout-right"}
         />

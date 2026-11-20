@@ -3,7 +3,12 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
 
-type SessionStub = { id: string; title: string; time?: { created?: number; updated?: number } }
+type SessionStub = {
+  id: string
+  title: string
+  time?: { created?: number; updated?: number }
+  metadata?: Record<string, unknown>
+}
 
 // `useAllLiveSessions` is re-read on every render, so the test mutates this array
 // in place to simulate live session updates arriving from the sync layer.
@@ -238,5 +243,45 @@ describe("MultiRunFusionDialog excluded sources", () => {
     renderDialog(true)
 
     expect(sourceRowTitles(container)).toHaveLength(2)
+  })
+
+  test("groups renamed lanes by metadata.multiRun.groupId instead of dropping them", () => {
+    primary = {
+      id: "s1",
+      title: "Renamed auth attempt A",
+      time: { created: 1 },
+      metadata: { multiRun: { groupId: "mr_batch_1", variantId: "v1" } },
+    }
+    sibling = {
+      id: "s2",
+      title: "Renamed auth attempt B",
+      time: { created: 2 },
+      metadata: { multiRun: { groupId: "mr_batch_1", variantId: "v2" } },
+    }
+    liveSessions.current = [primary, sibling]
+
+    renderDialog(true)
+
+    expect(sourceRowTitles(container)).toEqual(["Renamed auth attempt A", "Renamed auth attempt B"])
+  })
+
+  test("does not mix two batches sharing a title slug when their groupIds differ", () => {
+    primary = {
+      id: "s1",
+      title: "demo/p1/m1/1",
+      time: { created: 1 },
+      metadata: { multiRun: { groupId: "mr_batch_1", variantId: "v1" } },
+    }
+    sibling = {
+      id: "s2",
+      title: "demo/p2/m2/2",
+      time: { created: 2 },
+      metadata: { multiRun: { groupId: "mr_batch_2", variantId: "v1" } },
+    }
+    liveSessions.current = [primary, sibling]
+
+    renderDialog(true)
+
+    expect(sourceRowTitles(container)).toEqual(["demo/p1/m1/1"])
   })
 })
