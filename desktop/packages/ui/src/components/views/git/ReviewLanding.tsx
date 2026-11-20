@@ -16,6 +16,9 @@ import {
 import type { GitBranchDiffResponse, GitStatus } from "@/lib/api/types"
 import { ReviewLandingChecks } from "./ReviewLandingChecks"
 import { ReviewLandingBrowserEvidence } from "./ReviewLandingBrowserEvidence"
+import { ReviewLandingRequestFix } from "./ReviewLandingRequestFix"
+import { SupervisionGoalLine } from "@/components/supervision/SupervisionGoalLine"
+import { useSessionGoalStore } from "@/stores/useSessionGoalStore"
 import { CommitInput } from "./CommitInput"
 import { commitChanges, pushChanges } from "./landingActions"
 import { isConflictedStatusFile } from "../useDiffHunkStage"
@@ -63,6 +66,7 @@ export function ReviewLanding({
   const mounted = React.useRef(true)
   const inputContainer = React.useRef<HTMLDivElement>(null)
   const contextId = React.useId()
+  const goal = useSessionGoalStore((state) => (sessionId ? (state.goals[sessionId] ?? null) : null))
 
   const branchSignatures = new Map(
     branchDiff?.files.map((file) => [
@@ -333,6 +337,12 @@ export function ReviewLanding({
           ? t("diffView.landing.commits", { count: ahead })
           : t("diffView.landing.files", { count: affected.length })}
       </div>
+      {/* What the work was for, beside what it changed and what checked it: the decision needs all three. */}
+      {goal ? (
+        <div data-landing-goal>
+          <SupervisionGoalLine goal={goal} className="typography-meta text-muted-foreground" />
+        </div>
+      ) : null}
       {affected.length > 0 && (
         <details open className="typography-meta">
           <summary className="cursor-pointer">
@@ -385,6 +395,7 @@ export function ReviewLanding({
           />
         ) : null}
         {sessionId ? <ReviewLandingBrowserEvidence directory={directory} sessionId={sessionId} /> : null}
+        {sessionId ? <ReviewLandingRequestFix directory={directory} sessionId={sessionId} /> : null}
       </div>
       {reason && (
         <p role="status" className="typography-meta text-muted-foreground">
