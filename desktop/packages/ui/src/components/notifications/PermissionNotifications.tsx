@@ -8,26 +8,9 @@ import { getRegisteredRuntimeAPIs } from "@/contexts/runtimeAPIRegistry"
 import { isDesktopShell } from "@/lib/desktop"
 import { setDesktopBadgeCount } from "@/lib/desktopNative"
 import { useI18n } from "@/lib/i18n"
-import { useNotificationStore } from "@/stores/useNotificationStore"
-import * as sessionActions from "@/sync/session-actions"
-import { toast } from "@/components/ui"
-import { diffPermissionNotifications } from "./permissionNotificationSync"
 import type { NotificationPayload } from "@/lib/api/types"
 
 const PERMISSION_NOTIFY_DEBOUNCE_MS = 2000
-
-// Requests already answered, by session. Module scope: the watcher unmounts and remounts with the live-session
-// list, and a per-mount set would re-mirror a settled request on the next mount.
-const answeredRequestIdsBySession = new Map<string, Set<string>>()
-
-const answeredRequestIdsFor = (sessionId: string): Set<string> => {
-  let answered = answeredRequestIdsBySession.get(sessionId)
-  if (!answered) {
-    answered = new Set()
-    answeredRequestIdsBySession.set(sessionId, answered)
-  }
-  return answered
-}
 
 const isAppFocused = (): boolean => {
   if (typeof document === "undefined") return true
@@ -61,81 +44,6 @@ function SessionPermissionWatcher({
   const hasPermissions = permissions.length > 0
   const enabled = notifyOnPermission && nativeNotificationsEnabled
   const notifiedRef = React.useRef(false)
-  // requestId → notificationId for items mirrored into the notification center.
-  const mirroredNotificationIdsRef = React.useRef<Map<string, string>>(new Map())
-
-  // Mirror pending permission requests into the in-app notification center so
-  // the header bell shows actionable Allow/Deny items. Requests answered
-  // elsewhere (e.g. the in-chat permission card) are removed again.
-  React.useEffect(() => {
-    const store = useNotificationStore.getState()
-    const seen = mirroredNotificationIdsRef.current
-    // The center can be emptied from outside this mirror ("Clear all", or the
-    // 100-item cap). Drop ids that are no longer present, or a still-pending
-    // request would never be mirrored again.
-    for (const [requestId, notificationId] of seen) {
-      if (!store.notifications.some((notification) => notification.id === notificationId)) {
-        seen.delete(requestId)
-      }
-    }
-    const answered = answeredRequestIdsFor(sessionId)
-    const { toAdd, toRemove } = diffPermissionNotifications(seen, permissions, answered)
-
-    for (const { requestId, notificationId } of toRemove) {
-      store.removeNotification(notificationId)
-      seen.delete(requestId)
-    }
-
-    for (const permission of toAdd) {
-      const respond = (response: "once" | "reject") => async () => {
-        try {
-          await sessionActions.respondToPermission(sessionId, permission.id, response)
-        } catch (error) {
-          console.error("[PermissionNotifications] Failed to respond to permission:", error)
-          toast.error(t("chat.permissionCard.responseFailed.title"), {
-            description: error instanceof Error ? error.message : t("chat.permissionCard.responseFailed.retry"),
-          })
-          // Rethrown for the entry that offers Allow/Deny: it takes the failure as "the request is still pending"
-          // and keeps itself, which is the only handle the user has on it from the bell.
-          throw error
-        }
-        // The server may still list the request as pending until its own event arrives. Mark it so this effect
-        // does not mirror it again (with fresh buttons) the next time `permissions` changes, and drop the mirror.
-        answeredRequestIdsFor(sessionId).add(permission.id)
-        for (const [requestId, notificationId] of seen) {
-          if (requestId === permission.id) {
-            store.removeNotification(notificationId)
-            seen.delete(requestId)
-          }
-        }
-      }
-      const patternPreview = permission.patterns.filter(Boolean).slice(0, 2).join(" · ")
-      const notificationId = store.addNotification({
-        type: "permission",
-        title: t("notificationCenter.permission.requestTitle", { tool: permission.permission }),
-        message: patternPreview || sessionTitle || sessionId,
-        sessionId,
-        requestId: permission.id,
-        toolName: permission.permission,
-        onAllow: respond("once"),
-        onDeny: respond("reject"),
-      })
-      seen.set(permission.id, notificationId)
-    }
-  }, [permissions, sessionId, sessionTitle, t])
-
-  // Drop this session's mirrored notifications when the watcher unmounts
-  // (session closed or app teardown).
-  React.useEffect(() => {
-    const seen = mirroredNotificationIdsRef.current
-    return () => {
-      const store = useNotificationStore.getState()
-      for (const notificationId of seen.values()) {
-        store.removeNotification(notificationId)
-      }
-      seen.clear()
-    }
-  }, [])
 
   React.useEffect(() => {
     if (!hasPermissions) {
@@ -214,6 +122,9 @@ function AttentionBadgeSync(): null {
  * Renders one invisible watcher per live session; each fires a native
  * notification when its session waits on a permission request and the user
  * is not already looking at it. Must be mounted inside SyncProvider.
+ *
+ * Requests are not copied into the notification center: a decision is answered in one place, the Needs you inbox
+ * (and the session's own card). The bell lists follow-ups only.
  */
 export function PermissionNotifications(): React.ReactNode {
   const sessions = useAllLiveSessions()

@@ -8,6 +8,8 @@ const mocks = vi.hoisted(() => {
   const listeners = new Set<() => void>()
   let pending: PendingRequest[] = []
   return {
+    sessions: [] as Array<{ id: string; title: string }>,
+    permissions: [] as Array<{ id: string; permission: string; patterns: string[] }>,
     get pending() {
       return pending
     },
@@ -29,9 +31,9 @@ vi.mock("@/sync/sync-context", async () => {
   const React = await import("react")
   const usePendingRequests = () => React.useSyncExternalStore(mocks.subscribe, () => mocks.pending)
   return {
-    useAllLiveSessions: () => [],
+    useAllLiveSessions: () => mocks.sessions,
     useAllPendingRequests: usePendingRequests,
-    useSessionPermissions: () => [],
+    useSessionPermissions: () => mocks.permissions,
   }
 })
 vi.mock("@/lib/desktop", () => ({ isDesktopShell: () => true }))
@@ -40,6 +42,7 @@ vi.mock("@/lib/i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock("@/components/ui", () => ({ toast: { info: vi.fn(), dismiss: vi.fn() } }))
 
 import { useAttentionStore } from "@/stores/useAttentionStore"
+import { useNotificationStore } from "@/stores/useNotificationStore"
 import { PermissionNotifications } from "./PermissionNotifications"
 
 let root: Root
@@ -47,6 +50,9 @@ let container: HTMLDivElement
 beforeEach(() => {
   Object.assign(globalThis, { IS_REACT_ACT_ENVIRONMENT: true })
   mocks.pending = []
+  mocks.sessions = []
+  mocks.permissions = []
+  useNotificationStore.getState().clearAll()
   mocks.setBadge.mockClear()
   container = document.createElement("div")
   root = createRoot(container)
@@ -78,4 +84,14 @@ test("clears the badge when the requests are answered", () => {
   })
   expect(mocks.setBadge).toHaveBeenLastCalledWith(0)
   expect(useAttentionStore.getState().pendingApprovalCount).toBe(0)
+})
+
+test("a pending permission is not copied into the notification center", () => {
+  mocks.sessions = [{ id: "a", title: "Fix login" }]
+  mocks.permissions = [{ id: "perm-1", permission: "bash", patterns: ["rm -rf build"] }]
+  mocks.pending = [{ kind: "permission", sessionId: "a", request: { id: "perm-1" } }]
+  act(() => root.render(<PermissionNotifications />))
+  // It is still counted as a decision; it is just answered in one place, the Needs you inbox.
+  expect(mocks.setBadge).toHaveBeenLastCalledWith(1)
+  expect(useNotificationStore.getState().notifications).toEqual([])
 })

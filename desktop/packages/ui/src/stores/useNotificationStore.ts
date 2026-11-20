@@ -1,6 +1,7 @@
 import { create } from "zustand"
 
-export type NotificationType = "permission" | "session" | "system"
+/** Follow-ups only. A pending decision is never a notification: it lives in the Needs you inbox. */
+export type NotificationType = "session" | "system"
 
 export type NotificationItem = {
   id: string
@@ -9,13 +10,7 @@ export type NotificationItem = {
   message: string
   timestamp: number
   read: boolean
-  /** For permission notifications */
   sessionId?: string
-  requestId?: string
-  toolName?: string
-  /** Action callbacks stored as refs (not serialized) */
-  onAllow?: () => void | Promise<void>
-  onDeny?: () => void | Promise<void>
 }
 
 type NotificationState = {
