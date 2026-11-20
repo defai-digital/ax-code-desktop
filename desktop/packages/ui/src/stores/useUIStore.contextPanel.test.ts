@@ -251,6 +251,14 @@ describe("useUIStore context panel", () => {
     )
     expect(closed).toMatchObject({ splitPaneEnabled: false, splitPaneRightTab: "diff" })
 
+    // A profile that holds nothing but the legacy fields is still carried over; a non-object is ignored.
+    expect(merge({ isRightSidebarOpen: true, rightSidebarTab: "context" }, current)).toMatchObject({
+      splitPaneEnabled: true,
+      splitPaneRightTab: "context",
+    })
+    expect(merge(null, current)).toBe(current)
+    expect(merge("corrupt", current)).toBe(current)
+
     // An unknown sidebar tab still reopens the pane, on the view the pane itself last held.
     const unknown = merge({ isRightSidebarOpen: true, rightSidebarTab: "nope", splitPaneRightTab: "diff" }, current)
     expect(unknown).toMatchObject({ splitPaneEnabled: true, splitPaneRightTab: "diff" })

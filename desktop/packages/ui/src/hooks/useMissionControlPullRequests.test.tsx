@@ -341,3 +341,39 @@ test("the known pull request for a branch starts no read and ages into stale", (
   expect(seen.at(-1)).toMatchObject({ number: 42, stale: true })
   expect(fetch).not.toHaveBeenCalled()
 })
+
+test("a known pull request is stale when its refresh time is in the future, and absent on a detached HEAD", () => {
+  known("/repo", "feature", { prStatus: vi.fn() } as unknown as GitHubAPI)
+  // The clock stepped back after the refresh: the age cannot be trusted.
+  useGitHubPrStatusStore.getState().updateStatus("/repo", (previous) => previous, Date.now() + 60_000)
+  const seen: Array<ReturnType<typeof useKnownPullRequest>> = []
+  const Probe = ({ branch }: { branch: string }) => {
+    seen.push(useKnownPullRequest("/repo", branch))
+    return null
+  }
+  const view = render(<Probe branch="feature" />)
+  expect(seen.at(-1)).toMatchObject({ number: 42, stale: true })
+  view.rerender(<Probe branch="HEAD" />)
+  expect(seen.at(-1)).toBeNull()
+})
+
+test("a branch with pull requests on two remotes quotes the one it tracks", () => {
+  const github = { prStatus: vi.fn() } as unknown as GitHubAPI
+  known("/repo", "feature", github, "origin-key", "origin")
+  known("/repo", "feature", github, "fork-key", "upstream")
+  const store = useGitHubPrStatusStore.getState()
+  store.updateStatus("origin-key", (previous) => previous && { ...previous, pr: { ...previous.pr!, number: 10 } }, 99_000)
+  // The fork's status is the newer one, which is what an unscoped lookup prefers.
+  store.updateStatus("fork-key", (previous) => previous && { ...previous, pr: { ...previous.pr!, number: 20 } }, 100_000)
+  const seen: Array<number | undefined> = []
+  const Probe = ({ remote }: { remote: string | null }) => {
+    seen.push(useKnownPullRequest("/repo", "feature", remote)?.number)
+    return null
+  }
+  const view = render(<Probe remote="origin" />)
+  expect(seen.at(-1)).toBe(10)
+  view.rerender(<Probe remote={null} />)
+  expect(seen.at(-1)).toBe(20)
+  view.rerender(<Probe remote="elsewhere" />)
+  expect(seen.at(-1)).toBeUndefined()
+})

@@ -1397,7 +1397,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   // Consume pending input text (e.g., from revert action)
   React.useEffect(() => {
     if (pendingInputText !== null) {
-      const pending = consumePendingInputText()
+      const pending = consumePendingInputText(currentSessionId)
       if (pending?.text) {
         if (pending.mode === "append") {
           setMessage((prev) => {
@@ -1416,7 +1416,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         }, 0)
       }
     }
-  }, [pendingInputText, consumePendingInputText])
+  }, [pendingInputText, consumePendingInputText, currentSessionId])
 
   const hasContent = message.trim().length > 0 || sendableAttachedFiles.length > 0 || hasDrafts
   const hasQueuedMessages = queuedMessages.length > 0

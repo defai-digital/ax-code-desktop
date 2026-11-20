@@ -18,12 +18,16 @@ import { useGitAllBranches } from "@/stores/useGitStore"
 type PrEntries = ReturnType<typeof useGitHubPrStatusStore.getState>["entries"]
 
 /** The most recently refreshed known PR status for a branch, whichever remote it was read through. */
-export function preferredEntry(entries: PrEntries, directory: string, branch: string) {
+export function preferredEntry(entries: PrEntries, directory: string, branch: string, remoteName?: string | null) {
   const branchScope = pullRequestScopeKey({ directory, branch, remoteName: null })
+  const remote = remoteName?.trim() || null
   let preferred: { storeKey: string; entry: PrEntries[string]; scope: PullRequestScope } | undefined
   for (const [storeKey, entry] of Object.entries(entries)) {
     const scope = getPrStatusScope(entry)
     if (!entry.status?.pr || !scope || pullRequestScopeKey({ ...scope, remoteName: null }) !== branchScope) continue
+    // A branch can have a pull request on its own remote and another on a fork's. When the caller knows which
+    // remote the branch tracks, only that one is the branch's pull request.
+    if (remote && (scope.remoteName?.trim() || null) !== remote) continue
     if (!preferred || entry.lastRefreshAt > preferred.entry.lastRefreshAt) preferred = { storeKey, entry, scope }
   }
   return preferred
@@ -71,22 +75,31 @@ function cacheFor(github?: GitHubAPI) {
  * The pull request Desktop already knows for this branch. It starts no GitHub read: the Git view and Mission Control
  * own refreshing, and a projection they have not refreshed within the fresh window is marked stale.
  */
-export function useKnownPullRequest(directory: string, branch: string | null | undefined): MissionPullRequest | null {
+export function useKnownPullRequest(
+  directory: string,
+  branch: string | null | undefined,
+  remoteName?: string | null,
+): MissionPullRequest | null {
   const entries = useGitHubPrStatusStore((state) => state.entries)
   const [clock, setClock] = React.useState(() => Date.now())
+  // A detached HEAD has no branch to have a pull request, so nothing can age.
+  const name = branch?.trim() && branch.trim() !== "HEAD" ? branch.trim() : null
   React.useEffect(() => {
+    if (!name) return
     const timer = setInterval(() => setClock(Date.now()), PULL_REQUEST_FRESH_MS / 6)
     return () => clearInterval(timer)
-  }, [])
+  }, [name])
   return React.useMemo(() => {
-    const name = branch?.trim()
     if (!directory || !name) return null
-    const known = preferredEntry(entries, directory, name)
+    const known = preferredEntry(entries, directory, name, remoteName)
     const pr = known ? projectPullRequest(known.entry.status) : null
     if (!known || !pr) return null
-    const stale = Boolean(known.entry.error) || clock - known.entry.lastRefreshAt >= PULL_REQUEST_FRESH_MS
+    const at = known.entry.lastRefreshAt
+    // A refresh time that is missing or in the future (the clock stepped back) proves nothing about freshness.
+    const stale =
+      Boolean(known.entry.error) || !Number.isFinite(at) || at <= 0 || at > clock || clock - at >= PULL_REQUEST_FRESH_MS
     return { ...pr, stale }
-  }, [entries, directory, branch, clock])
+  }, [entries, directory, name, remoteName, clock])
 }
 
 /** Project known branches before filtering; demand only the rows rendered after filters and collapsed groups. */

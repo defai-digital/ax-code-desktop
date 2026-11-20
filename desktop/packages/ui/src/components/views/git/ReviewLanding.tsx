@@ -141,7 +141,9 @@ export function ReviewLanding({
   const tracking = status?.tracking
   const remote = tracking?.includes("/") ? tracking.slice(0, tracking.indexOf("/")) : null
   const branch = status?.current
-  const pullRequest = useKnownPullRequest(directory, branch)
+  const pullRequest = useKnownPullRequest(directory, branch, remote)
+  // The goal and a fix request are about the session's own work, not about the index or a branch against its base.
+  const sessionWork = Boolean(sessionId) && !branchDiff && scope !== "staged"
   const reason = pending
     ? t(`diffView.landing.${pending}Pending`)
     : loading || !status
@@ -341,7 +343,7 @@ export function ReviewLanding({
           : t("diffView.landing.files", { count: affected.length })}
       </div>
       {/* What the work was for, beside what it changed and what checked it: the decision needs all three. */}
-      {goal ? (
+      {goal && sessionWork ? (
         <div data-landing-goal>
           <SupervisionGoalLine goal={goal} className="typography-meta text-muted-foreground" />
         </div>
@@ -400,7 +402,7 @@ export function ReviewLanding({
         {sessionId ? <ReviewLandingBrowserEvidence directory={directory} sessionId={sessionId} /> : null}
         {/* What CI said about the pushed branch, beside what the runtime checked locally. */}
         <MissionControlPullRequest pr={pullRequest} />
-        {sessionId ? (
+        {sessionId && sessionWork ? (
           <ReviewLandingRequestFix directory={directory} sessionId={sessionId} pullRequest={pullRequest} />
         ) : null}
       </div>

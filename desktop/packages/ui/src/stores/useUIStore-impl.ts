@@ -1727,15 +1727,16 @@ export const useUIStore = create<UIStore>()(
         // to the in-memory default without discarding the rest of the persisted UI state.
         merge: (persistedState, currentState: UIStore) => {
           const restored = uiPreferencePersistence.merge(persistedState, currentState)
-          if (restored === currentState) return currentState
+          const legacy = persistedState as { isRightSidebarOpen?: unknown; rightSidebarTab?: unknown } | null
+          const legacyOpen = Boolean(legacy) && typeof legacy === "object" && legacy?.isRightSidebarOpen === true
+          if (restored === currentState && !legacyOpen) return currentState
           const merged: UIStore = { ...currentState, ...restored }
           merged.browserPanel = currentState.browserPanel
           // The right sidebar became the inspector. A profile saved with that sidebar open reopens the inspector on
           // the same view, once: the legacy fields are not written back.
-          const legacy = persistedState as { isRightSidebarOpen?: unknown; rightSidebarTab?: unknown } | null
-          if (legacy && typeof legacy === "object" && legacy.isRightSidebarOpen === true) {
+          if (legacyOpen) {
             merged.splitPaneEnabled = true
-            const tab = legacy.rightSidebarTab
+            const tab = legacy?.rightSidebarTab
             if (tab === "git" || tab === "files" || tab === "context") merged.splitPaneRightTab = tab
           }
           return merged

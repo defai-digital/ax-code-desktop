@@ -75,6 +75,13 @@ describe("what a fix request is about", () => {
     expect(pullRequestChecksFailed({ number: 1, state: "open", checks: "pending" })).toBe(false)
   })
 
+  test("a result with no single commit to quote leaves the request to the person", () => {
+    const mixed = seal({ state: "stale", reason: "mixed", checked: null })
+    expect(requestFixKind(evidence({ state: "failed", failed: 2 }), mixed)).toBe("general")
+    const unattributed = seal({ state: "unverified", reason: "unattributed", checked: null })
+    expect(requestFixKind(evidence({ state: "failed", failed: 2 }), unattributed)).toBe("general")
+  })
+
   test("passing or missing checks leave the request to the person", () => {
     expect(requestFixKind(evidence({}), seal({}))).toBe("general")
     expect(requestFixKind(null, seal({ state: "unverified", reason: "none", checked: null }))).toBe("general")
@@ -104,8 +111,8 @@ describe("the Request fix button", () => {
     act(() => root.render(<ReviewLandingRequestFix directory="/repo" sessionId="ses_1" />))
     expect(button()?.dataset.landingRequestFix).toBe("failed")
     act(() => button()!.click())
-    const draft = useInputStore.getState().consumePendingInputText()
-    expect(draft?.mode).toBe("replace")
+    const draft = useInputStore.getState().consumePendingInputText("ses_1")
+    expect(draft?.mode).toBe("append")
     expect(draft?.text).toContain("promptFailed")
     expect(draft?.text).toContain('"count":2')
     expect(draft?.text).toContain('"commit":"b4e19f2"')
@@ -118,9 +125,17 @@ describe("the Request fix button", () => {
     expect(button()?.dataset.landingRequestFix).toBe("pr-failed")
     expect(button()?.textContent).toContain("fixForward")
     act(() => button()!.click())
-    const draft = useInputStore.getState().consumePendingInputText()
+    const draft = useInputStore.getState().consumePendingInputText("ses_1")
     expect(draft?.text).toContain("promptPullRequest")
     expect(draft?.text).toContain('"number":42')
+  })
+
+  test("a draft for this session is dropped by a composer that shows another one", () => {
+    act(() => root.render(<ReviewLandingRequestFix directory="/repo" sessionId="ses_1" />))
+    act(() => button()!.click())
+    // The person moved on before any composer picked the draft up.
+    expect(useInputStore.getState().consumePendingInputText("ses_other")).toBeNull()
+    expect(useInputStore.getState().pendingInputText).toBeNull()
   })
 
   test("is not offered while another session is on screen", () => {

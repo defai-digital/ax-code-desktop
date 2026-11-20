@@ -41,6 +41,7 @@ export type SyntheticContextPart = {
 
 type InputState = {
   pendingInputText: string | null
+  pendingInputSessionId: string | null
   pendingInputMode: "replace" | "append" | "append-inline"
   pendingSyntheticParts: SyntheticContextPart[] | null
   /**
@@ -58,8 +59,14 @@ type InputState = {
   attachmentsByDraft: Record<string, AttachedFile[]>
   activeAttachmentDraftKey: string
 
-  setPendingInputText: (text: string | null, mode?: "replace" | "append" | "append-inline") => void
-  consumePendingInputText: () => { text: string; mode: "replace" | "append" | "append-inline" } | null
+  /**
+   * `sessionId` names the only session the text is for. A composer showing any other session drops it instead of
+   * taking a draft that was written about different work.
+   */
+  setPendingInputText: (text: string | null, mode?: "replace" | "append" | "append-inline", sessionId?: string) => void
+  consumePendingInputText: (
+    currentSessionId?: string | null,
+  ) => { text: string; mode: "replace" | "append" | "append-inline" } | null
   requestPresetSubmit: (text: string) => void
   consumePendingPresetSubmit: () => string | null
   setPendingSyntheticParts: (parts: SyntheticContextPart[] | null) => void
@@ -79,6 +86,7 @@ type InputState = {
 
 export const useInputStore = create<InputState>()((set, get) => ({
   pendingInputText: null,
+  pendingInputSessionId: null,
   pendingInputMode: "replace",
   pendingSyntheticParts: null,
   pendingPresetSubmit: null,
@@ -86,12 +94,14 @@ export const useInputStore = create<InputState>()((set, get) => ({
   attachmentsByDraft: {},
   activeAttachmentDraftKey: "",
 
-  setPendingInputText: (text, mode = "replace") => set({ pendingInputText: text, pendingInputMode: mode }),
+  setPendingInputText: (text, mode = "replace", sessionId) =>
+    set({ pendingInputText: text, pendingInputMode: mode, pendingInputSessionId: text === null ? null : (sessionId ?? null) }),
 
-  consumePendingInputText: () => {
-    const { pendingInputText, pendingInputMode } = get()
+  consumePendingInputText: (currentSessionId) => {
+    const { pendingInputText, pendingInputMode, pendingInputSessionId } = get()
     if (pendingInputText === null) return null
-    set({ pendingInputText: null, pendingInputMode: "replace" })
+    set({ pendingInputText: null, pendingInputMode: "replace", pendingInputSessionId: null })
+    if (pendingInputSessionId !== null && pendingInputSessionId !== (currentSessionId ?? null)) return null
     return { text: pendingInputText, mode: pendingInputMode }
   },
 

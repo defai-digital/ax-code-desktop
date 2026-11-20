@@ -1702,6 +1702,8 @@ const focusForegroundWindow = () => {
   if (windows.length === 0) return
   const target = mainWindow && !mainWindow.isDestroyed() ? mainWindow : windows.find((w) => w.isVisible()) || windows[0]
   if (process.platform === "darwin") app.focus({ steal: true })
+  // Same rule as revealMainWindow: the startup shell stays hidden until something is loaded into it.
+  if (target === mainWindow && !target.webContents.getURL()) return
   if (target.isMinimized()) target.restore()
   target.show()
   target.focus()

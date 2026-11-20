@@ -3,6 +3,7 @@ import { useEvidenceSeal, useSessionVerification } from "@/hooks/useEvidenceSeal
 import { useI18n } from "@/lib/i18n"
 import type { MissionPullRequest } from "@/lib/supervision/pullRequestCache"
 import { requestFixKind } from "@/lib/supervision/requestFix"
+import { useUIStore } from "@/stores/useUIStore"
 import { useInputStore } from "@/sync/input-store"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 
@@ -37,7 +38,11 @@ export function ReviewLandingRequestFix({
             : t("diffView.landing.requestFix.promptGeneral")
     // Read again at click time: the composer belongs to whichever session is on screen now.
     if (useSessionUIStore.getState().currentSessionId !== sessionId) return
-    useInputStore.getState().setPendingInputText(text, "replace")
+    // Appended: whatever the person already typed stays.
+    useInputStore.getState().setPendingInputText(text, "append", sessionId)
+    // On mobile the review covers the chat, so the draft would be written where nobody can see it.
+    const ui = useUIStore.getState()
+    if (ui.isMobile) ui.setActiveMainTab("chat")
   }
 
   // The composer belongs to the session on screen, so a draft for another session has nowhere safe to go.

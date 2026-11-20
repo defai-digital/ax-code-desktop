@@ -13,8 +13,10 @@ export function requestFixKind(
   seal: EvidenceSeal,
   pullRequest?: MissionPullRequest | null,
 ): RequestFixKind {
-  if (seal.state === "stale") return "stale"
-  if (checks?.state === "failed" && !checks.stale) return "failed"
+  // Both of these quote the commit the checks ran on. Without one (mixed commits, or a result the runtime did not
+  // attribute) there is nothing true to quote, so the request is left to the person.
+  if (seal.checked && seal.state === "stale") return "stale"
+  if (seal.checked && checks?.state === "failed" && !checks.stale) return "failed"
   // Local evidence comes first: it is about this tree. A pull request's checks are about what was pushed, and only
   // an open one whose status was read recently is worth quoting.
   if (pullRequestChecksFailed(pullRequest)) return "pr-failed"

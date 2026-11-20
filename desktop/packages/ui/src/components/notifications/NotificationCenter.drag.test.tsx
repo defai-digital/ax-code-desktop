@@ -46,3 +46,25 @@ test("presses on the backdrop and the panel are not window drags, so a second cl
   await act(async () => backdrop.click())
   expect(useNotificationStore.getState().isOpen).toBe(false)
 })
+
+test("lists follow-ups without answer buttons and marks them read when the panel closes", async () => {
+  const store = useNotificationStore.getState()
+  store.addNotification({ type: "session", title: "Run finished", message: "Fix login", sessionId: "ses_1" })
+  store.addNotification({ type: "system", title: "Run failed", message: "Build docs" })
+  store.setOpen(true)
+  await act(async () => {
+    root.render(
+      <I18nProvider>
+        <NotificationCenter />
+      </I18nProvider>,
+    )
+  })
+  const panel = container.querySelector<HTMLElement>('[role="dialog"]')!
+  expect(panel.textContent).toContain("Run finished")
+  expect(panel.textContent).toContain("Run failed")
+  // Two header actions (mark all read, clear all) and nothing that answers a request.
+  expect(panel.querySelectorAll("button")).toHaveLength(2)
+  expect(useNotificationStore.getState().notifications.filter((item) => !item.read)).toHaveLength(2)
+  await act(async () => useNotificationStore.getState().setOpen(false))
+  expect(useNotificationStore.getState().notifications.every((item) => item.read)).toBe(true)
+})
