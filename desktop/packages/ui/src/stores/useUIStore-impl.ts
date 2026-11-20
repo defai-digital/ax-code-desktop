@@ -6,7 +6,6 @@ import {
   uiPreferencePersistence,
   MAX_DIFF_FILE_LAYOUTS,
   type UIPreferences,
-  type RightSidebarTab,
   type MermaidRenderingMode,
   type UserMessageRenderingMode,
   type ActivityRenderMode,
@@ -108,7 +107,6 @@ export const diffLayoutKey = (directory: string | null | undefined, filePath: st
   `${normalizePathSeparators((directory ?? "")).replace(/\/+$/, "")}\u0000${filePath}`
 
 const LEFT_SIDEBAR_MIN_WIDTH = 280
-const RIGHT_SIDEBAR_MIN_WIDTH = 360
 
 // The browser lives in a single global panel (not per-directory) so it stays
 // open/consistent as the user switches projects. Its chip is rendered into the
@@ -123,7 +121,6 @@ interface BrowserPanelState {
 
 type WorkspaceFocusSnapshot = {
   isSidebarOpen: boolean
-  isRightSidebarOpen: boolean
   isBottomTerminalOpen: boolean
   splitPaneEnabled: boolean
   isExpandedInput: boolean
@@ -184,10 +181,6 @@ interface UIStore extends UIPreferences {
   exitWorkspaceFocus: (options?: { restore?: boolean }) => void
   toggleWorkspaceFocus: () => void
   setSidebarWidth: (width: number) => void
-  toggleRightSidebar: () => void
-  setRightSidebarOpen: (open: boolean) => void
-  setRightSidebarWidth: (width: number) => void
-  setRightSidebarTab: (tab: RightSidebarTab) => void
   openContextPanelTab: (directory: string, tab: ContextPanelTabDescriptor) => void
   openContextDiff: (directory: string, filePath: string, staged?: boolean) => void
   openContextFile: (directory: string, filePath: string) => void
@@ -320,8 +313,6 @@ interface UIStore extends UIPreferences {
   setUserMessageRenderingMode: (value: UserMessageRenderingMode) => void
   setStickyUserHeader: (value: boolean) => void
   setShowSplitAssistantMessageActions: (value: boolean) => void
-  viewPagerPage: "left" | "center" | "right"
-  setViewPagerPage: (page: "left" | "center" | "right") => void
   toggleExpandedInput: () => void
   setExpandedInput: (value: boolean) => void
   openMultiRunLauncher: () => void
@@ -341,10 +332,6 @@ export const useUIStore = create<UIStore>()(
         isSidebarOpen: true,
         sidebarWidth: LEFT_SIDEBAR_MIN_WIDTH,
         hasManuallyResizedLeftSidebar: false,
-        isRightSidebarOpen: false,
-        rightSidebarWidth: RIGHT_SIDEBAR_MIN_WIDTH,
-        hasManuallyResizedRightSidebar: false,
-        rightSidebarTab: "git",
         contextPanelByDirectory: {},
         browserPanel: { isOpen: false, url: "", focused: false },
         isBottomTerminalOpen: false,
@@ -516,14 +503,12 @@ export const useUIStore = create<UIStore>()(
             isWorkspaceFocus: true,
             workspaceFocusSnapshot: {
               isSidebarOpen: state.isSidebarOpen,
-              isRightSidebarOpen: state.isRightSidebarOpen,
               isBottomTerminalOpen: state.isBottomTerminalOpen,
               splitPaneEnabled: state.splitPaneEnabled,
               isExpandedInput: state.isExpandedInput,
               activeMainTab: state.activeMainTab,
             },
             isSidebarOpen: false,
-            isRightSidebarOpen: false,
             isBottomTerminalOpen: false,
             splitPaneEnabled: false,
             isExpandedInput: true,
@@ -557,52 +542,6 @@ export const useUIStore = create<UIStore>()(
 
         setSidebarWidth: (width) => {
           set({ sidebarWidth: width, hasManuallyResizedLeftSidebar: true })
-        },
-
-        toggleRightSidebar: () => {
-          set((state) => {
-            const newOpen = !state.isRightSidebarOpen
-
-            if (newOpen && !state.hasManuallyResizedRightSidebar) {
-              return {
-                isRightSidebarOpen: newOpen,
-                rightSidebarWidth: RIGHT_SIDEBAR_MIN_WIDTH,
-              }
-            }
-            return { isRightSidebarOpen: newOpen }
-          })
-        },
-
-        setRightSidebarOpen: (open) => {
-          set((state) => {
-            if (state.isRightSidebarOpen === open) {
-              if (!open) {
-                return state
-              }
-              if (!state.hasManuallyResizedRightSidebar && state.rightSidebarWidth !== RIGHT_SIDEBAR_MIN_WIDTH) {
-                return {
-                  isRightSidebarOpen: open,
-                  rightSidebarWidth: RIGHT_SIDEBAR_MIN_WIDTH,
-                }
-              }
-              return state
-            }
-            if (open && !state.hasManuallyResizedRightSidebar) {
-              return {
-                isRightSidebarOpen: open,
-                rightSidebarWidth: RIGHT_SIDEBAR_MIN_WIDTH,
-              }
-            }
-            return { isRightSidebarOpen: open }
-          })
-        },
-
-        setRightSidebarWidth: (width) => {
-          set({ rightSidebarWidth: width, hasManuallyResizedRightSidebar: true })
-        },
-
-        setRightSidebarTab: (tab) => {
-          set({ rightSidebarTab: tab })
         },
 
         openContextPanelTab: (directory, tab) => {
@@ -1638,18 +1577,6 @@ export const useUIStore = create<UIStore>()(
         setShowSplitAssistantMessageActions: (value) => {
           set({ showSplitAssistantMessageActions: value })
         },
-        viewPagerPage: "center",
-        setViewPagerPage: (page: "left" | "center" | "right") => {
-          set({ viewPagerPage: page })
-          if (page === "left") {
-            set({ isSessionSwitcherOpen: true, isRightSidebarOpen: false })
-          } else if (page === "right") {
-            set({ isRightSidebarOpen: true, isSessionSwitcherOpen: false })
-          } else {
-            set({ isSessionSwitcherOpen: false, isRightSidebarOpen: false })
-          }
-        },
-
         setShortcutOverride: (actionId, combo) => {
           set((state) => ({
             shortcutOverrides: {
@@ -1730,15 +1657,6 @@ export const useUIStore = create<UIStore>()(
             delete state.memoryLimitHistorical
             delete state.memoryLimitViewport
             delete state.memoryLimitActiveSession
-          }
-
-          if (
-            typeof state.rightSidebarTab !== "string" ||
-            (state.rightSidebarTab !== "git" &&
-              state.rightSidebarTab !== "files" &&
-              state.rightSidebarTab !== "context")
-          ) {
-            state.rightSidebarTab = "git"
           }
 
           state.contextPanelByDirectory = sanitizeContextPanelByDirectory(state.contextPanelByDirectory)

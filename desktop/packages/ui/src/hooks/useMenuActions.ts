@@ -5,6 +5,7 @@ import { getSyncSessions } from "@/sync/sync-refs"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useUIStore } from "@/stores/useUIStore"
+import { openBesideChat, toggleBesideChat } from "@/lib/supervision/openBesideChat"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useUpdateStore } from "@/stores/useUpdateStore"
 import { useThemeSystem } from "@/contexts/useThemeSystem"
@@ -103,9 +104,6 @@ export const useMenuActions = (onToggleMemoryDebug?: () => void) => {
   const setActiveMainTab = useUIStore((s) => s.setActiveMainTab)
   const setSettingsDialogOpen = useUIStore((s) => s.setSettingsDialogOpen)
   const setAboutDialogOpen = useUIStore((s) => s.setAboutDialogOpen)
-  const toggleRightSidebar = useUIStore((s) => s.toggleRightSidebar)
-  const setRightSidebarOpen = useUIStore((s) => s.setRightSidebarOpen)
-  const setRightSidebarTab = useUIStore((s) => s.setRightSidebarTab)
   const toggleBottomTerminal = useUIStore((s) => s.toggleBottomTerminal)
   const setBottomTerminalExpanded = useUIStore((s) => s.setBottomTerminalExpanded)
   const checkForUpdates = useUpdateStore((state) => state.checkForUpdates)
@@ -263,17 +261,15 @@ export const useMenuActions = (onToggleMemoryDebug?: () => void) => {
           break
 
         case "toggle-right-sidebar":
-          toggleRightSidebar()
+          toggleBesideChat()
           break
 
         case "open-right-sidebar-git":
-          setRightSidebarOpen(true)
-          setRightSidebarTab("git")
+          openBesideChat("git")
           break
 
         case "open-right-sidebar-files":
-          setRightSidebarOpen(true)
-          setRightSidebarTab("files")
+          openBesideChat("files")
           break
 
         case "toggle-terminal":
@@ -362,14 +358,11 @@ export const useMenuActions = (onToggleMemoryDebug?: () => void) => {
       setCommandPaletteOpen,
       setSettingsDialogOpen,
       setBottomTerminalExpanded,
-      setRightSidebarOpen,
-      setRightSidebarTab,
       setThemeMode,
       t,
       toggleBottomTerminal,
       toggleCommandPalette,
       toggleHelpDialog,
-      toggleRightSidebar,
       toggleSidebar,
     ],
   )

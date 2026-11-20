@@ -16,7 +16,7 @@ import { useProjectsStore } from "@/stores/useProjectsStore"
 export function WorkspaceNavigation() {
   const { t } = useI18n()
   const board = useSupervisionStore((s) => s.missionControlOpen || s.compareRunGroupKey !== null)
-  const review = useUIStore((s) => s.splitPaneEnabled && !s.isRightSidebarOpen && s.splitPaneRightTab === "diff")
+  const review = useUIStore((s) => s.splitPaneEnabled && s.splitPaneRightTab === "diff")
   const directory = useEffectiveDirectory()
   const homeDirectory = useDirectoryStore((s) => s.homeDirectory)
   const branch = useGitBranchLabel(directory ?? null)

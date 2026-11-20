@@ -1,7 +1,7 @@
 import React from "react"
 import { useUIStore } from "@/stores/useUIStore"
 
-type PanelKey = "isSidebarOpen" | "isRightSidebarOpen" | "isBottomTerminalOpen"
+type PanelKey = "isSidebarOpen" | "isBottomTerminalOpen"
 interface ResponsivePanel {
   key: PanelKey
   axis: "width" | "height"
@@ -22,7 +22,6 @@ export function useResponsivePanels({ isMobile, isTablet }: ResponsivePanelsOpti
     const state = useUIStore.getState()
     const panels: ResponsivePanel[] = [
       { key: "isSidebarOpen", axis: "width", closeBelow: 900, openAt: 980, setOpen: state.setSidebarOpen },
-      { key: "isRightSidebarOpen", axis: "width", closeBelow: 1140, openAt: 1220, setOpen: state.setRightSidebarOpen },
       {
         key: "isBottomTerminalOpen",
         axis: "height",
@@ -31,10 +30,9 @@ export function useResponsivePanels({ isMobile, isTablet }: ResponsivePanelsOpti
         setOpen: state.setBottomTerminalOpen,
       },
     ]
-    const versions: Record<PanelKey, number> = { isSidebarOpen: 0, isRightSidebarOpen: 0, isBottomTerminalOpen: 0 }
+    const versions: Record<PanelKey, number> = { isSidebarOpen: 0, isBottomTerminalOpen: 0 }
     const autoClosed: Record<PanelKey, boolean> = {
       isSidebarOpen: false,
-      isRightSidebarOpen: false,
       isBottomTerminalOpen: false,
     }
     let applying = false

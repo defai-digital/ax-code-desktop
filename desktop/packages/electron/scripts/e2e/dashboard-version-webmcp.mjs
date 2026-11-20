@@ -50,7 +50,7 @@ const outcome = await runHarness({
         const saved = JSON.parse(localStorage.getItem('ui-store') || '{}')
         const tab = { id:'dashboard', mode:'dashboard', dedupeKey:'dashboard', label:'Dashboard', touchedAt:1 }
         localStorage.setItem('ui-store', JSON.stringify({version:15,state:{...saved.state,
-          activeMainTab:'chat', isRightSidebarOpen:false, isSidebarOpen:true, splitPaneEnabled:false,
+          activeMainTab:'chat', isSidebarOpen:true, splitPaneEnabled:false,
           contextPanelByDirectory:{[${JSON.stringify(directory)}]:{
             tabs:[tab],activeTabId:tab.id,isOpen:true,expanded:false,width:640,touchedAt:1
           }}

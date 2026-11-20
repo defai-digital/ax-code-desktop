@@ -22,7 +22,7 @@ beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
   vi.useFakeTimers()
   resize(1280)
-  useUIStore.setState({ isSidebarOpen: true, isRightSidebarOpen: true, isBottomTerminalOpen: false })
+  useUIStore.setState({ isSidebarOpen: true, isBottomTerminalOpen: false })
   container = document.createElement("div")
   document.body.appendChild(container)
   root = createRoot(container)
@@ -54,7 +54,6 @@ test("a pending resize cannot overwrite a newer close and reopen action", () => 
   })
   settle()
   expect(useUIStore.getState().isSidebarOpen).toBe(true)
-  expect(useUIStore.getState().isRightSidebarOpen).toBe(false)
 })
 
 test("automatic collapse restores at the wider threshold and ignores height-only changes for sidebars", () => {
@@ -101,21 +100,4 @@ test("a pending height resize respects a newer terminal choice without suppressi
   act(() => resize(800, 900))
   settle()
   expect(useUIStore.getState().isBottomTerminalOpen).toBe(true)
-})
-
-test("automatic right-panel restore honors hysteresis and a subsequent manual close", () => {
-  act(() => root.render(<Harness />))
-  act(() => resize(1100))
-  settle()
-  expect(useUIStore.getState().isRightSidebarOpen).toBe(false)
-  act(() => resize(1180))
-  settle()
-  expect(useUIStore.getState().isRightSidebarOpen).toBe(false)
-  act(() => resize(1250))
-  settle()
-  expect(useUIStore.getState().isRightSidebarOpen).toBe(true)
-  act(() => useUIStore.getState().setRightSidebarOpen(false))
-  act(() => resize(1300))
-  settle()
-  expect(useUIStore.getState().isRightSidebarOpen).toBe(false)
 })

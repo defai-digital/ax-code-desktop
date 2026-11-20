@@ -3,6 +3,7 @@ import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useSelectionStore } from "@/sync/selection-store"
 import * as sessionActions from "@/sync/session-actions"
 import { useUIStore } from "@/stores/useUIStore"
+import { cycleBesideChat, openBesideChat, toggleBesideChat } from "@/lib/supervision/openBesideChat"
 import { useThemeSystem } from "@/contexts/useThemeSystem"
 import { useAssistantStatus } from "@/hooks/useAssistantStatus"
 import { createWorktreeSession } from "@/lib/worktreeSessionCreator"
@@ -30,9 +31,6 @@ export const useKeyboardShortcuts = () => {
   const setCommandPaletteOpen = useUIStore((s) => s.setCommandPaletteOpen)
   const toggleHelpDialog = useUIStore((s) => s.toggleHelpDialog)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
-  const toggleRightSidebar = useUIStore((s) => s.toggleRightSidebar)
-  const setRightSidebarOpen = useUIStore((s) => s.setRightSidebarOpen)
-  const setRightSidebarTab = useUIStore((s) => s.setRightSidebarTab)
   const toggleBottomTerminal = useUIStore((s) => s.toggleBottomTerminal)
   const setBottomTerminalExpanded = useUIStore((s) => s.setBottomTerminalExpanded)
   const isMobile = useUIStore((s) => s.isMobile)
@@ -312,7 +310,7 @@ export const useKeyboardShortcuts = () => {
           return
         }
         e.preventDefault()
-        toggleRightSidebar()
+        toggleBesideChat()
         return
       }
 
@@ -322,8 +320,7 @@ export const useKeyboardShortcuts = () => {
           return
         }
         e.preventDefault()
-        setRightSidebarOpen(true)
-        setRightSidebarTab("git")
+        openBesideChat("git")
         return
       }
 
@@ -333,24 +330,18 @@ export const useKeyboardShortcuts = () => {
           return
         }
         e.preventDefault()
-        setRightSidebarOpen(true)
-        setRightSidebarTab("files")
+        openBesideChat("files")
         return
       }
 
       if (eventMatchesShortcut(e, combo("cycle_right_sidebar_tab"))) {
-        const { isMobile, rightSidebarTab } = useUIStore.getState()
+        const { isMobile } = useUIStore.getState()
         if (isMobile) {
           return
         }
 
-        const tabs = ["git", "files", "context"] as const
-        const currentIndex = tabs.indexOf(rightSidebarTab)
-        const nextTab = tabs[(currentIndex + 1) % tabs.length]
-
         e.preventDefault()
-        setRightSidebarOpen(true)
-        setRightSidebarTab(nextTab)
+        cycleBesideChat()
         return
       }
 
@@ -614,9 +605,6 @@ export const useKeyboardShortcuts = () => {
     setCommandPaletteOpen,
     toggleHelpDialog,
     toggleSidebar,
-    toggleRightSidebar,
-    setRightSidebarOpen,
-    setRightSidebarTab,
     toggleBottomTerminal,
     setBottomTerminalExpanded,
     isMobile,

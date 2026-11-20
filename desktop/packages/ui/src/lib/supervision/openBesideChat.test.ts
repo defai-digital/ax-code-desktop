@@ -1,7 +1,14 @@
 import { beforeEach, describe, expect, test } from "vitest"
 
 import { useUIStore } from "@/stores/useUIStore"
-import { closeBesideChat, continueAfterFilesGuard, openBesideChat, selectSplitPaneTab } from "./openBesideChat"
+import {
+  closeBesideChat,
+  continueAfterFilesGuard,
+  cycleBesideChat,
+  openBesideChat,
+  selectSplitPaneTab,
+  toggleBesideChat,
+} from "./openBesideChat"
 
 const dirtyFilesGuard = () => {
   const asked: string[] = []
@@ -51,19 +58,46 @@ describe("beside-chat views and the Files unsaved-changes guard", () => {
     expect(asked).toEqual([])
   })
 
-  test("opening an inspector closes the project sidebar after its guard accepts", () => {
-    useUIStore.setState({ isRightSidebarOpen: true, splitPaneEnabled: false })
-    expect(openBesideChat("files")).toBe(true)
-    expect(useUIStore.getState().isRightSidebarOpen).toBe(false)
+  test("a rejected Files guard leaves the editor in place", () => {
+    dirtyFilesGuard()
+    expect(openBesideChat("diff")).toBe(false)
+    expect(useUIStore.getState().splitPaneRightTab).toBe("files")
     expect(useUIStore.getState().splitPaneEnabled).toBe(true)
   })
 
-  test("a rejected Files guard leaves the project sidebar and editor unchanged", () => {
+  test("the toggle reopens the view the inspector last showed", () => {
+    useUIStore.setState({ splitPaneEnabled: false, splitPaneRightTab: "git" })
+    expect(toggleBesideChat()).toBe(true)
+    expect(useUIStore.getState()).toMatchObject({ splitPaneEnabled: true, splitPaneRightTab: "git" })
+    expect(toggleBesideChat()).toBe(true)
+    expect(useUIStore.getState().splitPaneEnabled).toBe(false)
+  })
+
+  test("the toggle opens Files when the pane last pointed at the docked terminal", () => {
+    useUIStore.setState({ splitPaneEnabled: false, splitPaneRightTab: "terminal" })
+    toggleBesideChat()
+    expect(useUIStore.getState()).toMatchObject({ splitPaneEnabled: true, splitPaneRightTab: "files" })
+  })
+
+  test("the toggle cannot close a Files editor with unsaved changes", () => {
     dirtyFilesGuard()
-    useUIStore.setState({ isRightSidebarOpen: true })
-    expect(openBesideChat("diff")).toBe(false)
-    expect(useUIStore.getState().isRightSidebarOpen).toBe(true)
+    expect(toggleBesideChat()).toBe(false)
+    expect(useUIStore.getState().splitPaneEnabled).toBe(true)
+  })
+
+  test("cycling walks Git, Files and Context and starts at Git from any other view", () => {
+    useUIStore.setState({ splitPaneEnabled: false, splitPaneRightTab: "files" })
+    cycleBesideChat()
+    expect(useUIStore.getState()).toMatchObject({ splitPaneEnabled: true, splitPaneRightTab: "git" })
+    cycleBesideChat()
     expect(useUIStore.getState().splitPaneRightTab).toBe("files")
+    cycleBesideChat()
+    expect(useUIStore.getState().splitPaneRightTab).toBe("context")
+    cycleBesideChat()
+    expect(useUIStore.getState().splitPaneRightTab).toBe("git")
+    useUIStore.setState({ splitPaneRightTab: "diff" })
+    cycleBesideChat()
+    expect(useUIStore.getState().splitPaneRightTab).toBe("git")
   })
 
   test("closing a dirty Files pane waits for the editor's decision, then closes", () => {

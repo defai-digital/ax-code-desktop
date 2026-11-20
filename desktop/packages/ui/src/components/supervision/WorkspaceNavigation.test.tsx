@@ -26,7 +26,6 @@ describe("workspace navigation", () => {
     useProjectsStore.setState({ projects: [] } as never)
     useUIStore.setState({
       isMobile: false,
-      isRightSidebarOpen: false,
       activeMainTab: "chat",
       splitPaneEnabled: false,
       splitPaneRightTab: "diff",

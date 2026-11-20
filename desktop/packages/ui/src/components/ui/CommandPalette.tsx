@@ -49,7 +49,7 @@ import { paletteHasNeedsYou, rankPaletteSessions } from "@/lib/supervision/palet
 import { canOpenSessionWindow, openSessionWindow } from "@/lib/supervision/openSessionWindow"
 import { nextNeedsHumanSession } from "@/lib/supervision/sessionState"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
-import { openBesideChat } from "@/lib/supervision/openBesideChat"
+import { openBesideChat, toggleBesideChat } from "@/lib/supervision/openBesideChat"
 import { supervisionPopoutPaletteEntry } from "@/lib/supervision/popout"
 
 type CommandEntry = {
@@ -88,7 +88,6 @@ export const CommandPalette: React.FC = () => {
   const setSettingsPage = useUIStore((s) => s.setSettingsPage)
   const setSessionSwitcherOpen = useUIStore((s) => s.setSessionSwitcherOpen)
   const toggleSidebar = useUIStore((s) => s.toggleSidebar)
-  const toggleRightSidebar = useUIStore((s) => s.toggleRightSidebar)
   const toggleBottomTerminal = useUIStore((s) => s.toggleBottomTerminal)
   const setTimelineDialogOpen = useUIStore((s) => s.setTimelineDialogOpen)
   const setCrossSessionSearchOpen = useUIStore((s) => s.setCrossSessionSearchOpen)
@@ -424,7 +423,7 @@ export const CommandPalette: React.FC = () => {
         icon: <Icon name="layout-right" className="mr-2 h-4 w-4" />,
         shortcutId: "toggle_right_sidebar",
         searchText: t("commandPalette.item.toggleRightSidebar"),
-        onSelect: run(() => toggleRightSidebar()),
+        onSelect: run(() => void toggleBesideChat()),
       },
       {
         id: "toggle-terminal",
@@ -540,7 +539,6 @@ export const CommandPalette: React.FC = () => {
     setSessionSwitcherOpen,
     openNewSessionDraft,
     toggleSidebar,
-    toggleRightSidebar,
     toggleBottomTerminal,
     currentDirectory,
     openContextOverview,

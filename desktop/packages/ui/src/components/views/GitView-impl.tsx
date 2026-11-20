@@ -334,7 +334,6 @@ export const GitView: React.FC = () => {
   const isMobile = useUIStore((state) => state.isMobile)
   const openContextDiff = useUIStore((state) => state.openContextDiff)
   const navigateToDiff = useUIStore((state) => state.navigateToDiff)
-  const setRightSidebarOpen = useUIStore((state) => state.setRightSidebarOpen)
   const previousBootstrapStatusRef = React.useRef<{ directory: string; status: string | null } | null>(null)
   const bootstrapWaitRef = React.useRef<{ directory: string; timer: number | null }>({ directory: "", timer: null })
   const gitReconcileTimeoutRef = React.useRef<number | null>(null)
@@ -1849,11 +1848,8 @@ export const GitView: React.FC = () => {
         return
       }
       navigateToDiff(path, staged)
-      if (isMobile) {
-        setRightSidebarOpen(false)
-      }
     },
-    [currentDirectory, isMobile, navigateToDiff, openContextDiff, setRightSidebarOpen],
+    [currentDirectory, isMobile, navigateToDiff, openContextDiff],
   )
 
   const openStashes = React.useCallback(() => setIsStashesDialogOpen(true), [])

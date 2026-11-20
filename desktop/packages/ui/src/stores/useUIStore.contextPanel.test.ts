@@ -126,8 +126,6 @@ describe("useUIStore context panel", () => {
     useUIStore.setState({
       sidebarWidth: 344,
       hasManuallyResizedLeftSidebar: true,
-      rightSidebarWidth: 428,
-      hasManuallyResizedRightSidebar: true,
       bottomTerminalHeight: 312,
       hasManuallyResizedBottomTerminal: true,
       diffFileLayout: { "src/index.ts": "inline" },
@@ -136,8 +134,6 @@ describe("useUIStore context panel", () => {
     expect(partialize?.(useUIStore.getState())).toMatchObject({
       sidebarWidth: 344,
       hasManuallyResizedLeftSidebar: true,
-      rightSidebarWidth: 428,
-      hasManuallyResizedRightSidebar: true,
       bottomTerminalHeight: 312,
       hasManuallyResizedBottomTerminal: true,
       diffFileLayout: { "src/index.ts": "inline" },

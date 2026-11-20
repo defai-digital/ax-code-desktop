@@ -25,11 +25,10 @@ const HANDLE_WIDTH = 4
 
 interface SplitPaneLayoutProps {
   children: React.ReactNode
-  suspended?: boolean
   rightContent: React.ReactNode
 }
 
-export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, rightContent, suspended = false }) => {
+export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, rightContent }) => {
   const { t } = useI18n()
   const { splitEnabled: storedSplitEnabled, splitRatio, splitRightTab, setSplitRatio } = useSplitPane()
   // Suspension (the session grid covers the workspace) hides the right pane without unmounting it, and keeps the same
@@ -56,7 +55,7 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
     observer.observe(container)
     measure()
     return () => observer.disconnect()
-  }, [storedSplitEnabled, suspended])
+  }, [storedSplitEnabled])
 
   React.useLayoutEffect(() => {
     const container = containerRef.current
@@ -71,7 +70,7 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
       if (!(candidate instanceof HTMLElement) || !container.contains(candidate)) return
       const hiddenPane = candidate.closest<HTMLElement>("[data-split-chat], [data-split-resize], [data-split-inspector]")
       if (!hiddenPane || (!hiddenPane.hidden && getComputedStyle(hiddenPane).display !== "none")) return
-      if (!splitEnabled || suspended) {
+      if (!splitEnabled) {
         const target = container.querySelector<HTMLElement>("[data-split-chat] textarea:not(:disabled)")
           ?? container.querySelector<HTMLElement>("[data-split-chat] button:not(:disabled)")
         target?.focus({ preventScroll: true })
@@ -89,7 +88,7 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
       observer.disconnect()
       document.removeEventListener("focusin", rememberFocus)
     }
-  }, [splitEnabled, splitRightTab, panelFocused, suspended])
+  }, [splitEnabled, splitRightTab, panelFocused])
 
   const handlePointerDown = React.useCallback((e: React.PointerEvent) => {
     e.preventDefault()
@@ -149,15 +148,15 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
     [setSplitRatio, splitRatio],
   )
 
-  const leftPercent = !splitEnabled || suspended ? "100%" : `${splitRatio * 100}%`
+  const leftPercent = !splitEnabled ? "100%" : `${splitRatio * 100}%`
   const rightPercent = `${(1 - splitRatio) * 100}%`
 
   return (
     <div
       ref={containerRef}
       data-split-layout
-      data-split-active={splitEnabled && !suspended}
-      data-panel-focused={panelFocused && !suspended}
+      data-split-active={splitEnabled}
+      data-panel-focused={panelFocused}
       data-split-review={splitRightTab === "diff"}
       className="flex h-full w-full overflow-hidden"
     >
@@ -176,7 +175,7 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
 
       {/* Drag handle */}
       <div
-        hidden={!splitEnabled || suspended}
+        hidden={!splitEnabled}
         className={cn(
           "relative flex-shrink-0 cursor-col-resize bg-border/40 transition-colors",
           "hover:bg-[var(--interactive-border)]",
@@ -202,7 +201,7 @@ export const SplitPaneLayout: React.FC<SplitPaneLayoutProps> = ({ children, righ
       {/* Right pane */}
       <div
         data-split-inspector
-        hidden={!splitEnabled || suspended}
+        hidden={!splitEnabled}
         className="relative h-full min-w-0 overflow-hidden"
         style={{ width: rightPercent }}
       >

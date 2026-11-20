@@ -2,7 +2,7 @@ import React from "react"
 import { Header } from "./Header"
 import { BottomTerminalDock } from "./BottomTerminalDock"
 import { Sidebar, SIDEBAR_CONTENT_WIDTH } from "./Sidebar"
-import { ProjectContextPanel } from "./RightSidebarTabs"
+import { ProjectContextPanel } from "./ProjectContextPanel"
 import { ContextPanel } from "./ContextPanel"
 import { WorkspaceNavigation } from "@/components/supervision/WorkspaceNavigation"
 import { SupervisionMainOverlay } from "@/components/supervision/SupervisionOverlays"
@@ -68,9 +68,6 @@ const sidebarCornerBackground = (position: string) =>
 export const MainLayout: React.FC = () => {
   const { t } = useI18n()
   const isSidebarOpen = useUIStore((state) => state.isSidebarOpen)
-  const isRightSidebarOpen = useUIStore((state) => state.isRightSidebarOpen)
-  const rightSidebarTab = useUIStore((state) => state.rightSidebarTab)
-  const setRightSidebarOpen = useUIStore((state) => state.setRightSidebarOpen)
   const isBottomTerminalOpen = useUIStore((state) => state.isBottomTerminalOpen)
   const activeMainTab = useUIStore((state) => state.activeMainTab)
   const setActiveMainTab = useUIStore((state) => state.setActiveMainTab)
@@ -143,14 +140,6 @@ export const MainLayout: React.FC = () => {
     if (!view) return
     openBesideChat(view)
   }, [activeMainTab, isMobile])
-
-  // Unify legacy RightSidebar open requests into the single SplitPane inspector so
-  // two right-side drawers never compete for width.
-  React.useEffect(() => {
-    if (!isRightSidebarOpen) return
-    openBesideChat(rightSidebarTab)
-    setRightSidebarOpen(false)
-  }, [isRightSidebarOpen, rightSidebarTab, setRightSidebarOpen])
 
   React.useEffect(() => {
     if (typeof window === "undefined") {
@@ -306,7 +295,7 @@ export const MainLayout: React.FC = () => {
         <SessionDialogs />
         <QuickDispatchDialog />
 
-        {/* Desktop: full-width Header above [Sidebar | chat-frame | RightSidebar] row */}
+        {/* Desktop: full-width Header above [Sidebar | chat-frame | inspector] row */}
         <div className="flex flex-1 flex-col overflow-hidden">
           <Header />
           <div className="relative flex flex-1 min-h-0 overflow-hidden bg-sidebar" data-page-scroll-lock="true">
@@ -349,7 +338,7 @@ export const MainLayout: React.FC = () => {
               <div className="workspace-body relative flex min-h-0 min-w-0 flex-1 overflow-hidden">
                 <SupervisionMainOverlay />
                 <div className="flex flex-1 min-w-0 flex-col overflow-hidden">
-                  <SplitPaneLayout suspended={isRightSidebarOpen} rightContent={splitRightContent}>
+                  <SplitPaneLayout rightContent={splitRightContent}>
                     <div className="flex flex-1 min-h-0 overflow-hidden" data-page-scroll-lock="true">
                       <div
                         className="relative flex flex-1 min-h-0 min-w-0 overflow-hidden"

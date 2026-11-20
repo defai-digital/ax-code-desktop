@@ -35,7 +35,6 @@ export function openBesideChat(view: BesideChatView): boolean {
     return true
   }
   if (!mayLeaveFilesPane(view)) return false
-  ui.setRightSidebarOpen(false)
   ui.setSplitPaneRightTab(view)
   ui.setSplitPaneEnabled(true)
   return true
@@ -53,10 +52,28 @@ export function closeBesideChat(view: BesideChatView): boolean {
   return true
 }
 
+/**
+ * Show or hide the inspector beside the chat, keeping the view it last showed. The terminal has its own dock, so
+ * a pane that last pointed at it opens on Files instead.
+ */
+export function toggleBesideChat(): boolean {
+  const ui = useUIStore.getState()
+  const view = ui.splitPaneRightTab === "terminal" ? "files" : ui.splitPaneRightTab
+  return ui.splitPaneEnabled ? closeBesideChat(view) : openBesideChat(view)
+}
+
+const INSPECTOR_CYCLE: readonly BesideChatView[] = ["git", "files", "context"]
+
+/** Open the inspector on the next of Git, Files and Context. Any other view starts the cycle at Git. */
+export function cycleBesideChat(): boolean {
+  const ui = useUIStore.getState()
+  const index = ui.splitPaneEnabled ? INSPECTOR_CYCLE.indexOf(ui.splitPaneRightTab) : -1
+  return openBesideChat(INSPECTOR_CYCLE[(index + 1) % INSPECTOR_CYCLE.length])
+}
+
 /** Switch the split pane's own tab, unless an unsaved Files editor keeps its place. */
 export function selectSplitPaneTab(view: BesideChatView): boolean {
   if (!mayLeaveFilesPane(view)) return false
-  useUIStore.getState().setRightSidebarOpen(false)
   useUIStore.getState().setSplitPaneRightTab(view)
   return true
 }

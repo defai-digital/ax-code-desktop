@@ -25,8 +25,6 @@ export const DoneNotCommittedNudge: React.FC = React.memo(() => {
   const gitStatus = useGitStore((s) =>
     currentDirectory ? (s.directories.get(currentDirectory)?.status ?? null) : null,
   )
-  const setRightSidebarOpen = useUIStore((s) => s.setRightSidebarOpen)
-  const setRightSidebarTab = useUIStore((s) => s.setRightSidebarTab)
   const setTimelineDialogOpen = useUIStore((s) => s.setTimelineDialogOpen)
   const runEndedAt = useSessionRunEndedAt(currentSessionId ?? "")
   const dismissedAt = useNudgeDismissedAt(currentSessionId ?? "")
@@ -46,8 +44,7 @@ export const DoneNotCommittedNudge: React.FC = React.memo(() => {
     openBesideChat("diff")
   }
   const openGit = () => {
-    setRightSidebarOpen(true)
-    setRightSidebarTab("git")
+    openBesideChat("git")
   }
 
   const handleDismiss = () => {

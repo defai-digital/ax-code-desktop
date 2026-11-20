@@ -21,7 +21,6 @@ import {
 } from "./persistedFields"
 
 export const MAX_DIFF_FILE_LAYOUTS = 500
-export type RightSidebarTab = "git" | "files" | "context"
 export type MermaidRenderingMode = "svg" | "ascii"
 export type UserMessageRenderingMode = "markdown" | "plain"
 export type ActivityRenderMode = "collapsed" | "summary"
@@ -37,10 +36,6 @@ export interface UIPreferences {
   isSidebarOpen: boolean
   sidebarWidth: number
   hasManuallyResizedLeftSidebar: boolean
-  isRightSidebarOpen: boolean
-  rightSidebarWidth: number
-  hasManuallyResizedRightSidebar: boolean
-  rightSidebarTab: RightSidebarTab
   contextPanelByDirectory: Record<string, ContextPanelDirectoryState>
   isBottomTerminalOpen: boolean
   isBottomTerminalExpanded: boolean
@@ -159,10 +154,6 @@ export const uiPreferencePersistence = createPersistedFields<UIPreferences>({
   isSidebarOpen: persistedBoolean,
   sidebarWidth: persistedNumber,
   hasManuallyResizedLeftSidebar: persistedBoolean,
-  isRightSidebarOpen: persistedBoolean,
-  rightSidebarWidth: persistedNumber,
-  hasManuallyResizedRightSidebar: persistedBoolean,
-  rightSidebarTab: persistedEnum(["git", "files", "context"]),
   contextPanelByDirectory: (value, current) =>
     isPlainRecord(value) ? sanitizeContextPanelByDirectory(value) : current,
   isBottomTerminalOpen: persistedBoolean,

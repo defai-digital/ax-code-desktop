@@ -54,7 +54,7 @@ const outcome = await runHarness({
       }}))
       const saved = JSON.parse(localStorage.getItem('ui-store') || '{}')
       localStorage.setItem('ui-store', JSON.stringify({version:15,state:{...saved.state,
-        activeMainTab:'chat', isRightSidebarOpen:false, isSidebarOpen:true, splitPaneEnabled:false,
+        activeMainTab:'chat', isSidebarOpen:true, splitPaneEnabled:false,
         contextPanelByDirectory:{[${JSON.stringify(directory)}]:{
           tabs:${JSON.stringify(tabs)},activeTabId:${JSON.stringify(tabs[0].id)},isOpen:true,expanded:false,width:640,touchedAt:1
         }}

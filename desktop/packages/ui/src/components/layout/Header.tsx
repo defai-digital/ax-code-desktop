@@ -78,7 +78,7 @@ import { useNotificationStore } from "@/stores/useNotificationStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { NeedsYouButton } from "@/components/supervision/NeedsYouButton"
 import { SessionVersionSeal } from "@/components/supervision/SessionVersionSeal"
-import { closeBesideChat, openBesideChat } from "@/lib/supervision/openBesideChat"
+import { toggleBesideChat } from "@/lib/supervision/openBesideChat"
 import { shouldStartWindowDrag } from "@/lib/windowDrag"
 import type { Session } from "@defai-digital/ax-code-sdk/v2/client"
 import type { IconName } from "@/components/icon/icons"
@@ -1752,15 +1752,7 @@ export const Header: React.FC = () => {
         <HeaderIconActionButton
           title={t("header.actions.rightSidebarWithShortcut", { shortcut: shortcutLabel("toggle_right_sidebar") })}
           ariaLabel={t("header.actions.toggleRightSidebarAria")}
-          onClick={() => {
-            const ui = useUIStore.getState()
-            const targetTab = ui.splitPaneRightTab === "terminal" ? "files" : ui.splitPaneRightTab
-            if (ui.splitPaneEnabled) {
-              closeBesideChat(targetTab)
-            } else {
-              openBesideChat(targetTab)
-            }
-          }}
+          onClick={() => toggleBesideChat()}
           pressed={splitPaneEnabled}
           className={HEADER_PANEL_BUTTON_CLASS}
           Icon={"layout-right"}

@@ -8,7 +8,6 @@ describe("workspace focus (Ma layout)", () => {
       isWorkspaceFocus: false,
       workspaceFocusSnapshot: null,
       isSidebarOpen: true,
-      isRightSidebarOpen: true,
       isBottomTerminalOpen: true,
       splitPaneEnabled: true,
       isExpandedInput: false,
@@ -22,14 +21,12 @@ describe("workspace focus (Ma layout)", () => {
 
     expect(state.isWorkspaceFocus).toBe(true)
     expect(state.isSidebarOpen).toBe(false)
-    expect(state.isRightSidebarOpen).toBe(false)
     expect(state.isBottomTerminalOpen).toBe(false)
     expect(state.splitPaneEnabled).toBe(false)
     expect(state.isExpandedInput).toBe(true)
     expect(state.activeMainTab).toBe("chat")
     expect(state.workspaceFocusSnapshot).toEqual({
       isSidebarOpen: true,
-      isRightSidebarOpen: true,
       isBottomTerminalOpen: true,
       splitPaneEnabled: true,
       isExpandedInput: false,
@@ -45,7 +42,6 @@ describe("workspace focus (Ma layout)", () => {
     expect(state.isWorkspaceFocus).toBe(false)
     expect(state.workspaceFocusSnapshot).toBeNull()
     expect(state.isSidebarOpen).toBe(true)
-    expect(state.isRightSidebarOpen).toBe(true)
     expect(state.isBottomTerminalOpen).toBe(true)
     expect(state.splitPaneEnabled).toBe(true)
     expect(state.isExpandedInput).toBe(false)
@@ -60,7 +56,6 @@ describe("workspace focus (Ma layout)", () => {
     expect(state.isWorkspaceFocus).toBe(false)
     expect(state.workspaceFocusSnapshot).toBeNull()
     expect(state.isSidebarOpen).toBe(true)
-    expect(state.isRightSidebarOpen).toBe(false)
     expect(state.isBottomTerminalOpen).toBe(false)
   })
 
