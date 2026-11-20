@@ -775,12 +775,12 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
     )
   }
 
-  // The pages that share this navigation entry. Hidden when the page stands alone.
+  // The pages that share this navigation entry, as links: each is a page of its own, not a panel of one page.
+  // Hidden when the page stands alone.
   const renderFamilyTabs = () => {
     if (familyTabs.length < 2 || !familyTabs.some(page => page.slug === settingsSlug)) return null
     return (
-      <div
-        role="tablist"
+      <nav
         aria-label={getPageTitle(familyTabs[0].slug)}
         data-settings-family-tabs
         className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border/60 bg-background px-3 py-1.5"
@@ -791,8 +791,7 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
             <button
               key={page.slug}
               type="button"
-              role="tab"
-              aria-selected={active}
+              aria-current={active ? "page" : undefined}
               onClick={() => openPage(page.slug)}
               className={cn(
                 "h-7 rounded-md px-2.5 typography-ui-label",
@@ -805,7 +804,7 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
             </button>
           )
         })}
-      </div>
+      </nav>
     )
   }
 

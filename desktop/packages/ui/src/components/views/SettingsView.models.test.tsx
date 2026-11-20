@@ -119,9 +119,9 @@ test("grouped navigation stays stable through page selection, search and clear",
   await act(async () => navButton("Appearance")?.click())
   await flush()
   // Chat shares the Appearance entry and is one tab away.
-  const tabs = () => [...container.querySelectorAll('[data-settings-family-tabs] [role="tab"]')]
-  expect(tabs().map(tab => [tab.textContent, tab.getAttribute("aria-selected")])).toEqual([
-    ["Appearance", "true"], ["Chat", "false"],
+  const tabs = () => [...container.querySelectorAll('[data-settings-family-tabs] button')]
+  expect(tabs().map(tab => [tab.textContent, tab.getAttribute("aria-current")])).toEqual([
+    ["Appearance", "page"], ["Chat", null],
   ])
   await act(async () => (tabs()[1] as HTMLElement).click())
   await flush()
@@ -144,7 +144,7 @@ test("grouped navigation stays stable through page selection, search and clear",
   await filter("")
   expect(inventory()).toEqual(baseline)
   expect(container.querySelector('[data-settings-group="coding"] [aria-current="page"]')?.textContent).toBe("Agents")
-  expect(container.querySelector('[data-settings-family-tabs] [aria-selected="true"]')?.textContent).toBe("Hooks")
+  expect(container.querySelector('[data-settings-family-tabs] [aria-current="page"]')?.textContent).toBe("Hooks")
   for (const group of container.querySelectorAll('[data-settings-group]')) {
     expect(document.getElementById(group.getAttribute("aria-labelledby")!)?.tagName).toBe("H2")
   }
