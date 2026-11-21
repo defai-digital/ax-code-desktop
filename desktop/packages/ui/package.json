@@ -21,6 +21,7 @@
   },
   "dependencies": {
     "@ax-code/akitty-web": "workspace:*",
+    "@ax-code/diff-wasm": "https://github.com/defai-digital/ax-code/releases/download/v7.30.30/ax-code-diff-wasm.tgz",
     "@base-ui/react": "^1.9.0",
     "@codemirror/autocomplete": "^6.20.3",
     "@codemirror/commands": "^6.11.1",

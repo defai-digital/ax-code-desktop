@@ -2856,6 +2856,7 @@
   "diffView.state.cleanWorkingTree": "\u00c1rvore de trabalho limpa, sem altera\u00e7\u00f5es para exibir",
   "diffView.state.failedToLoadDiff": "Falha ao carregar diff",
   "diffView.state.loadingDiff": "Carregando diff...",
+  "diffView.state.approximateDiff": "Altera\u00e7\u00e3o grande: as linhas s\u00e3o correspondidas de forma aproximada, ent\u00e3o este diff pode parecer diferente do Git.",
   "diffView.state.loadingChanges": "Carregando altera\u00e7\u00f5es...",
   "diffView.summary.changedFilesSingle": "{count} arquivo alterado",
   "diffView.summary.changedFilesPlural": "{count} arquivos alterados",

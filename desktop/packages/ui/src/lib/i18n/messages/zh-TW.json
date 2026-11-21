@@ -2856,6 +2856,7 @@
   "diffView.state.cleanWorkingTree": "\u5de5\u4f5c\u6a39\u4e7e\u6de8\uff0c\u6c92\u6709\u53ef\u986f\u793a\u7684\u8b8a\u66f4",
   "diffView.state.failedToLoadDiff": "\u8f09\u5165\u5dee\u7570\u5931\u6557",
   "diffView.state.loadingDiff": "\u6b63\u5728\u8f09\u5165\u5dee\u7570...",
+  "diffView.state.approximateDiff": "\u8b8a\u66f4\u8f03\u5927\uff1a\u884c\u7684\u5c0d\u61c9\u70ba\u8fd1\u4f3c\u6bd4\u5c0d\uff0c\u56e0\u6b64\u6b64\u5dee\u7570\u53ef\u80fd\u8207 Git \u986f\u793a\u7684\u4e0d\u540c\u3002",
   "diffView.state.loadingChanges": "\u6b63\u5728\u8f09\u5165\u8b8a\u66f4...",
   "diffView.summary.changedFilesSingle": "{count} \u500b\u6a94\u6848\u8b8a\u66f4",
   "diffView.summary.changedFilesPlural": "{count} \u500b\u6a94\u6848\u8b8a\u66f4",

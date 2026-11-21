@@ -2862,6 +2862,7 @@
   "diffView.state.cleanWorkingTree": "\u00c7al\u0131\u015fma a\u011fac\u0131 temiz, g\u00f6sterilecek de\u011fi\u015fiklik yok",
   "diffView.state.failedToLoadDiff": "Fark y\u00fcklenemedi",
   "diffView.state.loadingDiff": "Fark y\u00fckleniyor...",
+  "diffView.state.approximateDiff": "B\u00fcy\u00fck de\u011fi\u015fiklik: sat\u0131rlar yakla\u015f\u0131k olarak e\u015fle\u015ftirildi, bu nedenle bu fark Git'tekinden farkl\u0131 g\u00f6r\u00fcnebilir.",
   "diffView.state.loadingChanges": "De\u011fi\u015fiklikler y\u00fckleniyor...",
   "diffView.summary.changedFilesSingle": "{count} dosya de\u011fi\u015fti",
   "diffView.summary.changedFilesPlural": "{count} dosya de\u011fi\u015fti",

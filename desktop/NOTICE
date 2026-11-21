@@ -48,6 +48,14 @@ Ghostty contributors, under the MIT License. The license texts are retained as
 LICENSE and LICENSE-GHOSTTY. SOURCE.json, UPSTREAM.md, PROVENANCE.md and
 wasm-provenance.json record source and binary provenance.
 
+The diff engine shipped at vendor/ax-code-diff-wasm in the web build is
+@ax-code/diff-wasm 0.1.0 from the defai-digital/ax-code release v7.30.30
+(https://github.com/defai-digital/ax-code/releases/tag/v7.30.30), under the
+Apache License, Version 2.0. Its line-diff algorithm is adapted from jsdiff 9.0.0
+(https://github.com/kpdecker/jsdiff), Copyright (c) 2009-2015 Kevin Decker, under
+the BSD 3-Clause License. The package's LICENSE and NOTICE ship unmodified beside
+the engine files.
+
 See LICENSE for the full text of the Apache License, Version 2.0, and LICENSE-MIT
 for the MIT License as it applies to the OpenChamber-derived portions of this
 project.

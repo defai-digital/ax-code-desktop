@@ -4,6 +4,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { Icon } from "@/components/icon/Icon"
 import { useI18n } from "@/lib/i18n"
 import { useReviewHunkFocus } from "@/lib/reviewHunkRegistry"
+import { isApproximateDiff } from "./diffParseProtocol"
 import { useFileDiff } from "./useFileDiff"
 import type { FileDiffHunk } from "./gitHunkPatch"
 
@@ -48,8 +49,11 @@ export const DiffHunkReviewList: React.FC<DiffHunkReviewListProps> = React.memo(
     // changes the same way, so a row is offered the action only for the exact
     // hunk it displays. A row without a match (binary edge cases, segmentation
     // disagreement) simply shows no action rather than acting on the wrong hunk.
+    // A coarse preview of a very large change groups lines differently from git, so a matching start
+    // line no longer identifies the same hunk; staging is then offered per file only.
+    const approximate = fileDiff.status === "ready" && isApproximateDiff(fileDiff.diff)
     const gitHunkIndexByRow = React.useMemo(() => {
-      if (!onStageHunk || !gitHunks) return null
+      if (!onStageHunk || !gitHunks || approximate) return null
       const byRow = new Map<number, number>()
       hunks.forEach((hunk, index) => {
         const gitHunkIndex = gitHunks.findIndex((candidate) => candidate.newStart === hunk.additionStart)
@@ -58,7 +62,7 @@ export const DiffHunkReviewList: React.FC<DiffHunkReviewListProps> = React.memo(
         }
       })
       return byRow
-    }, [gitHunks, hunks, onStageHunk])
+    }, [approximate, gitHunks, hunks, onStageHunk])
 
     if (hunks.length === 0) {
       return null

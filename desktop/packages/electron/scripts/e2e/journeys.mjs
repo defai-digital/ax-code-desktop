@@ -142,6 +142,43 @@ export const journeyPreloadBridge = async ({ session }) => {
   return { name: "preload-bridge", ok, detail: JSON.stringify(state) }
 }
 
+// Loads the pinned AX Code diff engine the way the diff Worker does, from the files shipped beside
+// the app, and runs a rewrite large enough to need the coarse result. Under the packaged policy this
+// covers asset resolution, the module Worker, the WebAssembly MIME type and 'wasm-unsafe-eval'.
+export const DIFF_ENGINE_LINES = 4000
+export const DIFF_ENGINE_EXPRESSION = `(async () => {
+  const { createDiffEngine } = await import("/vendor/ax-code-diff-wasm/dist/browser.js")
+  const engine = createDiffEngine()
+  try {
+    const lines = ${DIFF_ENGINE_LINES}
+    const before = Array.from({ length: lines }, (_, i) => "const value_" + i + " = compute(" + i + ")\\n").join("")
+    const after = Array.from({ length: lines }, (_, i) => "let rewritten_" + i + " = " + i * 7 + "\\n").join("")
+    const started = performance.now()
+    const preview = await engine.diff(before, after, { timeoutMs: 10000 })
+    const elapsedMs = Math.round(performance.now() - started)
+    const applied = await engine.applyHunks(before, preview.hunks)
+    return {
+      approximate: preview.approximate === true,
+      additions: preview.additions,
+      deletions: preview.deletions,
+      roundTrip: applied === after,
+      elapsedMs,
+    }
+  } finally {
+    await engine.close()
+  }
+})()`
+
+export const journeyDiffEngine = async ({ session }) => {
+  const state = await session.evaluate(DIFF_ENGINE_EXPRESSION)
+  const ok =
+    state?.approximate === true &&
+    state.roundTrip === true &&
+    state.additions === DIFF_ENGINE_LINES &&
+    state.deletions === DIFF_ENGINE_LINES
+  return { name: "diff-engine", ok, detail: JSON.stringify(state) }
+}
+
 export const journeyCspClean = async ({
   session,
   documentCsp,
@@ -674,6 +711,7 @@ export const journeyGoalRow = async ({ session, debuggingPort, consoleMessages, 
 export const JOURNEYS = [
   journeyBoot,
   journeyPreloadBridge,
+  journeyDiffEngine,
   journeySettings,
   journeySupervisionPopout,
   journeyReload,

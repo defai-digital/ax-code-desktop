@@ -9,6 +9,7 @@ import { cleanup, render } from "@/test/dom"
 
 import { SYNC_PARSE_MAX_CHARACTERS, clearFileHunkCache, revertHunk } from "./diffHunkRevert"
 import { DiffParseError } from "./diffParseClient"
+import { markApproximateDiff } from "./diffParseProtocol"
 import { DiffHunkReviewList } from "./DiffHunkReviewList"
 import { ReviewHunkMeasure } from "./usePublishReviewHunks"
 import { useFileDiff } from "./useFileDiff"
@@ -184,6 +185,45 @@ describe("diff parse off the renderer thread", () => {
     rerender(<StatusProbe original={failing.original} modified={failing.modified} />)
     expect(status()).toBe("loading")
     expect(worker.calls).toHaveLength(3)
+  })
+
+  test("a coarse diff keeps revert but offers no per-hunk staging, which an exact diff does", async () => {
+    const stageable = (original: string, modified: string) => (
+      <I18nProvider>
+        <DiffHunkReviewList
+          original={original}
+          modified={modified}
+          fileName="src/a.ts"
+          onRevertHunk={() => {}}
+          revertingHunkIndex={null}
+          gitHunks={[
+            { header: "@@ -1,8 +1,8 @@", oldStart: 1, oldCount: 8, newStart: 1, newCount: 8 },
+            { header: "@@ -587,8 +587,8 @@", oldStart: 587, oldCount: 8, newStart: 587, newCount: 8 },
+          ]}
+          onStageHunk={() => {}}
+          stagingHunkIndex={null}
+        />
+      </I18nProvider>
+    )
+    const stageButtons = (container: HTMLElement) => container.querySelectorAll('button[aria-label^="Stage change"]').length
+    const revertButtons = (container: HTMLElement) => container.querySelectorAll('button[aria-label^="Revert change"]').length
+
+    const exact = largePair("exact")
+    const exactView = render(stageable(exact.original, exact.modified))
+    await act(async () => answerAll())
+    expect(stageButtons(exactView.container)).toBe(2)
+
+    worker.calls = []
+    const coarse = largePair("coarse")
+    const coarseView = render(stageable(coarse.original, coarse.modified))
+    await act(async () => {
+      const diff = realParse(worker.calls[0])
+      markApproximateDiff(diff)
+      worker.calls[0].resolve(diff)
+    })
+    expect(rows(coarseView.container)).toBe(2)
+    expect(stageButtons(coarseView.container)).toBe(0)
+    expect(revertButtons(coarseView.container)).toBe(2)
   })
 
   test("revert does not wait for a parse: without a ready diff it refuses instead of writing later", () => {

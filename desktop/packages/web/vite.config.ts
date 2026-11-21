@@ -7,11 +7,14 @@ import { readFileSync } from "node:fs"
 import { themeStoragePlugin } from "../../vite-theme-plugin"
 import { createDesktopApiWsProxyPlugin } from "./vite-api-ws-proxy"
 import { createDesktopApiRuntimeProxyPlugin } from "./vite-api-runtime-proxy"
+import { createDiffWasmAssetsPlugin } from "./vite-diff-wasm-assets"
 import { renderTerminalFontSources } from "./terminal-font-faces"
 import devPorts from "../../shared/dev-ports.json"
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const requireFromUi = createRequire(path.resolve(__dirname, "../ui/package.json"))
+// The package exports only its entry points; its root is one level above `dist/browser.js`.
+const diffWasmRoot = path.resolve(path.dirname(requireFromUi.resolve("@ax-code/diff-wasm")), "..")
 const packageJson = JSON.parse(readFileSync(path.resolve(__dirname, "package.json"), "utf-8"))
 const reactScanToggle = (process.env.VITE_ENABLE_REACT_SCAN ?? "").toLowerCase()
 const enableReactScan =
@@ -142,6 +145,7 @@ export default defineConfig({
     },
     themeStoragePlugin(),
     akittyLicenseAssetsPlugin(),
+    createDiffWasmAssetsPlugin(diffWasmRoot),
     // S2.4b: /api, /global, /graph, /dre-graph, /run-report are classified per request with
     // the packaged app:// routing table and forwarded either directly to the
     // ax-code runtime (when the dev upstream file is available) or to the web

@@ -28,7 +28,8 @@ describe("diff parse worker entry", () => {
     const modified = "a\nB\nc\nd\n"
     scope.onmessage?.({ data: { id: 7, name: "f.ts", original, modified } })
 
-    expect(posted).toHaveLength(1)
+    // No engine files exist in this environment, so this also covers the jsdiff fallback.
+    await vi.waitFor(() => expect(posted).toHaveLength(1))
     const response = structuredClone(posted[0])
     expect(isDiffParseResponse(response)).toBe(true)
     expect(response).toEqual({
@@ -40,6 +41,7 @@ describe("diff parse worker entry", () => {
   test("reports a parse that throws as an error for that request", async () => {
     const { scope, posted } = await loadWorker()
     scope.onmessage?.({ data: { id: 3, name: "f.ts", original: null, modified: null } as unknown as DiffParseRequest })
+    await vi.waitFor(() => expect(posted).toHaveLength(1))
     expect(posted).toEqual([{ id: 3, error: expect.any(String) }])
   })
 })

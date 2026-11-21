@@ -15,6 +15,8 @@ import {
   SETTINGS_OPEN_EXPRESSION,
   NEEDS_YOU_POPOVER_TEXT_EXPRESSION,
   journeyCspClean,
+  journeyDiffEngine,
+  DIFF_ENGINE_LINES,
   waitForRuntimeReadiness,
 } from "./journeys.mjs"
 import { runInNewContext } from "node:vm"
@@ -378,6 +380,27 @@ describe("supervision pop-out journey", () => {
     expect(names.indexOf("journeySupervisionPopout")).toBe(names.indexOf("journeySettings") + 1)
   })
 })
+test("the diff engine journey passes only for a coarse result that reproduces the rewrite", async () => {
+  const good = { approximate: true, additions: DIFF_ENGINE_LINES, deletions: DIFF_ENGINE_LINES, roundTrip: true, elapsedMs: 30 }
+  const run = (state) => journeyDiffEngine({ session: { evaluate: async () => state } })
+
+  expect(await run(good)).toEqual({ name: "diff-engine", ok: true, detail: JSON.stringify(good) })
+  expect((await run({ ...good, approximate: false })).ok).toBe(false)
+  expect((await run({ ...good, roundTrip: false })).ok).toBe(false)
+  expect((await run({ ...good, additions: 1 })).ok).toBe(false)
+  expect((await run(undefined)).ok).toBe(false)
+  await expect(
+    journeyDiffEngine({
+      session: {
+        evaluate: async () => {
+          throw new Error("Page evaluation failed: Failed to fetch dynamically imported module")
+        },
+      },
+    }),
+  ).rejects.toThrow("dynamically imported module")
+  expect(JOURNEYS).toContain(journeyDiffEngine)
+})
+
 test("settings keyboard qualification does not depend on compositor frames and closes its dialog", async () => {
   let open = false
   const delivered = []

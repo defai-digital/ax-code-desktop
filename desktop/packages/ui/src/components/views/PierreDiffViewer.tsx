@@ -36,6 +36,7 @@ import { selectReviewThreads, useReviewThreadStore } from "@/stores/useReviewThr
 import type { ReviewHunkAnchor } from "@/lib/reviewHunkNavigation"
 import { getReviewHunkAnchors, useReviewHunkFocus, useReviewHunkScope } from "@/lib/reviewHunkRegistry"
 import { applyReviewHunkHighlight, clearReviewHunkHighlight, syncReviewHunkHighlightFrame } from "./reviewHunkFocus"
+import { isApproximateDiff } from "./diffParseProtocol"
 import { usePublishReviewHunks } from "./usePublishReviewHunks"
 import { useFileDiff } from "./useFileDiff"
 
@@ -869,6 +870,18 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
     )
   }
 
+  // A coarse engine preview still applies exactly, but its line matching is not minimal; say so, so
+  // it is not read as the same diff git would show.
+  const approximateNotice = isApproximateDiff(sharedDiff) ? (
+    <div
+      role="note"
+      className="shrink-0 border-b border-border/60 px-4 py-1.5 typography-meta text-muted-foreground"
+      data-diff-approximate
+    >
+      {t("diffView.state.approximateDiff")}
+    </div>
+  ) : null
+
   const commentOverlays = (
     <PierreDiffCommentOverlays
       diffRootRef={diffRootRef}
@@ -896,6 +909,7 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
   if (layout === "fill") {
     return (
       <div className={cn("flex flex-col relative", "size-full")} data-diff-virtual-root dir="ltr">
+        {approximateNotice}
         <div className="flex-1 relative min-h-0">
           <ScrollableOverlay
             outerClassName="pierre-diff-wrapper size-full"
@@ -917,6 +931,7 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
   // Fallback for 'inline' layout
   return (
     <div className={cn("relative", "w-full")} dir="ltr">
+      {approximateNotice}
       <div ref={diffRootRef} className="pierre-diff-wrapper w-full overflow-x-auto overflow-y-visible relative">
         {diffStatus}
         <div ref={diffContainerRef} className="w-full" />

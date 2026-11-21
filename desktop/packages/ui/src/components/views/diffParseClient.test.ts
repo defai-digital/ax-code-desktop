@@ -2,7 +2,7 @@ import { parseDiffFromFile } from "@pierre/diffs"
 import { afterEach, describe, expect, test, vi } from "vitest"
 
 import { DiffParseClient, DiffParseError, MAX_PENDING_CHARACTERS, PARSE_TIMEOUT_MS, type DiffParseWorker } from "./diffParseClient"
-import type { DiffParseRequest } from "./diffParseProtocol"
+import { isApproximateDiff, type DiffParseRequest } from "./diffParseProtocol"
 
 class FakeWorker implements DiffParseWorker {
   posted: DiffParseRequest[] = []
@@ -59,6 +59,19 @@ afterEach(() => {
 })
 
 describe("DiffParseClient", () => {
+  test("remembers that a result is a coarse preview, and only then", async () => {
+    const { client, workers } = setup()
+    const coarse = client.parse("coarse", "f.ts", before, after)
+    const request = workers[0].posted[0]
+    const diff = parseDiffFromFile({ name: "f.ts", contents: before }, { name: "f.ts", contents: after })
+    workers[0].reply({ id: request.id, diff, approximate: true })
+    expect(isApproximateDiff(await coarse)).toBe(true)
+
+    const exact = client.parse("exact", "f.ts", before, after)
+    workers[0].answer()
+    expect(isApproximateDiff(await exact)).toBe(false)
+  })
+
   test("parses in the Worker and returns the same metadata as a direct parse", async () => {
     const { client, workers, parseSync } = setup()
     const pending = client.parse("k", "f.ts", before, after)

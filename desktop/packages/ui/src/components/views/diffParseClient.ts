@@ -1,6 +1,6 @@
 import { parseDiffFromFile, type FileDiffMetadata } from "@pierre/diffs"
 
-import { isDiffParseResponse, type DiffParseRequest } from "./diffParseProtocol"
+import { isDiffParseResponse, markApproximateDiff, type DiffParseRequest } from "./diffParseProtocol"
 
 export type DiffParseWorker = Pick<Worker, "postMessage" | "terminate" | "onmessage" | "onerror" | "onmessageerror">
 export type DiffParseFailure = "too-large" | "busy" | "error" | "aborted"
@@ -39,7 +39,7 @@ function jobCharacters(job: Job): number {
 /**
  * One Worker, one running job, FIFO queue, same-key requests share a job
  * (SPEC-2026-11-08-diff-parse-worker-v1). A job with no remaining waiter is dropped, and
- * the running one is stopped by terminating the Worker: jsdiff cannot be interrupted.
+ * the running one is stopped by terminating the Worker: the jsdiff fallback cannot be interrupted.
  */
 export class DiffParseClient {
   private worker: DiffParseWorker | null = null
@@ -234,6 +234,7 @@ export class DiffParseClient {
           return
         }
         this.failures = 0
+        if (data.approximate === true) markApproximateDiff(data.diff)
         this.finishActive(data.diff)
       }
       worker.onerror = worker.onmessageerror = () => {

@@ -2862,6 +2862,7 @@
   "diffView.state.cleanWorkingTree": "Directory di lavoro pulita, nessuna modifica da mostrare",
   "diffView.state.failedToLoadDiff": "Impossibile caricare il diff",
   "diffView.state.loadingDiff": "Caricamento del diff...",
+  "diffView.state.approximateDiff": "Modifica estesa: le righe sono abbinate in modo approssimativo, quindi questo diff pu\u00f2 apparire diverso da quello di Git.",
   "diffView.state.loadingChanges": "Caricamento delle modifiche...",
   "diffView.summary.changedFilesSingle": "{count} file modificato",
   "diffView.summary.changedFilesPlural": "{count} file modificati",

@@ -2862,6 +2862,7 @@
   "diffView.state.cleanWorkingTree": "Arbeitsverzeichnis ist sauber, keine \u00c4nderungen vorhanden",
   "diffView.state.failedToLoadDiff": "Diff konnte nicht geladen werden",
   "diffView.state.loadingDiff": "Diff wird geladen \u2026",
+  "diffView.state.approximateDiff": "Gro\u00dfe \u00c4nderung: Die Zeilen werden nur n\u00e4herungsweise zugeordnet, daher kann dieser Diff anders aussehen als in Git.",
   "diffView.state.loadingChanges": "\u00c4nderungen werden geladen \u2026",
   "diffView.summary.changedFilesSingle": "{count} Datei ge\u00e4ndert",
   "diffView.summary.changedFilesPlural": "{count} Dateien ge\u00e4ndert",

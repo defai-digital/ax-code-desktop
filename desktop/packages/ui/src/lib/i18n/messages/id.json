@@ -2856,6 +2856,7 @@
   "diffView.state.cleanWorkingTree": "Pohon kerja bersih, tidak ada perubahan untuk ditampilkan",
   "diffView.state.failedToLoadDiff": "Gagal memuat diff",
   "diffView.state.loadingDiff": "Memuat diff...",
+  "diffView.state.approximateDiff": "Perubahan besar: baris dicocokkan secara perkiraan, sehingga diff ini mungkin terlihat berbeda dari Git.",
   "diffView.state.loadingChanges": "Memuat perubahan...",
   "diffView.summary.changedFilesSingle": "{count} berkas diubah",
   "diffView.summary.changedFilesPlural": "{count} berkas diubah",

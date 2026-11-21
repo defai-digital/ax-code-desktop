@@ -2862,6 +2862,7 @@
   "diffView.state.cleanWorkingTree": "C\u00e2y l\u00e0m vi\u1ec7c s\u1ea1ch, kh\u00f4ng c\u00f3 thay \u0111\u1ed5i \u0111\u1ec3 hi\u1ec3n th\u1ecb",
   "diffView.state.failedToLoadDiff": "Kh\u00f4ng t\u1ea3i \u0111\u01b0\u1ee3c diff",
   "diffView.state.loadingDiff": "\u0110ang t\u1ea3i diff...",
+  "diffView.state.approximateDiff": "Thay \u0111\u1ed5i l\u1edbn: c\u00e1c d\u00f2ng \u0111\u01b0\u1ee3c gh\u00e9p g\u1ea7n \u0111\u00fang n\u00ean b\u1ea3n so s\u00e1nh n\u00e0y c\u00f3 th\u1ec3 tr\u00f4ng kh\u00e1c v\u1edbi Git.",
   "diffView.state.loadingChanges": "\u0110ang t\u1ea3i thay \u0111\u1ed5i...",
   "diffView.summary.changedFilesSingle": "{count} t\u1ec7p \u0111\u00e3 thay \u0111\u1ed5i",
   "diffView.summary.changedFilesPlural": "{count} t\u1ec7p \u0111\u00e3 thay \u0111\u1ed5i",

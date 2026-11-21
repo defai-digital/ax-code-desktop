@@ -13,7 +13,8 @@ export const SYNC_PARSE_MAX_CHARACTERS = 16_384
 
 // Full parse results, so the viewer, the hunk list and hunk revert share one parse. Pierre's line
 // diff is super-linear in edit distance: a 5k-line rewrite measured about 1.7 s, so larger inputs
-// parse in a Worker (SPEC-2026-11-08-diff-parse-worker-v1). Consumers must treat entries as immutable.
+// parse in a Worker (SPEC-2026-11-08-diff-parse-worker-v1), which uses the AX Code diff engine and
+// keeps jsdiff as its fallback (SPEC-2026-11-21-diff-wasm-engine-v1). Consumers must treat entries as immutable.
 const diffCache = new Map<string, FileDiffMetadata>()
 // Keys whose parse hit the Worker timeout; remounting the same content must not repeat that work.
 const tooLargeKeys = new Set<string>()

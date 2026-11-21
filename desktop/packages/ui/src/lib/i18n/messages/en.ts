@@ -1415,6 +1415,7 @@ export const dict = {
   "diffView.state.cleanWorkingTree": "Working tree clean, no changes to display",
   "diffView.state.failedToLoadDiff": "Failed to load diff",
   "diffView.state.loadingDiff": "Loading diff...",
+  "diffView.state.approximateDiff": "Large change: lines are matched approximately, so this diff may look different from Git.",
   "diffView.state.loadingChanges": "Loading changes...",
   "diffView.summary.changedFilesSingle": "{count} file changed",
   "diffView.summary.changedFilesPlural": "{count} files changed",
