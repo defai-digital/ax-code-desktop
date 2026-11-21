@@ -4,6 +4,19 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.30.30] - 2026-11-21
+
+### Changed
+
+- Use the AX Code WebAssembly diff engine for large file previews and mark previews that group changes more broadly.
+- Bring workspace tools into the inspector and pending decisions into the Needs You inbox. Group related Settings pages under shared navigation entries.
+- Default Quick Dispatch to an isolated Git worktree and show pull request checks alongside session review evidence.
+
+### Fixed
+
+- Keep Quick Dispatch in the selected worktree while the composer discovers branches, and stop the send if its draft closes, changes targets, or is replaced.
+- Restore the Skills page when mobile history returns to its detail, and open the selected installed skill after leaving the catalog.
+
 ## [7.30.29] - 2026-11-19
 
 ### Changed

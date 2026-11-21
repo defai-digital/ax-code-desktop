@@ -9,6 +9,23 @@ import { useProjectsStore } from "@/stores/useProjectsStore"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { SettingsView } from "./SettingsView"
 
+const viewport = vi.hoisted(() => ({ mobile: false }))
+vi.mock("@/lib/device", async (original) => {
+  const device = await original<typeof import("@/lib/device")>()
+  return { ...device, useDeviceInfo: () => ({ ...device.useDeviceInfo(), isMobile: viewport.mobile }) }
+})
+vi.mock("@/components/sections/skills/SkillsSidebar", () => ({
+  SkillsSidebar: ({ onItemSelect, onOpenCatalog }: { onItemSelect?: () => void; onOpenCatalog?: () => void }) => (
+    <>
+      <button onClick={onItemSelect}>Example skill</button>
+      <button onClick={onOpenCatalog}>Example catalog</button>
+    </>
+  ),
+}))
+vi.mock("@/components/sections/skills/SkillsPage", () => ({
+  SkillsPage: ({ view }: { view: string }) => <div data-test-skills-pane={view} />,
+}))
+
 let container: HTMLDivElement
 let root: Root
 let supported: boolean
@@ -70,6 +87,8 @@ const previous = {
 }
 
 beforeEach(() => {
+  viewport.mobile = false
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true)
   supported = false
   attached = false
   failed = false
@@ -80,6 +99,46 @@ beforeEach(() => {
   container = document.createElement("div")
   document.body.append(container)
   root = createRoot(container)
+})
+
+test("mobile history restores the Skills page when landing on its detail from a sibling page", async () => {
+  viewport.mobile = true
+  useUIStore.setState({ settingsPage: "skills.installed" })
+  const previousHistory = window.history.state
+  try {
+    await render()
+    await act(async () => navButton("Example skill")!.click())
+    const skillDetailEntry = window.history.state
+    expect(container.querySelector('[data-test-skills-pane="installed"]')).not.toBeNull()
+    await act(async () => navButton("Commands")!.click())
+    expect(useUIStore.getState().settingsPage).toBe("commands")
+
+    await act(async () => window.dispatchEvent(new PopStateEvent("popstate", { state: skillDetailEntry })))
+
+    expect(useUIStore.getState().settingsPage).toBe("skills.installed")
+    expect(container.querySelector('[data-test-skills-pane="installed"]')).not.toBeNull()
+  } finally {
+    window.history.replaceState(previousHistory, "")
+  }
+})
+
+test("selecting an installed skill on mobile opens its detail after returning from the catalog", async () => {
+  viewport.mobile = true
+  useUIStore.setState({ settingsPage: "skills.installed" })
+  const previousHistory = window.history.state
+  try {
+    await render()
+    await act(async () => navButton("Example catalog")!.click())
+    expect(container.querySelector('[data-test-skills-pane="catalog"]')).not.toBeNull()
+    await act(async () => window.dispatchEvent(new PopStateEvent("popstate", { state: null })))
+    expect(navButton("Example skill")).toBeDefined()
+
+    await act(async () => navButton("Example skill")!.click())
+
+    expect(container.querySelector('[data-test-skills-pane="installed"]')).not.toBeNull()
+  } finally {
+    window.history.replaceState(previousHistory, "")
+  }
 })
 afterEach(() => {
   act(() => root.unmount())

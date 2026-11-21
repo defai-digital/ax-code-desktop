@@ -18,6 +18,7 @@ import type { ProjectEntry } from "@/lib/api/types"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { generateBranchName } from "@/lib/git/branchNameGenerator"
 import { useI18n } from "@/lib/i18n"
+import { normalizeProjectPath } from "@/lib/projectResolution"
 import { formatShortcutForDisplay, getEffectiveShortcutCombo } from "@/lib/shortcuts"
 import { checkIsGitRepository } from "@/lib/gitApi"
 import { createWorktreeWithDefaults } from "@/lib/worktrees/worktreeCreate"
@@ -40,7 +41,7 @@ import { MESSAGE_QUEUE_MAX_PER_SESSION, useMessageQueueStore } from "@/stores/me
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useUIStore } from "@/stores/useUIStore"
-import { useSessionUIStore } from "@/sync/session-ui-store"
+import { getNewSessionDraftRevision, useSessionUIStore } from "@/sync/session-ui-store"
 import { getAllSyncSessions } from "@/sync/sync-refs"
 import { useAllLiveSessions } from "@/sync/sync-context"
 
@@ -115,6 +116,8 @@ const startQuickDispatch = async (input: {
     // lives in this worktree, and removing the worktree would delete its files and branch. An unused worktree left
     // behind can be removed by hand; deleted work cannot be recovered. So once the send started, keep it.
     if (sendStarted) return
+    const draft = useSessionUIStore.getState().newSessionDraft
+    if (draft.open && normalizeProjectPath(draft.directoryOverride) === normalizeProjectPath(createdWorktree.path)) return
     await removeProjectWorktree(projectRef, createdWorktree, { deleteLocalBranch: true }).catch(() => {})
   }
 
@@ -144,6 +147,8 @@ const startQuickDispatch = async (input: {
     session.openNewSessionDraft({
       selectedProjectId: input.project.id,
       directoryOverride: targetDirectory,
+      // The composer may not have discovered the newly created branch yet.
+      preserveDirectoryOverride: Boolean(createdWorktree),
       // The dispatch is always an Agent prompt; the project's own work mode is not its to change.
       preserveWorkMode: true,
     })
@@ -152,6 +157,19 @@ const startQuickDispatch = async (input: {
     return { ok: false, reason: "failed" }
   }
 
+  const draftRevision = getNewSessionDraftRevision()
+  const targetPath = normalizeProjectPath(targetDirectory)
+  const ownsDraft = () => {
+    const draft = useSessionUIStore.getState().newSessionDraft
+    return (
+      draft.open &&
+      getNewSessionDraftRevision() === draftRevision &&
+      draft.selectedProjectId === projectRef.id &&
+      normalizeProjectPath(draft.directoryOverride) === targetPath &&
+      !draft.pendingWorktreeRequestId &&
+      !draft.bootstrapPendingDirectory
+    )
+  }
   const known = knownSessionIds(previousSessionId)
   let token = createDispatchToken()
   const unsubscribe = useSessionUIStore.subscribe((state) => {
@@ -166,14 +184,8 @@ const startQuickDispatch = async (input: {
   try {
     await useConfigStore.getState().activateDirectory(targetDirectory)
 
-    // The person moved on while the directory was activating: to another session (known or not), or to a draft for
-    // another directory. Sending now would deliver this prompt there instead of to a new session here.
-    const view = useSessionUIStore.getState()
-    const draftElsewhere =
-      view.newSessionDraft.open &&
-      Boolean(view.newSessionDraft.directoryOverride) &&
-      view.newSessionDraft.directoryOverride !== targetDirectory
-    if (token.superseded || token.createdSessionId || view.currentSessionId || draftElsewhere) {
+    // Activation yields to the composer, which may have closed, replaced or retargeted the draft.
+    if (token.superseded || token.createdSessionId || useSessionUIStore.getState().currentSessionId || !ownsDraft()) {
       throw new Error("superseded")
     }
 
@@ -194,6 +206,8 @@ const startQuickDispatch = async (input: {
         undefined,
         undefined,
         config.currentVariant,
+        undefined,
+        { fromNewSessionDraft: true, draftRevision },
       )
 
     const completion = planQuickDispatchCompletion({
@@ -215,7 +229,7 @@ const startQuickDispatch = async (input: {
     const failure = planQuickDispatchFailure({
       noModel: error instanceof Error && error.message === "no-model",
       createdSessionId: token.createdSessionId,
-      superseded: token.superseded,
+      superseded: token.superseded || (!sendStarted && !ownsDraft()),
       currentSessionId: useSessionUIStore.getState().currentSessionId,
     })
     if (failure.restore) await restorePreviousView().catch(() => {})

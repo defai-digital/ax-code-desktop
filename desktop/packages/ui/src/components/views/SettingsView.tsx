@@ -465,7 +465,10 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
       case "skills.installed":
         return (
           <SkillsSidebar
-            onItemSelect={opts.onItemSelect}
+            onItemSelect={() => {
+              setSkillsPane("installed")
+              opts.onItemSelect?.()
+            }}
             onOpenCatalog={() => {
               setSkillsPane("catalog")
               opts.onItemSelect?.()
@@ -610,6 +613,7 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
       }
 
       if (detail?.page === "skills.installed") {
+        setSettingsPage(detail.page)
         setMobileStage("page-content")
         return
       }
@@ -621,7 +625,7 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
     return () => {
       window.removeEventListener("popstate", handlePopState)
     }
-  }, [isMobile, settingsSlug])
+  }, [isMobile, setSettingsPage, settingsSlug])
 
   const handleOpenPageSidebar = React.useCallback(() => {
     setMobileStage("page-sidebar")
