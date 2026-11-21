@@ -29,7 +29,10 @@ vi.mock("@/sync/sync-refs", async (original) => ({
   getAllSyncSessions: () => live.syncSessions,
 }))
 vi.mock("@/hooks/useSupervisionRows", () => ({ useSupervisionRows: () => live.rows }))
-vi.mock("@/sync/sync-context", () => ({ useAllLiveSessions: () => [] }))
+vi.mock("@/sync/sync-context", async (original) => ({
+  ...(await original<typeof import("@/sync/sync-context")>()),
+  useAllLiveSessions: () => [],
+}))
 vi.mock("@/lib/supervision/openSession", () => ({ openSupervisedSession: vi.fn() }))
 vi.mock("@/lib/worktrees/worktreeCreate", () => ({
   createWorktreeWithDefaults: (...args: unknown[]) => live.createWorktreeWithDefaults(...args),
@@ -42,6 +45,9 @@ vi.mock("@/lib/gitApi", () => ({
 }))
 
 const { QuickDispatchDialog } = await import("./QuickDispatchDialog")
+const originalOpenDraft = useSessionUIStore.getState().openNewSessionDraft
+const originalSendMessage = useSessionUIStore.getState().sendMessage
+const originalActivateDirectory = useConfigStore.getState().activateDirectory
 
 describe("QuickDispatchDialog recent sessions", () => {
   let root: Root
@@ -272,7 +278,14 @@ describe("QuickDispatchDialog worktree-first dispatch", () => {
     useProjectsStore.setState({ projects: [{ id: "project", path: "/repo" }], activeProjectId: "project" })
     useGitStore.setState({ directories: new Map([["/repo", { isGitRepo: true } as never]]) })
     useSupervisionStore.setState({ quickDispatchOpen: true, recentSessionIds: [] })
+    useSessionUIStore.getState().closeNewSessionDraft()
+    useSessionUIStore.setState({
+      currentSessionId: null,
+      openNewSessionDraft: originalOpenDraft,
+      sendMessage: originalSendMessage,
+    })
     useConfigStore.setState({
+      activateDirectory: originalActivateDirectory,
       activeDirectoryKey: "/repo",
       currentProviderId: "p1",
       currentModelId: "m1",
@@ -318,7 +331,7 @@ describe("QuickDispatchDialog worktree-first dispatch", () => {
   }
 
   test("defaults to Git worktree isolation and dispatches into the created worktree path", async () => {
-    const openDraft = vi.spyOn(useSessionUIStore.getState(), "openNewSessionDraft").mockImplementation(() => {})
+    const openDraft = vi.spyOn(useSessionUIStore.getState(), "openNewSessionDraft")
     const activateDir = vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
     const sendSessionMsg = vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockResolvedValue()
 
@@ -331,14 +344,18 @@ describe("QuickDispatchDialog worktree-first dispatch", () => {
 
     expect(live.createWorktreeWithDefaults).toHaveBeenCalledOnce()
     expect(openDraft).toHaveBeenCalledWith(
-      expect.objectContaining({ selectedProjectId: "project", directoryOverride: "/repo/.worktrees/wt-1" }),
+      expect.objectContaining({
+        selectedProjectId: "project",
+        directoryOverride: "/repo/.worktrees/wt-1",
+        preserveDirectoryOverride: true,
+      }),
     )
     expect(activateDir).toHaveBeenCalledWith("/repo/.worktrees/wt-1")
     expect(sendSessionMsg).toHaveBeenCalledOnce()
   })
 
   test("dispatches to shared directory when worktree isolation is unchecked", async () => {
-    const openDraft = vi.spyOn(useSessionUIStore.getState(), "openNewSessionDraft").mockImplementation(() => {})
+    const openDraft = vi.spyOn(useSessionUIStore.getState(), "openNewSessionDraft")
     vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
     vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockResolvedValue()
 
@@ -449,7 +466,6 @@ describe("QuickDispatchDialog worktree-first dispatch", () => {
 
   test("removes the worktree it created when the dispatch never produced a session", async () => {
     useConfigStore.setState({ currentProviderId: "", currentModelId: "" })
-    vi.spyOn(useSessionUIStore.getState(), "openNewSessionDraft").mockImplementation(() => {})
     vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
     const sendSessionMsg = vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockResolvedValue()
 
@@ -467,7 +483,6 @@ describe("QuickDispatchDialog worktree-first dispatch", () => {
   })
 
   test("keeps the worktree when the send failed after the runtime created a session in it", async () => {
-    vi.spyOn(useSessionUIStore.getState(), "openNewSessionDraft").mockImplementation(() => {})
     vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
     // The runtime may have created the session before the send failed, and no store here knows it yet.
     vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockRejectedValue(new Error("activation failed"))
@@ -500,4 +515,42 @@ describe("QuickDispatchDialog worktree-first dispatch", () => {
       { deleteLocalBranch: true },
     )
   })
+
+  test.each(["closed", "reopened", "retargeted"] as const)(
+    "leaves a %s draft alone when it changes during directory activation",
+    async (change) => {
+      const activate = vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
+      activate.mockResolvedValueOnce().mockImplementationOnce(async () => {
+        const session = useSessionUIStore.getState()
+        switch (change) {
+          case "closed":
+            session.closeNewSessionDraft()
+            break
+          case "reopened":
+            session.openNewSessionDraft({
+              selectedProjectId: "project",
+              directoryOverride: "/repo/.worktrees/wt-1",
+              title: "Replacement draft",
+            })
+            break
+          case "retargeted":
+            session.setNewSessionDraftTarget({ projectId: "project", directoryOverride: "/other" })
+            break
+        }
+      })
+      const sendSessionMsg = vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockResolvedValue()
+
+      await render()
+      await typePrompt("Stay in the selected worktree")
+      await clickStart()
+
+      expect(sendSessionMsg).not.toHaveBeenCalled()
+      expect(live.removeProjectWorktree).toHaveBeenCalledTimes(change === "reopened" ? 0 : 1)
+      const draft = useSessionUIStore.getState().newSessionDraft
+      expect(draft.open).toBe(change !== "closed")
+      if (change === "reopened") expect(draft.title).toBe("Replacement draft")
+      if (change === "retargeted") expect(draft.directoryOverride).toBe("/other")
+      expect(document.querySelector("textarea")?.value).toBe("Stay in the selected worktree")
+    },
+  )
 })
