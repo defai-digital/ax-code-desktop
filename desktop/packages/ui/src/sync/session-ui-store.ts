@@ -155,9 +155,12 @@ function workModeRefusal(
   return { message, reason }
 }
 
-function throwWorkModeRefusal(refusal: { message: string; reason: WorkModeBlockedReason } | null): void {
+function throwWorkModeRefusal(
+  refusal: { message: string; reason: WorkModeBlockedReason } | null,
+  options?: { silent?: boolean },
+): void {
   if (!refusal) return
-  useSessionUIStore.setState({ error: refusal.message })
+  if (!options?.silent) useSessionUIStore.setState({ error: refusal.message })
   throw markWorkModeBlockedError(new Error(refusal.message), refusal.reason)
 }
 
@@ -481,6 +484,16 @@ type SendMessageOptions = {
   workMode?: WorkModeId
   /** Send although the catalog says the model cannot call tools; see routeMessage. */
   allowUnverifiedToolCalling?: boolean
+  /**
+   * Called once, right before a draft-backed send asks the runtime to create its session. From then on a session may
+   * exist even when the send fails; before it, a refusal has created nothing.
+   */
+  onDraftCreateStart?: () => void
+  /**
+   * Report a draft-backed refusal made before anything was created only by throwing, without writing the shared
+   * composer error. For a sender with its own surface (Quick Dispatch), whose draft may no longer be on screen.
+   */
+  silentRefusal?: boolean
 }
 
 function notifyMessageSent(sessionId: string): void {
@@ -518,6 +531,11 @@ type OpenNewSessionDraftOptions = Partial<NewSessionDraftState> & {
    * restores the previous view; resetting the chip there changed a setting the user never touched.
    */
   preserveWorkMode?: boolean
+  /**
+   * Remember this draft's target as the one a later plain draft opens on (default true). Quick dispatch opens a draft
+   * on a worktree it may remove again; remembering it would send the next plain draft into that worktree.
+   */
+  rememberTarget?: boolean
 }
 type SessionUIState = {
   currentSessionId: string | null
@@ -810,6 +828,16 @@ const DEFAULT_DRAFT: NewSessionDraftState = {
 }
 
 const INVALID_SEND_TARGET_MESSAGE = "Cannot send message without an active session or draft"
+
+/**
+ * Where a draft would create its session: its effective directory and any worktree still pending. The project is left
+ * out: the composer fills in the project of an unchanged directory once the registry loads, which is no retarget.
+ */
+const draftTargetKey = (draft: NewSessionDraftState): string =>
+  JSON.stringify([
+    normalizePath(draft.bootstrapPendingDirectory ?? draft.directoryOverride ?? null),
+    draft.pendingWorktreeRequestId ?? null,
+  ])
 // Resolving a pending worktree updates the draft object without changing its
 // lifetime. Opening or closing a draft invalidates sends waiting on that work.
 let draftLifecycleRevision = 0
@@ -954,7 +982,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       return normalizePath(selectedProject?.path ?? null)
     })()
 
-    persistDraftTarget({ projectId: selectedProject?.id ?? null, directory })
+    if (options?.rememberTarget !== false) persistDraftTarget({ projectId: selectedProject?.id ?? null, directory })
 
     // Re-opening a draft during a draft-backed create must not consume the +1 the
     // close performed: createSession's rollback guard compares against it.
@@ -1297,17 +1325,19 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
   ) => {
     const draft = get().newSessionDraft
     const startedFromDraft = options?.fromNewSessionDraft ?? (!options?.sessionId && Boolean(draft?.open))
+    const refuseDraftSend = (): never => {
+      if (!options?.silentRefusal) set({ error: INVALID_SEND_TARGET_MESSAGE })
+      throw new Error(INVALID_SEND_TARGET_MESSAGE)
+    }
     if (startedFromDraft && !draft?.open) {
       // Validate the captured draft target before touching the now-selected
       // session's abort flags or changed-files dismissal state.
-      set({ error: INVALID_SEND_TARGET_MESSAGE })
-      throw new Error(INVALID_SEND_TARGET_MESSAGE)
+      refuseDraftSend()
     }
     if (startedFromDraft && options?.draftRevision !== undefined && options.draftRevision !== draftLifecycleRevision) {
       // The caller's text belongs to a draft that has since been replaced or closed;
       // delivering it now would send it to the current draft's target instead.
-      set({ error: INVALID_SEND_TARGET_MESSAGE })
-      throw new Error(INVALID_SEND_TARGET_MESSAGE)
+      refuseDraftSend()
     }
 
     // Clear non-Git changed-files bar on new user message for current session
@@ -1334,29 +1364,36 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       if (draft.pendingWorktreeRequestId) {
         draftDirectoryOverride = await waitForPendingDraftWorktreeRequest(draft.pendingWorktreeRequestId)
         if (!get().newSessionDraft?.open || draftLifecycleRevision !== draftRevision) {
-          set({ error: INVALID_SEND_TARGET_MESSAGE })
-          throw new Error(INVALID_SEND_TARGET_MESSAGE)
+          refuseDraftSend()
         }
         get().resolvePendingDraftWorktreeTarget(draft.pendingWorktreeRequestId, draftDirectoryOverride)
       }
 
-      // Before the session exists: a refused send must leave the draft open and nothing behind.
-      throwWorkModeRefusal(
-        await findWorkModeSendRefusal({
-          content,
-          workMode: options?.workMode,
-          providerID,
-          modelID,
-          inputMode,
-          allowUnverifiedToolCalling: options?.allowUnverifiedToolCalling,
-        }),
-      )
-      // The check can wait for the command catalog; the draft may have been replaced meanwhile.
-      if (!get().newSessionDraft?.open || draftLifecycleRevision !== draftRevision) {
-        set({ error: INVALID_SEND_TARGET_MESSAGE })
-        throw new Error(INVALID_SEND_TARGET_MESSAGE)
-      }
+      // The target this send was admitted for. Retargeting a draft (the branch or project picker) keeps its revision.
+      const admittedTarget = draftTargetKey(get().newSessionDraft)
 
+      // Before the session exists: a refused send must leave the draft open and nothing behind.
+      const workModeRefusal = await findWorkModeSendRefusal({
+        content,
+        workMode: options?.workMode,
+        providerID,
+        modelID,
+        inputMode,
+        allowUnverifiedToolCalling: options?.allowUnverifiedToolCalling,
+      })
+      // The check can wait for the command catalog; the draft may have been replaced or retargeted meanwhile. That
+      // comes first: a refusal worked out for the old target would be reported on the new one.
+      const draftAfterCheck = get().newSessionDraft
+      if (
+        !draftAfterCheck?.open ||
+        draftLifecycleRevision !== draftRevision ||
+        draftTargetKey(draftAfterCheck) !== admittedTarget
+      ) {
+        refuseDraftSend()
+      }
+      throwWorkModeRefusal(workModeRefusal, { silent: options?.silentRefusal })
+
+      options?.onDraftCreateStart?.()
       const created = await get().createSession(draft.title, draftDirectoryOverride, draft.parentID ?? null)
       if (!created?.id) throw new Error("Failed to create session")
 

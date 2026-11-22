@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Fixed
+
+- Remove the worktree a failed Quick Dispatch created unless a session or another send may be using it, keep later drafts off that worktree, and return to the previous session or leave a newer draft in place after a failed create.
+- Stop a new-session send whose draft was retargeted while it waited for the command catalog, and report Quick Dispatch refusals in its own notice instead of the composer.
+- Return mobile Settings history to the Skills pane and skill a detail showed, including after the catalog's Back button, a rename, or reopening Settings.
+
 ## [7.30.30] - 2026-11-21
 
 ### Changed

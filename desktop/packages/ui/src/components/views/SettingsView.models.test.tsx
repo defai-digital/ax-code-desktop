@@ -7,6 +7,8 @@ import { TooltipProvider } from "@/components/ui/tooltip"
 import { useUIStore } from "@/stores/useUIStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { axCodeClient } from "@/lib/ax-code/client"
+import { useRouter } from "@/hooks/useRouter"
+import { useSkillsStore } from "@/stores/useSkillsStore"
 import { SettingsView } from "./SettingsView"
 
 const viewport = vi.hoisted(() => ({ mobile: false }))
@@ -14,16 +16,28 @@ vi.mock("@/lib/device", async (original) => {
   const device = await original<typeof import("@/lib/device")>()
   return { ...device, useDeviceInfo: () => ({ ...device.useDeviceInfo(), isMobile: viewport.mobile }) }
 })
-vi.mock("@/components/sections/skills/SkillsSidebar", () => ({
-  SkillsSidebar: ({ onItemSelect, onOpenCatalog }: { onItemSelect?: () => void; onOpenCatalog?: () => void }) => (
-    <>
-      <button onClick={onItemSelect}>Example skill</button>
-      <button onClick={onOpenCatalog}>Example catalog</button>
-    </>
-  ),
-}))
+vi.mock("@/components/sections/skills/SkillsSidebar", async () => {
+  const { useSkillsStore } = await import("@/stores/useSkillsStore")
+  const select = (name: string, onItemSelect?: () => void) => () => {
+    useSkillsStore.getState().setSelectedSkill(name)
+    onItemSelect?.()
+  }
+  return {
+    SkillsSidebar: ({ onItemSelect, onOpenCatalog }: { onItemSelect?: () => void; onOpenCatalog?: () => void }) => (
+      <>
+        <button onClick={select("alpha", onItemSelect)}>Example skill</button>
+        <button onClick={select("beta", onItemSelect)}>Other skill</button>
+        <button onClick={onOpenCatalog}>Example catalog</button>
+      </>
+    ),
+  }
+})
 vi.mock("@/components/sections/skills/SkillsPage", () => ({
-  SkillsPage: ({ view }: { view: string }) => <div data-test-skills-pane={view} />,
+  SkillsPage: ({ view, onShowInstalled }: { view: string; onShowInstalled?: () => void }) => (
+    <div data-test-skills-pane={view}>
+      {view === "catalog" ? <button onClick={onShowInstalled}>Catalog back</button> : null}
+    </div>
+  ),
 }))
 
 let container: HTMLDivElement
@@ -101,26 +115,176 @@ beforeEach(() => {
   root = createRoot(container)
 })
 
-test("mobile history restores the Skills page when landing on its detail from a sibling page", async () => {
+// The app's router, which pushes a history entry for every settings page change, and Settings shown only while open.
+const RoutedSettings = () => {
+  useRouter()
+  const open = useUIStore((state) => state.isSettingsDialogOpen)
+  return open ? <SettingsView isWindowed /> : null
+}
+const renderRouted = async () => {
+  await act(async () =>
+    root.render(
+      <I18nProvider>
+        <TooltipProvider>
+          <RoutedSettings />
+        </TooltipProvider>
+      </I18nProvider>,
+    ),
+  )
+  await flush()
+}
+// A real history traversal: popstate arrives on its own task after back() or forward().
+const traverse = async (direction: "back" | "forward") => {
+  const popped = new Promise<void>((resolve) => window.addEventListener("popstate", () => resolve(), { once: true }))
+  window.history[direction]()
+  await act(async () => popped)
+  await flush()
+}
+const skillsPane = () => container.querySelector("[data-test-skills-pane]")?.getAttribute("data-test-skills-pane")
+const originalLoadSkills = useSkillsStore.getState().loadSkills
+const withMobileHistory = async (run: () => Promise<void>) => {
   viewport.mobile = true
-  useUIStore.setState({ settingsPage: "skills.installed" })
+  useUIStore.setState({ settingsPage: "skills.installed", isSettingsDialogOpen: false })
+  useSkillsStore.setState({
+    selectedSkillName: null,
+    skills: [{ name: "alpha" }, { name: "beta" }, { name: "alpha-renamed" }] as never,
+    isLoading: false,
+    skillDraft: null,
+    // The page loads skills on open; this fixture's fetch has none, which would empty the seeded list.
+    loadSkills: async () => true,
+  })
   const previousHistory = window.history.state
+  const previousHref = window.location.href
   try {
-    await render()
-    await act(async () => navButton("Example skill")!.click())
-    const skillDetailEntry = window.history.state
-    expect(container.querySelector('[data-test-skills-pane="installed"]')).not.toBeNull()
-    await act(async () => navButton("Commands")!.click())
-    expect(useUIStore.getState().settingsPage).toBe("commands")
+    await renderRouted()
+    // Opened through the store, so the router writes the Settings route into history.
+    await act(async () => useUIStore.setState({ isSettingsDialogOpen: true }))
+    await flush()
+    expect(new URL(window.location.href).searchParams.get("settings")).toBe("skills.installed")
+    await run()
+  } finally {
+    act(() => root.unmount())
+    root = createRoot(container)
+    window.history.replaceState(previousHistory, "", previousHref)
+    useUIStore.setState({ isSettingsDialogOpen: previous.open })
+    useSkillsStore.setState({ loadSkills: originalLoadSkills })
+  }
+}
 
-    await act(async () => window.dispatchEvent(new PopStateEvent("popstate", { state: skillDetailEntry })))
+test.each(["installed", "catalog"] as const)(
+  "mobile Back from a sibling page returns to the Skills %s detail it was opened from",
+  async (pane) =>
+    withMobileHistory(async () => {
+      await act(async () => navButton(pane === "catalog" ? "Example catalog" : "Example skill")!.click())
+      expect(skillsPane()).toBe(pane)
+      await act(async () => navButton("Commands")!.click())
+      expect(useUIStore.getState().settingsPage).toBe("commands")
+
+      await traverse("back")
+
+      expect(useUIStore.getState().isSettingsDialogOpen).toBe(true)
+      expect(useUIStore.getState().settingsPage).toBe("skills.installed")
+      expect(skillsPane()).toBe(pane)
+
+      await traverse("forward")
+
+      expect(useUIStore.getState().settingsPage).toBe("commands")
+    }),
+)
+
+test("the catalog's own Back button is what history returns to", async () =>
+  withMobileHistory(async () => {
+    await act(async () => navButton("Example catalog")!.click())
+    await act(async () => navButton("Catalog back")!.click())
+    expect(skillsPane()).toBe("installed")
+    await act(async () => navButton("Commands")!.click())
+
+    await traverse("back")
 
     expect(useUIStore.getState().settingsPage).toBe("skills.installed")
-    expect(container.querySelector('[data-test-skills-pane="installed"]')).not.toBeNull()
-  } finally {
-    window.history.replaceState(previousHistory, "")
-  }
-})
+    expect(skillsPane()).toBe("installed")
+
+    // One detail entry: the next Back reaches the Skills list.
+    await traverse("back")
+
+    expect(skillsPane()).toBeUndefined()
+    expect(navButton("Example skill")).toBeDefined()
+  }))
+
+test("history returns to the skill its detail showed, not the one selected since", async () =>
+  withMobileHistory(async () => {
+    await act(async () => navButton("Example skill")!.click())
+    await act(async () => navButton("Commands")!.click())
+    await act(async () => navButton("Skills")!.click())
+    await act(async () => navButton("Other skill")!.click())
+    expect(useSkillsStore.getState().selectedSkillName).toBe("beta")
+
+    // Back through the second detail, the Skills list and Commands to the first detail.
+    await traverse("back")
+    await traverse("back")
+    await traverse("back")
+
+    expect(useUIStore.getState().settingsPage).toBe("skills.installed")
+    expect(skillsPane()).toBe("installed")
+    expect(useSkillsStore.getState().selectedSkillName).toBe("alpha")
+  }))
+
+test("a detail whose skill was deleted returns to the Skills list, also when no skill is left", async () =>
+  withMobileHistory(async () => {
+    await act(async () => navButton("Example skill")!.click())
+    await act(async () => navButton("Commands")!.click())
+    // The list loaded again without the skill, and without any skill at all.
+    useSkillsStore.setState({ skills: [], isLoading: false })
+
+    await traverse("back")
+
+    expect(useUIStore.getState().settingsPage).toBe("skills.installed")
+    expect(skillsPane()).toBeUndefined()
+    expect(navButton("Example skill")).toBeDefined()
+  }))
+
+test("history returns to the skill a save renamed while its detail was open", async () =>
+  withMobileHistory(async () => {
+    await act(async () => navButton("Example skill")!.click())
+    // Saving the skill under another name selects it under that name.
+    await act(async () => useSkillsStore.getState().setSelectedSkill("alpha-renamed"))
+    await act(async () => navButton("Commands")!.click())
+    useSkillsStore.getState().setSelectedSkill("beta")
+
+    await traverse("back")
+
+    expect(skillsPane()).toBe("installed")
+    expect(useSkillsStore.getState().selectedSkillName).toBe("alpha-renamed")
+  }))
+
+test("Settings reopened by history on a detail entry shows that detail", async () =>
+  withMobileHistory(async () => {
+    await act(async () => navButton("Example catalog")!.click())
+    // Closing Settings unmounts the view; Back returns to the catalog's entry and the router reopens Settings.
+    await act(async () => useUIStore.setState({ isSettingsDialogOpen: false }))
+    await flush()
+    expect(container.querySelector("[data-settings-navigation]")).toBeNull()
+
+    await traverse("back")
+
+    expect(useUIStore.getState().isSettingsDialogOpen).toBe(true)
+    expect(skillsPane()).toBe("catalog")
+  }))
+
+test("Back to Settings after history restored a Skills detail stays on the settings list", async () =>
+  withMobileHistory(async () => {
+    await act(async () => navButton("Example skill")!.click())
+    await act(async () => navButton("Commands")!.click())
+    await traverse("back")
+    await traverse("back")
+    expect(navButton("Example skill")).toBeDefined()
+
+    await act(async () => container.querySelector<HTMLButtonElement>('button[aria-label="Back to Settings"]')!.click())
+    await flush()
+
+    expect(container.querySelector("[data-settings-navigation]")).not.toBeNull()
+    expect(navButton("Example skill")).toBeUndefined()
+  }))
 
 test("selecting an installed skill on mobile opens its detail after returning from the catalog", async () => {
   viewport.mobile = true

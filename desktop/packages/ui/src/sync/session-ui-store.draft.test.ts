@@ -205,6 +205,122 @@ describe("createSession draft rollback", () => {
     expect(useSessionUIStore.getState().newSessionDraft?.open).toBe(true)
   })
 
+  // A CLI model makes /council wait for the catalog; a catalog without it lets the send go on as plain text.
+  const sendWhileCatalogLoads = (duringWait: () => void, options: Record<string, unknown> = {}) => {
+    const loadCommands = vi.fn(async () => {
+      duringWait()
+      useCommandsStore.setState({ commands: [{ name: "review" }] } as never)
+      return true
+    })
+    useCommandsStore.setState({ commands: [], loadCommands } as never)
+    return useSessionUIStore
+      .getState()
+      .sendMessage(
+        "/council rate the API",
+        "claude-code",
+        "claude-fable-5-2",
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { workMode: "agent", ...options },
+      )
+  }
+
+  test("a draft retargeted while the send waited for the command catalog is refused before the create", async () => {
+    // No bootstrap directory: it would win over the retargeted directory and keep the send where it was.
+    useSessionUIStore.setState({ newSessionDraft: { ...draft(), bootstrapPendingDirectory: null } as never })
+    const onDraftCreateStart = vi.fn()
+
+    await expect(
+      sendWhileCatalogLoads(
+        () => useSessionUIStore.getState().setNewSessionDraftTarget({ directoryOverride: "/proj-c" }, { preserveWorkMode: true }),
+        { onDraftCreateStart },
+      ),
+    ).rejects.toThrow("Cannot send message without an active session or draft")
+
+    expect(createSessionAction).not.toHaveBeenCalled()
+    expect(onDraftCreateStart).not.toHaveBeenCalled()
+    expect(useSessionUIStore.getState().error).toBe("Cannot send message without an active session or draft")
+  })
+
+  test("a retarget during the catalog wait is reported instead of the old target's work-mode refusal", async () => {
+    useSessionUIStore.setState({ newSessionDraft: { ...draft(), bootstrapPendingDirectory: null } as never })
+    const loadCommands = vi.fn(async () => {
+      useSessionUIStore.getState().setNewSessionDraftTarget({ directoryOverride: "/proj-c" }, { preserveWorkMode: true })
+      useCommandsStore.setState({ commands: [{ name: "council" }] } as never)
+      return true
+    })
+    useCommandsStore.setState({ commands: [], loadCommands } as never)
+
+    await expect(composerSend("/council rate the API", "agent")).rejects.toThrow(
+      "Cannot send message without an active session or draft",
+    )
+    expect(createSessionAction).not.toHaveBeenCalled()
+  })
+
+  test("the project filled in for an unchanged directory during the catalog wait is no retarget", async () => {
+    useSessionUIStore.setState({
+      newSessionDraft: { ...draft(), bootstrapPendingDirectory: null, selectedProjectId: null } as never,
+    })
+    createSessionAction.mockResolvedValue(null)
+
+    await expect(
+      sendWhileCatalogLoads(() =>
+        useSessionUIStore.getState().setNewSessionDraftTarget({ projectId: "proj-b" }, { preserveWorkMode: true }),
+      ),
+    ).rejects.toThrow("Failed to create session")
+    expect(createSessionAction).toHaveBeenCalledOnce()
+  })
+
+  test("a silent refusal leaves the shared composer error alone", async () => {
+    useSessionUIStore.setState({ error: "The draft's own error" })
+
+    await expect(
+      sendWhileCatalogLoads(() => useSessionUIStore.getState().openNewSessionDraft({ directoryOverride: "/proj-c" }), {
+        silentRefusal: true,
+      }),
+    ).rejects.toThrow("Cannot send message without an active session or draft")
+    // Opening the new draft cleared the error; the refusal did not write its own over it.
+    expect(useSessionUIStore.getState().error).toBeNull()
+
+    useSessionUIStore.setState({ error: "The draft's own error" })
+    await expect(
+      useSessionUIStore
+        .getState()
+        .sendMessage(
+          "rate this module",
+          "claude-code",
+          "claude-fable-5-2",
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          { workMode: "council", silentRefusal: true },
+        ),
+    ).rejects.toThrow("Council needs a non-CLI model")
+    expect(useSessionUIStore.getState().error).toBe("The draft's own error")
+    expect(createSessionAction).not.toHaveBeenCalled()
+  })
+
+  test("reports the start of its own create just before the runtime is asked", async () => {
+    const order: string[] = []
+    createSessionAction.mockImplementation(async () => {
+      order.push("create")
+      return null
+    })
+
+    await expect(
+      sendWhileCatalogLoads(() => {}, { onDraftCreateStart: () => order.push("start") }),
+    ).rejects.toThrow()
+
+    expect(order).toEqual(["start", "create"])
+  })
+
   test("an existing session refuses the same send before the message-sent notification goes out", async () => {
     useSessionUIStore.setState({ newSessionDraft: { open: false } as never, currentSessionId: "session-1" })
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null))

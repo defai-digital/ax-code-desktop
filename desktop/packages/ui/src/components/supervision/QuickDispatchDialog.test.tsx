@@ -10,7 +10,9 @@ import { useGitStore } from "@/stores/useGitStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useMessageQueueStore } from "@/stores/messageQueueStore"
+import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
+import { markWorkModeBlockedError } from "@/lib/workMode"
 import { useWorkModeStore } from "@/stores/useWorkModeStore"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
 import type { SupervisionRow } from "@/lib/supervision/rows"
@@ -45,6 +47,10 @@ vi.mock("@/lib/gitApi", () => ({
 }))
 
 const { QuickDispatchDialog } = await import("./QuickDispatchDialog")
+const WORKTREE = "/repo/.worktrees/wt-1"
+type SendOptions = { onDraftCreateStart?: () => void; silentRefusal?: boolean }
+// sendMessage's options are its tenth argument.
+const sendOptionsOf = (args: unknown[]): SendOptions => (args[9] ?? {}) as SendOptions
 const originalOpenDraft = useSessionUIStore.getState().openNewSessionDraft
 const originalSendMessage = useSessionUIStore.getState().sendMessage
 const originalActivateDirectory = useConfigStore.getState().activateDirectory
@@ -484,8 +490,11 @@ describe("QuickDispatchDialog worktree-first dispatch", () => {
 
   test("keeps the worktree when the send failed after the runtime created a session in it", async () => {
     vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
-    // The runtime may have created the session before the send failed, and no store here knows it yet.
-    vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockRejectedValue(new Error("activation failed"))
+    // The create started, so the runtime may have made the session before the send failed, and no store here knows it.
+    vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockImplementation(async (...args: unknown[]) => {
+      sendOptionsOf(args).onDraftCreateStart?.()
+      throw new Error("activation failed")
+    })
 
     await render()
     await typePrompt("Fails after create")
@@ -516,11 +525,30 @@ describe("QuickDispatchDialog worktree-first dispatch", () => {
     )
   })
 
+  // Changes the draft during the dispatch's own activation of the worktree, whatever the draft open activates itself.
+  const changeDraftDuringDispatchActivation = (change: () => void) => {
+    let insideOpen = false
+    let changed = false
+    const open = useSessionUIStore.getState().openNewSessionDraft
+    vi.spyOn(useSessionUIStore.getState(), "openNewSessionDraft").mockImplementation((options) => {
+      insideOpen = true
+      try {
+        open(options)
+      } finally {
+        insideOpen = false
+      }
+    })
+    vi.spyOn(useConfigStore.getState(), "activateDirectory").mockImplementation(async (directory) => {
+      if (insideOpen || changed || directory !== WORKTREE) return
+      changed = true
+      change()
+    })
+  }
+
   test.each(["closed", "reopened", "retargeted"] as const)(
     "leaves a %s draft alone when it changes during directory activation",
     async (change) => {
-      const activate = vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
-      activate.mockResolvedValueOnce().mockImplementationOnce(async () => {
+      changeDraftDuringDispatchActivation(() => {
         const session = useSessionUIStore.getState()
         switch (change) {
           case "closed":
@@ -529,7 +557,7 @@ describe("QuickDispatchDialog worktree-first dispatch", () => {
           case "reopened":
             session.openNewSessionDraft({
               selectedProjectId: "project",
-              directoryOverride: "/repo/.worktrees/wt-1",
+              directoryOverride: WORKTREE,
               title: "Replacement draft",
             })
             break
@@ -553,4 +581,220 @@ describe("QuickDispatchDialog worktree-first dispatch", () => {
       expect(document.querySelector("textarea")?.value).toBe("Stay in the selected worktree")
     },
   )
+
+  test("returns to the previous session and removes the worktree when opening the draft throws after it opened", async () => {
+    useSessionUIStore.setState({ currentSessionId: "ses_prev" })
+    vi.spyOn(useSessionUIStore.getState(), "getDirectoryForSession").mockImplementation((id) =>
+      id === "ses_prev" ? "/prev" : null,
+    )
+    const open = useSessionUIStore.getState().openNewSessionDraft
+    vi.spyOn(useSessionUIStore.getState(), "openNewSessionDraft").mockImplementation((options) => {
+      open(options)
+      throw new Error("draft side effect failed")
+    })
+    const activateDir = vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
+
+    await render()
+    await typePrompt("Open fails late")
+    await clickStart()
+
+    expect(live.removeProjectWorktree).toHaveBeenCalledWith(
+      { id: "project", path: "/repo" },
+      { path: WORKTREE },
+      { deleteLocalBranch: true },
+    )
+    expect(useSessionUIStore.getState().currentSessionId).toBe("ses_prev")
+    expect(activateDir).toHaveBeenLastCalledWith("/prev")
+    expect(useSessionUIStore.getState().newSessionDraft.open).toBe(false)
+    expect(errorToast).toHaveBeenCalledWith(dict["session.githubIssuePicker.toast.startSessionFailed"])
+  })
+
+  test("removes the worktree while its own draft moves to a requested worktree, and keeps that draft open", async () => {
+    changeDraftDuringDispatchActivation(() => {
+      useSessionUIStore.getState().setPendingDraftWorktreeRequest("request-1")
+    })
+    const sendSessionMsg = vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockResolvedValue()
+
+    await render()
+    await typePrompt("Composer took over")
+    await clickStart()
+
+    expect(sendSessionMsg).not.toHaveBeenCalled()
+    expect(live.removeProjectWorktree).toHaveBeenCalledOnce()
+    const draft = useSessionUIStore.getState().newSessionDraft
+    expect(draft.open).toBe(true)
+    expect(draft.pendingWorktreeRequestId).toBe("request-1")
+  })
+
+  test("a plain draft reopened after a failed dispatch does not open on the removed worktree", async () => {
+    const previousDirectory = useDirectoryStore.getState().currentDirectory
+    useDirectoryStore.setState({ currentDirectory: undefined })
+    // The last target the person chose before the dispatch: distinct from the project's own path, its fallback.
+    useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: "project", directoryOverride: "/repo/packages/app" })
+    useSessionUIStore.getState().closeNewSessionDraft()
+    useConfigStore.setState({ currentProviderId: "", currentModelId: "" })
+    vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
+    // The chat container reopens a plain draft as soon as nothing is on screen.
+    const unsubscribe = useSessionUIStore.subscribe((state, previousState) => {
+      if (previousState.newSessionDraft.open && !state.newSessionDraft.open && !state.currentSessionId) {
+        state.openNewSessionDraft()
+      }
+    })
+
+    try {
+      await render()
+      await typePrompt("No model configured")
+      await clickStart()
+    } finally {
+      unsubscribe()
+      useDirectoryStore.setState({ currentDirectory: previousDirectory })
+    }
+
+    expect(live.removeProjectWorktree).toHaveBeenCalledOnce()
+    const draft = useSessionUIStore.getState().newSessionDraft
+    expect(draft.open).toBe(true)
+    expect(draft.directoryOverride).toBe("/repo/packages/app")
+  })
+
+  test.each(["work-mode", "replaced"] as const)(
+    "removes the worktree when the send is refused (%s) before it creates a session",
+    async (refusal) => {
+      vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
+      const sendSessionMsg = vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockImplementation(async () => {
+        if (refusal === "replaced") {
+          // The person opened another draft while the send waited for the command catalog.
+          useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: "project", directoryOverride: "/repo" })
+          throw new Error("Cannot send message without an active session or draft")
+        }
+        throw markWorkModeBlockedError(new Error("Council needs a model with tool calling"), "noToolCalling")
+      })
+
+      await render()
+      await typePrompt("/council decide")
+      await clickStart()
+
+      // The dispatch reports refusals itself; the composer's shared error is not written for it.
+      expect(sendOptionsOf(sendSessionMsg.mock.calls[0])).toMatchObject({ silentRefusal: true })
+      expect(live.removeProjectWorktree).toHaveBeenCalledOnce()
+      if (refusal === "work-mode") {
+        expect(errorToast).toHaveBeenCalledWith("Council needs a model with tool calling")
+      } else {
+        const draft = useSessionUIStore.getState().newSessionDraft
+        expect(draft.open).toBe(true)
+        expect(draft.directoryOverride).toBe("/repo")
+        expect(errorToast).toHaveBeenCalledWith(dict["session.githubIssuePicker.toast.startSessionFailed"])
+      }
+    },
+  )
+
+  test("a session the person starts elsewhere before the dispatch's create is not taken as the dispatch's", async () => {
+    vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
+    vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockImplementation(async () => {
+      // Another draft's send created and selected its session while this send waited.
+      useSessionUIStore.setState({ draftCreateInFlight: true })
+      useSessionUIStore.setState({ currentSessionId: "ses_elsewhere", draftCreateInFlight: false })
+      throw markWorkModeBlockedError(new Error("Council needs a model with tool calling"), "noToolCalling")
+    })
+
+    await render()
+    await typePrompt("/council decide")
+    await clickStart()
+
+    expect(live.removeProjectWorktree).toHaveBeenCalledOnce()
+    expect(errorToast).toHaveBeenCalledWith("Council needs a model with tool calling")
+    expect(useSessionUIStore.getState().currentSessionId).toBe("ses_elsewhere")
+  })
+
+  test.each(["a create in flight", "a session in it"] as const)(
+    "keeps the worktree when the dispatch is refused while %s may use it",
+    async (use) => {
+      vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
+      vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockImplementation(async () => {
+        // The person sent from the dispatch's draft themselves while this send waited.
+        if (use === "a create in flight") {
+          useSessionUIStore.getState().closeNewSessionDraft()
+          useSessionUIStore.setState({ draftCreateInFlight: true })
+        } else {
+          live.syncSessions = [{ id: "ses_composer", directory: WORKTREE }]
+        }
+        throw new Error("Cannot send message without an active session or draft")
+      })
+
+      try {
+        await render()
+        await typePrompt("Sent by hand")
+        await clickStart()
+      } finally {
+        useSessionUIStore.setState({ draftCreateInFlight: false })
+      }
+
+      expect(live.removeProjectWorktree).not.toHaveBeenCalled()
+    },
+  )
+
+  test("a draft opened while the dispatch's create was in flight stays when the create fails", async () => {
+    useSessionUIStore.setState({ currentSessionId: "ses_prev" })
+    vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
+    vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockImplementation(async (...args: unknown[]) => {
+      sendOptionsOf(args).onDraftCreateStart?.()
+      // createSession closes the dispatch's draft for the request ...
+      useSessionUIStore.getState().closeNewSessionDraft()
+      // ... the person opens another one meanwhile, so the failed create does not put the dispatch's back.
+      useSessionUIStore.getState().openNewSessionDraft({ selectedProjectId: "project", directoryOverride: "/other" })
+      throw new Error("Failed to create session")
+    })
+
+    await render()
+    await typePrompt("Create fails")
+    await clickStart()
+
+    const draft = useSessionUIStore.getState().newSessionDraft
+    expect(draft.open).toBe(true)
+    expect(draft.directoryOverride).toBe("/other")
+    expect(useSessionUIStore.getState().currentSessionId).toBeNull()
+    // The create may have reached the runtime, so the worktree stays.
+    expect(live.removeProjectWorktree).not.toHaveBeenCalled()
+  })
+
+  test("returns to the previous session when the send fails after the create closed the draft", async () => {
+    useSessionUIStore.setState({ currentSessionId: "ses_prev" })
+    vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
+    vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockImplementation(async (...args: unknown[]) => {
+      sendOptionsOf(args).onDraftCreateStart?.()
+      // The create succeeded and closed the draft; activation failed before the session was selected.
+      useSessionUIStore.getState().closeNewSessionDraft()
+      throw new Error("activation failed")
+    })
+
+    await render()
+    await typePrompt("Fails before selection")
+    await clickStart()
+
+    expect(useSessionUIStore.getState().currentSessionId).toBe("ses_prev")
+    expect(live.removeProjectWorktree).not.toHaveBeenCalled()
+  })
+
+  test("returns to the previous session when the dispatch's own create fails and its draft comes back", async () => {
+    useSessionUIStore.setState({ currentSessionId: "ses_prev" })
+    vi.spyOn(useConfigStore.getState(), "activateDirectory").mockResolvedValue()
+    vi.spyOn(useSessionUIStore.getState(), "sendMessage").mockImplementation(async (...args: unknown[]) => {
+      sendOptionsOf(args).onDraftCreateStart?.()
+      // createSession closes the draft, then puts the same draft back when the request fails.
+      const dispatchDraft = useSessionUIStore.getState().newSessionDraft
+      useSessionUIStore.getState().closeNewSessionDraft()
+      // The failed create stores the runtime's reason as the composer error.
+      useSessionUIStore.setState({ newSessionDraft: dispatchDraft, error: "Runtime refused the session" })
+      throw new Error("Failed to create session")
+    })
+
+    await render()
+    await typePrompt("Create fails")
+    await clickStart()
+
+    expect(useSessionUIStore.getState().currentSessionId).toBe("ses_prev")
+    expect(live.removeProjectWorktree).not.toHaveBeenCalled()
+    // The reason goes to the dispatch's toast, not onto the session it returned to.
+    expect(useSessionUIStore.getState().error).toBeNull()
+    expect(errorToast).toHaveBeenCalledWith("Runtime refused the session")
+  })
 })
