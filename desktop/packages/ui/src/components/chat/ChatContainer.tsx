@@ -3,6 +3,7 @@ import { revealToolPart } from "@/lib/revealToolPart"
 import type { Message, Part, Session } from "@defai-digital/ax-code-sdk/v2"
 
 import { ChatInput } from "./ChatInput"
+import { DraftHomeAttention } from "./DraftHomeAttention"
 import { DraftSetupSteps } from "./DraftSetupSteps"
 import { ReturnToWorkRecapStrip } from "./ReturnToWorkRecapStrip"
 import { SessionVersionSeal } from "@/components/supervision/SessionVersionSeal"
@@ -18,7 +19,6 @@ import { useUIStore } from "@/stores/useUIStore"
 import { Skeleton } from "@/components/ui/skeleton"
 import ChatEmptyState from "./ChatEmptyState"
 import { ProjectsHome } from "@/components/projects/ProjectsHome"
-import { NeedsYouQueue } from "@/components/projects/NeedsYouQueue"
 import { useGlobalSyncStore } from "@/sync/global-sync-store"
 import MessageList, { type MessageListHandle } from "./MessageList"
 import { PinnedRequestDock } from "./PinnedRequestDock"
@@ -1015,7 +1015,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
             <div data-draft-home className="flex w-full flex-col items-center">
               <DraftSetupSteps className="chat-input-column mb-6" />
               {promptReadOnly ? <ReadOnlyPromptBanner /> : <ChatInput scrollToBottom={resumeToLatestInstant} />}
-              <NeedsYouQueue className="chat-input-column mt-1" />
+              <DraftHomeAttention />
               {showDraftProjects ? (
                 <div className="chat-input-column mt-8">
                   <ProjectsHome

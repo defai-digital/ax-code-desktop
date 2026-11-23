@@ -30,14 +30,20 @@ export interface EvidenceTextProps {
   /** What to render when there is no evidence: an em dash (default) or nothing. */
   fallback?: "dash" | "none"
   className?: string
+  /** Put the full text in a tooltip, for a container that truncates it. */
+  showTitle?: boolean
 }
 
-export const EvidenceText: React.FC<EvidenceTextProps> = ({ evidence, fallback = "dash", className }) => {
+export const EvidenceText: React.FC<EvidenceTextProps> = ({ evidence, fallback = "dash", className, showTitle }) => {
   const formatEvidence = useFormatEvidence()
   const text = formatEvidence(evidence)
   if (text === null) {
     if (fallback === "none") return null
     return <span className={className}>{"\u2014"}</span>
   }
-  return <span className={className}>{text}</span>
+  return (
+    <span className={className} title={showTitle ? text : undefined}>
+      {text}
+    </span>
+  )
 }

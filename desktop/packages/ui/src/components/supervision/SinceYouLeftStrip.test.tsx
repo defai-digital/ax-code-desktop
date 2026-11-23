@@ -143,4 +143,24 @@ describe("SinceYouLeftStrip hook blocks chip", () => {
     expect(container.querySelector("[data-since-you-left]")).toBeNull()
     expect(selectDirectoryHookCounters(useHookActivityStore.getState(), "/repo")).toEqual({ blocked: 0, failed: 0 })
   })
+
+  test("long evidence keeps the state word and Review in the strip, and its full text on hover", () => {
+    // G UX-08: the strip wraps instead of pushing its state word and actions out of view.
+    const evidence = { additions: 123_456, deletions: 98_765, files: 4_321 }
+    useSupervisionStore.setState({ rows: [{ ...row, evidence }] })
+    render()
+    const strip = container.querySelector("[data-since-you-left]")!
+    expect(strip.querySelector("[data-since-you-left-state]")?.textContent).toBeTruthy()
+    const actions = strip.querySelector("[data-since-you-left-actions]")!
+    const buttons = Array.from(actions.querySelectorAll("button"))
+    expect(buttons.map((button) => button.textContent || button.getAttribute("aria-label"))).toEqual([
+      "supervision.sinceYouLeft.reviewChanges",
+      "supervision.sinceYouLeft.dismiss",
+    ])
+    const evidenceText = "supervision.evidence.summary:123456|98765|4321"
+    const evidenceNode = Array.from(strip.querySelectorAll("span")).find((span) => span.textContent === evidenceText)!
+    expect(evidenceNode.getAttribute("title")).toBe(evidenceText)
+    // The evidence is not inside the actions group, so it can never squeeze Review out.
+    expect(actions.contains(evidenceNode)).toBe(false)
+  })
 })
