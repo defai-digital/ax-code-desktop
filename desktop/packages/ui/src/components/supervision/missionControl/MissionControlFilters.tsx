@@ -49,7 +49,7 @@ interface Props {
 const statuses = [
   ["all", "supervision.missionControl.filter.all"],
   ["attention", "supervision.missionControl.filter.attention"],
-  ["running", "supervision.missionControl.state.running"],
+  ["running", "supervision.state.running"],
   ["review", "supervision.state.review"],
 ] as const
 

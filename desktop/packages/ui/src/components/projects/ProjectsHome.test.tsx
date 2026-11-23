@@ -120,7 +120,7 @@ test("a draft whose worktree is still being created keeps its project: rows neit
 
 test("compact attention controls remain named and open their own session without card navigation", () => {
   render(true)
-  clickNative("1 need you · Shared · ~/team-b/shared")
+  clickNative("1 needs you · Shared · ~/team-b/shared")
   expect(fixtures.setCurrentSession).toHaveBeenLastCalledWith("session-b", "/work/team-b/shared")
   expect(fixtures.setActiveProject).toHaveBeenLastCalledWith("b")
   expect(fixtures.setActiveMainTab).toHaveBeenLastCalledWith("chat")

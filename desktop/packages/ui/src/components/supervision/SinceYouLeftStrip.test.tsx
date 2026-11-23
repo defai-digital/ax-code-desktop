@@ -117,7 +117,7 @@ describe("SinceYouLeftStrip hook blocks chip", () => {
     })
     render()
     expect(container.querySelector("[data-since-you-left]")).not.toBeNull()
-    expect(container.textContent).toContain("supervision.sinceYouLeft.state.goal")
+    expect(container.textContent).toContain("supervision.state.goal")
   })
 
   test("hides the chip when nothing was blocked", () => {

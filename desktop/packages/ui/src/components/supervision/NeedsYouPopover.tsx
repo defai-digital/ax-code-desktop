@@ -167,11 +167,7 @@ export const NeedsYouPopover: React.FC<NeedsYouPopoverProps> = ({ onClose }) => 
                       <span className="min-w-0 flex-1 truncate typography-ui-label text-foreground">{row.title}</span>
                       <span className="inline-flex shrink-0 items-center gap-1 typography-micro text-foreground">
                         <StatusMark kind={SUPERVISION_PRESENTATION[row.state].mark} />
-                        {row.state === "error"
-                          ? t("projects.home.needsYou.error")
-                          : row.state === "goal"
-                            ? t("supervision.state.goal")
-                            : t("supervision.state.review")}
+                        {t(SUPERVISION_PRESENTATION[row.state].label)}
                       </span>
                     </span>
                     {row.state === "error" && row.errorMessage ? (

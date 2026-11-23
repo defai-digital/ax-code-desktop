@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Name each session state with one word everywhere: Needs approval, Has a question, Goal needs you, Working, Standing by, Failed and Changes to review, on the board and its filter, Needs you, the since-you-left strip, the project list and the work summary. Standing by no longer reads as "waiting" in German, French, Spanish, Italian, Korean, Portuguese, Russian, Turkish and Vietnamese, so only a decision is called waiting. A working session is the same colour in the project list as on the board, and one session reads "1 needs you".
 - On mobile, open Review, Git, Files and Terminal from one menu in the workspace bar, named after the view it shows, and press Workspace only while the chat is showing; Review used to leave Workspace pressed. The command palette has one Review entry instead of a second "Open Diff View" for the same view.
 - Add **All projects** to the session sidebar and the command palette. It opens the project list over the current session, which stays where it was; before, the list showed only on an empty chat or a new-session draft.
 - Remove the Mission Control "More than 4 sessions need close attention" chip. It counted working sessions as needing attention; the summary already counts the sessions that need you. At most 4 decision toasts still show at once.

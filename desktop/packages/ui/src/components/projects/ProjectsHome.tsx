@@ -92,7 +92,7 @@ const ActivityDot: React.FC<{ activity: ProjectActivity }> = ({ activity }) => (
     className={cn(
       "status-dot",
       activity.tone === "attention" && "bg-status-warning",
-      activity.tone === "running" && "bg-status-success status-dot-running",
+      activity.tone === "running" && "bg-status-info status-dot-running",
       activity.tone === "idle" && "bg-muted-foreground/35",
     )}
   />
@@ -371,12 +371,14 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
             projectActivity.tone === "attention" ? attentionSessionForProject(project.id, needsYouInputs) : null
           const statusLabel =
             projectActivity.tone === "attention"
-              ? t("projects.home.status.needsYou", { count: projectActivity.attentionSessions })
+              ? t(projectActivity.attentionSessions === 1 ? "projects.home.status.needsYouOne" : "projects.home.status.needsYou", {
+                  count: projectActivity.attentionSessions,
+                })
               : projectActivity.tone === "running"
                 ? t("projects.home.status.running", { count: projectActivity.busySessions })
                 : projectActivity.activeSessions > 0
                   ? t("projects.home.status.sessions", { count: projectActivity.activeSessions })
-                  : t("projects.home.status.idle")
+                  : t("supervision.state.idle")
 
           return (
             <div

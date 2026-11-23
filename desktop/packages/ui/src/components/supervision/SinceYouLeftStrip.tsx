@@ -6,12 +6,12 @@ import { useNow } from "@/hooks/useNow"
 import { useSupervisionRow } from "@/hooks/useSupervisionRows"
 import { useI18n } from "@/lib/i18n"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
+import { SUPERVISION_PRESENTATION } from "@/lib/supervision/presentation"
 import {
   shouldShowSinceYouLeft,
   sinceYouLeftActivityAt,
   sinceYouLeftHookBlocks,
   sinceYouLeftRelativeParts,
-  sinceYouLeftStateLabel,
 } from "@/lib/supervision/sinceYouLeft"
 import { useDirectoryHookCounters, useHookActivityStore } from "@/stores/useHookActivityStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
@@ -38,8 +38,6 @@ export const SinceYouLeftStrip: React.FC<SinceYouLeftStripProps> = ({ sessionId 
   if (dismissedFor === sessionId) return null
   const activityAt = sinceYouLeftActivityAt(row.updatedAt, row.goal)
   if (!shouldShowSinceYouLeft({ snapshot, updatedAt: activityAt, state: row.state })) return null
-  const label = sinceYouLeftStateLabel(row.state)
-  if (!label) return null
 
   const parts = sinceYouLeftRelativeParts(activityAt, now)
   const hookBlocks = sinceYouLeftHookBlocks(hookCounters.blocked)
@@ -57,7 +55,7 @@ export const SinceYouLeftStrip: React.FC<SinceYouLeftStripProps> = ({ sessionId 
     >
       <span className="typography-ui-label text-foreground">{t("supervision.sinceYouLeft.title")}</span>
       <span className="typography-meta text-muted-foreground">
-        {t(`supervision.sinceYouLeft.state.${label}` as Parameters<typeof t>[0])}
+        {t(SUPERVISION_PRESENTATION[row.state].label)}
       </span>
       <EvidenceText evidence={row.evidence} fallback="none" className="typography-meta text-muted-foreground" />
       {hookBlocks !== null ? (
