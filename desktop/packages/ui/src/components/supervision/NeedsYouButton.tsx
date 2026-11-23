@@ -1,12 +1,11 @@
 import React from "react"
-import { countSessionsWithWaitingPages, webMcpPageNeedsYou } from "@/lib/webMcpViewKey"
-import { useWebMcpPages } from "@/hooks/useWebMcpPages"
 
 import { Icon } from "@/components/icon/Icon"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { useSupervisionRows } from "@/hooks/useSupervisionRows"
 import { useI18n } from "@/lib/i18n"
-import { needsHuman } from "@/lib/supervision/sessionState"
+import { countNeedsYou } from "@/lib/supervision/needsYouCount"
+import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 import { cn } from "@/lib/utils"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 
@@ -24,11 +23,8 @@ export const NeedsYouButton: React.FC = () => {
   const rows = useSupervisionRows()
   const open = useSupervisionStore((state) => state.needsYouPopoverOpen)
   const setOpen = useSupervisionStore((state) => state.setNeedsYouPopoverOpen)
-  const waiting = useWebMcpPages().filter(webMcpPageNeedsYou)
-  const count = countSessionsWithWaitingPages(
-    rows.filter((row) => needsHuman(row.state)),
-    waiting,
-  )
+  const views = useWebMcpBrowserStore((state) => state.views)
+  const count = countNeedsYou(rows, views)
   const close = React.useCallback(() => setOpen(false), [setOpen])
   const label = count > 0 ? t("supervision.needsYou.openAria", { count }) : t("supervision.needsYou.openEmptyAria")
 

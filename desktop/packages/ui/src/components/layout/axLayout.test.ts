@@ -80,7 +80,7 @@ describe("AX Code layout", () => {
 
   test("the needs-you queue is its own bounded, ranked section", () => {
     const queue = source("projects/NeedsYouQueue.tsx")
-    expect(queue).toContain("rankNeedsYouEntries(listNeedsYouSessions(inputs))")
+    expect(queue).toContain("rankNeedsYouEntries(listNeedsYouSessions(inputs), deadlines)")
     expect(queue).toContain("queue.slice(0, NEEDS_YOU_VISIBLE_ROWS)")
     expect(queue).toContain("useEnsureDirectoriesGitStatus(directories)")
     const home = source("projects/ProjectsHome.tsx")

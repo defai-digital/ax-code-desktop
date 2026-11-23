@@ -2,8 +2,10 @@ import React from "react"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useUIStore } from "@/stores/useUIStore"
 import { useAttentionStore } from "@/stores/useAttentionStore"
-import { useSessionPermissions, useAllLiveSessions, useAllPendingRequests } from "@/sync/sync-context"
-import { countPendingApprovals } from "@/lib/tray/traySnapshot"
+import { useSessionPermissions, useAllLiveSessions } from "@/sync/sync-context"
+import { countNeedsYou } from "@/lib/supervision/needsYouCount"
+import { useSupervisionStore } from "@/stores/useSupervisionStore"
+import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 import { getRegisteredRuntimeAPIs } from "@/contexts/runtimeAPIRegistry"
 import { isDesktopShell } from "@/lib/desktop"
 import { setDesktopBadgeCount } from "@/lib/desktopNative"
@@ -82,20 +84,15 @@ function SessionPermissionWatcher({
 }
 
 /**
- * Mirrors the number of requests waiting on a person to the dock/taskbar badge
+ * Mirrors the number of things that need a person to the dock/taskbar badge
  * (desktop shells) and the attention store (window-title fallback on web).
- * The tray sync writes the same badge when background work is enabled, so both
- * count with countPendingApprovals and agree on one number.
+ * The tray sync writes the same badge when background work is enabled, and the
+ * titlebar pill shows the same number: all three count with countNeedsYou.
  */
 function AttentionBadgeSync(): null {
-  const pending = useAllPendingRequests()
-  const count = React.useMemo(
-    () =>
-      countPendingApprovals(
-        pending.map((entry) => ({ kind: entry.kind, sessionId: entry.sessionId, id: entry.request.id })),
-      ),
-    [pending],
-  )
+  const rows = useSupervisionStore((state) => state.rows)
+  const views = useWebMcpBrowserStore((state) => state.views)
+  const count = React.useMemo(() => countNeedsYou(rows, views), [rows, views])
   const setPendingApprovalCount = useAttentionStore((s) => s.setPendingApprovalCount)
 
   React.useEffect(() => {

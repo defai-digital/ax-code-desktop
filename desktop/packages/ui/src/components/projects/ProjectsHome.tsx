@@ -384,7 +384,9 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
             <div
               key={project.id}
               role="button"
-              aria-label={contextName}
+              // The status is part of the name: the dot is hidden from assistive tech, and the compact sidebar list
+              // prints no status words, so keyboard and screen-reader users heard only project names (G UX-05).
+              aria-label={`${contextName}, ${statusLabel}`}
               aria-current={isActive ? "true" : undefined}
               data-project-row={project.id}
               data-project-directory={project.path}

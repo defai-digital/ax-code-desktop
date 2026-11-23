@@ -1,5 +1,7 @@
 import React from "react"
-import { countSessionsWithWaitingPages } from "@/lib/webMcpViewKey"
+import { countNeedsYou } from "@/lib/supervision/needsYouCount"
+import { useSupervisionStore } from "@/stores/useSupervisionStore"
+import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 import { useWebMcpPages } from "@/hooks/useWebMcpPages"
 import { WebMcpWaitingPages } from "@/components/mcp/WebMcpPages"
 import { useProjectsStore } from "@/stores/useProjectsStore"
@@ -12,6 +14,7 @@ import {
   NEEDS_YOU_VISIBLE_ROWS,
   listNeedsYouSessions,
   rankNeedsYouEntries,
+  autoOnceDeadlines,
   selectNeedsYouSession,
 } from "@/lib/needsYou"
 import { ATTENTION_REASON_ICON, needsYouReasonLabel } from "@/lib/needsYouLabels"
@@ -41,6 +44,8 @@ export const NeedsYouQueue: React.FC<NeedsYouQueueProps> = ({ className }) => {
   const inputs = useNeedsYouSessionInputs()
   const pendingRequests = useAllPendingRequests()
   const [expanded, setExpanded] = React.useState(false)
+  const supervisionRows = useSupervisionStore((state) => state.rows)
+  const browserViews = useWebMcpBrowserStore((state) => state.views)
 
   // "Finished with uncommitted changes" comes from git status, so warm it for every session directory.
   const directories = React.useMemo(() => {
@@ -50,7 +55,11 @@ export const NeedsYouQueue: React.FC<NeedsYouQueueProps> = ({ className }) => {
   }, [inputs])
   useEnsureDirectoriesGitStatus(directories)
 
-  const queue = React.useMemo(() => rankNeedsYouEntries(listNeedsYouSessions(inputs)), [inputs])
+  const deadlines = React.useMemo(() => autoOnceDeadlines(pendingRequests), [pendingRequests])
+  const queue = React.useMemo(
+    () => rankNeedsYouEntries(listNeedsYouSessions(inputs), deadlines),
+    [deadlines, inputs],
+  )
 
   const projectLabel = React.useCallback(
     (projectId: string | null, directory: string | null) =>
@@ -72,8 +81,9 @@ export const NeedsYouQueue: React.FC<NeedsYouQueueProps> = ({ className }) => {
   )
 
   const waiting = useWebMcpPages().filter((page) => page.waiting && !page.visible)
-  const count = countSessionsWithWaitingPages(queue, waiting)
-  if (count === 0) return null
+  if (queue.length === 0 && waiting.length === 0) return null
+  // The heading shows the number the titlebar pill and the dock badge show.
+  const count = countNeedsYou(supervisionRows, browserViews)
 
   const visible = expanded ? queue : queue.slice(0, NEEDS_YOU_VISIBLE_ROWS)
 

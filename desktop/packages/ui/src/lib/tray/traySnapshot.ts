@@ -42,9 +42,8 @@ export type TraySnapshot = {
   instanceName: string
   usage: TrayUsage
   /**
-   * Decisions waiting for the person (permissions and questions, child sessions included, before the menu limit). The OS
-   * badge means "this many things need you"; unread activity has its own count on the titlebar Activity button.
-   * 0 clears the dock badge.
+   * What needs the person, counted the way the titlebar pill counts it (countNeedsYou): sessions waiting on a decision
+   * and waiting browser pages. Unread activity has its own count on the titlebar Activity button. 0 clears the badge.
    */
   dockBadgeCount: number
 }
@@ -89,6 +88,8 @@ export type BuildTraySnapshotInput = {
   instanceName?: string
   maxSessions?: number
   maxApprovals?: number
+  /** countNeedsYou over the published supervision rows and browser pages; the dock badge shows it. */
+  needsYouCount: number
 }
 
 const DEFAULT_MAX_SESSIONS = 8
@@ -103,22 +104,6 @@ const basenameOf = (value: string): string => {
 const toStatus = (value: string | undefined): TraySessionStatus => {
   if (value === "busy" || value === "retry") return value
   return "idle"
-}
-
-/**
- * Requests waiting on a person, each counted once. The dock badge, the tray menu and the window title all use this
- * rule: two writers that count differently (sessions against requests) fight over one badge, and the last one wins.
- * A session can linger in two directory stores after a move, so a request is identified by kind, session and id.
- */
-export function countPendingApprovals(
-  approvals: ReadonlyArray<{ kind: string; sessionId?: string | null; id?: string | null } | null | undefined>,
-): number {
-  const seen = new Set<string>()
-  for (const approval of approvals) {
-    if (!approval?.id || !approval.sessionId) continue
-    seen.add(`${approval.kind}\u0000${approval.sessionId}\u0000${approval.id}`)
-  }
-  return seen.size
 }
 
 export const buildTraySnapshot = (input: BuildTraySnapshotInput): TraySnapshot => {
@@ -202,7 +187,7 @@ export const buildTraySnapshot = (input: BuildTraySnapshotInput): TraySnapshot =
       }
     })
 
-  const dockBadgeCount = countPendingApprovals(input.approvals)
+  const dockBadgeCount = Math.max(0, input.needsYouCount)
 
   return {
     sessions,
