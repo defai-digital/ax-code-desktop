@@ -244,7 +244,8 @@ export const CommandPalette: React.FC = () => {
         id: "supervision:review-changes",
         title: t("supervision.commandPalette.reviewChanges"),
         icon: <Icon name="git-commit" className="mr-2 h-4 w-4" />,
-        searchText: `${t("supervision.commandPalette.reviewChanges")} supervision review changes diff`,
+        // The one Review entry: "Open Diff View" was the same destination under another name (C UX-07).
+        searchText: `${t("supervision.commandPalette.reviewChanges")} supervision review changes diff view open diff`,
         onSelect: run(() => {
           openBesideChat("diff")
         }),
@@ -381,13 +382,6 @@ export const CommandPalette: React.FC = () => {
         icon: <Icon name="git-branch" className="mr-2 h-4 w-4" />,
         searchText: `${t("commandPalette.item.openGit")} git view main tab`,
         onSelect: run(() => setActiveMainTab("git")),
-      },
-      {
-        id: "open-diff-view",
-        title: t("commandPalette.item.openDiff"),
-        icon: <Icon name="git-commit" className="mr-2 h-4 w-4" />,
-        searchText: `${t("commandPalette.item.openDiff")} diff view main tab`,
-        onSelect: run(() => setActiveMainTab("diff")),
       },
       {
         id: "open-files-view",

@@ -1,6 +1,12 @@
 import { Icon } from "@/components/icon/Icon"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { useI18n } from "@/lib/i18n"
-import { closeBesideChat, openBesideChat } from "@/lib/supervision/openBesideChat"
+import { closeBesideChat, openBesideChat, type BesideChatView } from "@/lib/supervision/openBesideChat"
 import { cn } from "@/lib/utils"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useUIStore } from "@/stores/useUIStore"
@@ -12,11 +18,28 @@ import { formatPathForDisplay } from "@/lib/utils"
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useGitBranchLabel } from "@/stores/useGitStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
+import type { I18nKey } from "@/lib/i18n"
+
+/** The views mobile opens over the chat from one labelled menu (C UX-07); Chat closes them. */
+const MOBILE_TOOLS: ReadonlyArray<{ view: BesideChatView | "chat"; labelKey: I18nKey }> = [
+  { view: "diff", labelKey: "supervision.navigation.review" },
+  { view: "git", labelKey: "splitPane.tab.git" },
+  { view: "files", labelKey: "splitPane.tab.files" },
+  { view: "terminal", labelKey: "splitPane.tab.terminal" },
+  { view: "chat", labelKey: "layout.mainTab.chat" },
+]
 
 export function WorkspaceNavigation() {
   const { t } = useI18n()
   const board = useSupervisionStore((s) => s.missionControlOpen || s.compareRunGroupKey !== null)
-  const review = useUIStore((s) => s.splitPaneEnabled && s.splitPaneRightTab === "diff")
+  const isMobile = useUIStore((s) => s.isMobile)
+  const mobileView = useUIStore((s) => s.activeMainTab)
+  // The pressed state follows what is on screen. Mobile has no pane beside the chat: Review covers it as the main
+  // tab, so reading the desktop split pane left Workspace pressed while Review was showing.
+  const review = useUIStore((s) =>
+    s.isMobile ? s.activeMainTab === "diff" : s.splitPaneEnabled && s.splitPaneRightTab === "diff",
+  )
+  const mobileTool = isMobile ? MOBILE_TOOLS.find((tool) => tool.view !== "chat" && tool.view === mobileView) : undefined
   const directory = useEffectiveDirectory()
   const homeDirectory = useDirectoryStore((s) => s.homeDirectory)
   const branch = useGitBranchLabel(directory ?? null)
@@ -29,11 +52,11 @@ export function WorkspaceNavigation() {
     {
       label: t("supervision.navigation.workspace"),
       icon: "chat-3" as const,
-      active: !board && !review,
+      active: !board && !review && !mobileTool,
       disabled: false,
       run: () => {
         useUIStore.getState().setActiveMainTab("chat")
-        if (review) closeBesideChat("diff")
+        if (review && !isMobile) closeBesideChat("diff")
         leaveBoard()
       },
     },
@@ -54,13 +77,23 @@ export function WorkspaceNavigation() {
       },
     },
   ]
+  // Mobile: Review, Git, Files and Terminal are one menu named after the view it shows, in place of a bare Review
+  // button and an unnamed pane toggle in the header.
+  const visibleItems = isMobile ? items.slice(0, 2) : items
+  const openTool = (view: BesideChatView | "chat") => {
+    if (view === "chat") {
+      useUIStore.getState().setActiveMainTab("chat")
+      return
+    }
+    if (openBesideChat(view)) leaveBoard()
+  }
   return (
     <nav
       aria-label={t("header.navigation.mainAria")}
       className="flex shrink-0 flex-wrap items-center gap-1 border-b border-border/50 p-1"
       data-workspace-navigation
     >
-      {items.map((item) => (
+      {visibleItems.map((item) => (
         <button
           data-navigation-level={item.icon === "file-check" ? "context" : "primary"}
           key={item.label}
@@ -79,6 +112,46 @@ export function WorkspaceNavigation() {
           <span>{item.label}</span>
         </button>
       ))}
+      {isMobile ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              type="button"
+              data-workspace-tools-menu
+              disabled={!directory}
+              aria-label={t("supervision.navigation.toolsMenuAria", {
+                view: t(mobileTool?.labelKey ?? "supervision.navigation.review"),
+              })}
+              className={cn(
+                "ml-2 inline-flex min-h-9 min-w-0 items-center gap-1.5 rounded-md border-l border-border/50 px-3 py-1 typography-ui-label focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50",
+                mobileTool && !board
+                  ? "bg-interactive-selection text-primary"
+                  : "text-muted-foreground hover:bg-interactive-hover hover:text-foreground",
+              )}
+            >
+              <span>{t(mobileTool?.labelKey ?? "supervision.navigation.review")}</span>
+              <Icon name="arrow-down-s" className="h-4 w-4 shrink-0" aria-hidden="true" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="min-w-[200px]">
+            {MOBILE_TOOLS.map((tool) => {
+              const current = tool.view === "chat" ? !mobileTool : tool.view === mobileTool?.view
+              return (
+                <DropdownMenuItem
+                  key={tool.view}
+                  data-workspace-tool={tool.view}
+                  aria-current={current ? "page" : undefined}
+                  onSelect={() => openTool(tool.view)}
+                  className="flex items-center justify-between"
+                >
+                  <span className={cn(current && "font-semibold")}>{t(tool.labelKey)}</span>
+                  {current ? <Icon name="check" className="h-4 w-4 text-primary" aria-hidden="true" /> : null}
+                </DropdownMenuItem>
+              )
+            })}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
       {currentSessionId && canOpenSessionWindow() ? (
         <button
           type="button"
