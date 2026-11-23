@@ -6,7 +6,6 @@ import { useAgentsStore } from "@/stores/useAgentsStore"
 import { useCommandsStore } from "@/stores/useCommandsStore"
 import { useMcpConfigStore } from "@/stores/useMcpConfigStore"
 import { useSkillsStore } from "@/stores/useSkillsStore"
-import { isStaleConfigSelection } from "@/components/sections/configSelection"
 import { useSkillsCatalogStore } from "@/stores/useSkillsCatalogStore"
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip"
 import { Input } from "@/components/ui/input"
@@ -36,6 +35,7 @@ import { useDeviceInfo } from "@/lib/device"
 import { isDesktopShell, isWebRuntime } from "@/lib/desktop"
 import { useI18n } from "@/lib/i18n"
 import { isPlainRecord } from "@/lib/record"
+import { parseRoute } from "@/lib/router"
 import { Icon } from "@/components/icon/Icon"
 import { reloadAxCodeConfiguration } from "@/stores/useAgentsStore"
 import {
@@ -629,22 +629,37 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
     // The deep-link jump compares against this; a stale sibling slug would bounce "Back to Settings" into Skills.
     autoNavSlugRef.current = "skills.installed"
     setSkillsPane(detail.skillsPane)
-    if (detail.skillsPane === "installed" && detail.skillName) {
-      const skills = useSkillsStore.getState()
-      const stale = isStaleConfigSelection({
-        isLoading: skills.isLoading,
-        selectedName: detail.skillName,
-        selectedItem: skills.getSkillByName(detail.skillName) ?? null,
-        draft: skills.skillDraft,
-      })
-      if (stale) {
-        // The skill is gone; its list is the closest thing left to show.
-        setMobileStage("page-sidebar")
-        return
-      }
-      skills.setSelectedSkill(detail.skillName)
-    }
     setMobileStage("page-content")
+    if (detail.skillsPane !== "installed") {
+      return
+    }
+    // The entry names the selection it showed, an empty one included; the shared selection may have moved since.
+    const skillName = detail.skillName
+    useSkillsStore.getState().setSelectedSkill(skillName)
+    if (!skillName) {
+      return
+    }
+    // Only a list that loaded can say the skill is gone: a list still loading or one that failed to load cannot.
+    void useSkillsStore
+      .getState()
+      .loadSkills()
+      .then((loaded) => {
+        const skills = useSkillsStore.getState()
+        // A new skill exists only as its draft until it is saved.
+        if (!loaded || skills.getSkillByName(skillName) || skills.skillDraft?.name === skillName) {
+          return
+        }
+        const current = getSettingsDetailHistoryEntry(getCurrentHistoryState())
+        if (current?.page !== "skills.installed" || current.skillName !== skillName) {
+          return
+        }
+        // Show the list in its place, and turn the entry into the list's so Back does not land on it again.
+        skills.setSelectedSkill(null)
+        setMobileStage("page-sidebar")
+        const state = { ...getCurrentHistoryState() }
+        delete state[SETTINGS_DETAIL_HISTORY_KEY]
+        window.history.replaceState(state, "", window.location.href)
+      })
   }, [])
 
   const handleBack = React.useCallback(() => {
@@ -668,18 +683,19 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
 
     const handlePopState = (event: PopStateEvent) => {
       const detail = getSettingsDetailHistoryEntry(event.state)
-      // Back from a sibling page lands on a skill's detail entry while this still holds the sibling's slug.
-      if (settingsSlug !== "skills.installed" && detail?.page !== "skills.installed") {
-        return
-      }
-
       if (detail?.page === "skills.installed") {
         setSettingsPage(detail.page)
         restoreSkillsDetail(detail)
         return
       }
 
-      setMobileStage((stage) => (stage === "page-content" ? "page-sidebar" : stage))
+      // Any other entry is a page itself. The router opens the page in the URL; it starts at that page's first stage,
+      // not at whatever stage the page being left was on. This view's slug is still the page being left, so it only
+      // stands in when the URL names no page.
+      const destination = parseRoute().settingsPath
+      const slug = destination ? resolveSettingsSlug(destination) : settingsSlug
+      autoNavSlugRef.current = slug
+      setMobileStage(mobileStageForPage(slug))
     }
 
     window.addEventListener("popstate", handlePopState)

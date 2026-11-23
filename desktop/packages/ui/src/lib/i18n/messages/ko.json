@@ -5460,6 +5460,7 @@
   "supervision.dispatch.worktreeHint": "새 브랜치의 파일만 격리됩니다. 포트, 자격 증명 및 외부 쓰기는 공유됩니다.",
   "supervision.dispatch.sharedDirectoryHint": "공유 프로젝트 디렉터리에서 실행됩니다.",
   "supervision.dispatch.worktreeFailed": "디스패치용 Git worktree를 생성할 수 없습니다.",
+  "supervision.dispatch.createUnknown": "세션이 시작되지 않았을 수 있습니다. Git worktree는 {path}에 남겨 두었습니다.",
   "supervision.seal.word.stale": "오래됨",
   "supervision.seal.word.current": "이 커밋",
   "supervision.seal.word.uncommitted": "미커밋",

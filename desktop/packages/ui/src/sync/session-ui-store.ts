@@ -12,6 +12,7 @@
  * SDK-calling actions that need domain data read it from sync-refs.
  */
 
+import type { ProviderWithModelList } from "@/types/providerModels"
 import { create } from "zustand"
 import type {
   FilePartInput,
@@ -145,8 +146,9 @@ function workModeRefusal(
   command: "council" | "arena",
   model: { providerID: string; modelID: string },
   allowUnverifiedToolCalling: boolean | undefined,
+  providers: ProviderWithModelList[] = useConfigStore.getState().providers,
 ): { message: string; reason: WorkModeBlockedReason } | null {
-  const reason = workModeBlockedReason(command, model, useConfigStore.getState().providers)
+  const reason = workModeBlockedReason(command, model, providers)
   if (!reason) return null
   if (reason === "noToolCalling" && allowUnverifiedToolCalling) return null
   const message = formatMessage(useI18nStore.getState().dictionary, workModeBlockedMessageKey(reason), {
@@ -155,12 +157,9 @@ function workModeRefusal(
   return { message, reason }
 }
 
-function throwWorkModeRefusal(
-  refusal: { message: string; reason: WorkModeBlockedReason } | null,
-  options?: { silent?: boolean },
-): void {
+function throwWorkModeRefusal(refusal: { message: string; reason: WorkModeBlockedReason } | null): void {
   if (!refusal) return
-  if (!options?.silent) useSessionUIStore.setState({ error: refusal.message })
+  useSessionUIStore.setState({ error: refusal.message })
   throw markWorkModeBlockedError(new Error(refusal.message), refusal.reason)
 }
 
@@ -199,6 +198,8 @@ interface WorkModeSendCheck {
   modelID: string
   inputMode?: "normal" | "shell"
   allowUnverifiedToolCalling?: boolean
+  /** The catalog of the directory the send goes to; defaults to the active directory's. */
+  providers?: ProviderWithModelList[]
 }
 
 /**
@@ -213,11 +214,13 @@ async function findWorkModeSendRefusal(
   const model = { providerID: input.providerID, modelID: input.modelID }
   const resolved = resolveWorkModeSend(input.workMode ?? DEFAULT_WORK_MODE, input.content)
   if (resolved.forcedCommand) {
-    return workModeRefusal(resolved.forcedCommand.name, model, input.allowUnverifiedToolCalling)
+    return workModeRefusal(resolved.forcedCommand.name, model, input.allowUnverifiedToolCalling, input.providers)
   }
   const command = workModeEnsembleCommand(resolved.content, null)
   // The catalog is only worth waiting for when this model would be refused the command.
-  const refusal = command ? workModeRefusal(command, model, input.allowUnverifiedToolCalling) : null
+  const refusal = command
+    ? workModeRefusal(command, model, input.allowUnverifiedToolCalling, input.providers)
+    : null
   if (!command || !refusal) return null
   const catalog = await resolveSlashCommand(command)
   return catalog.knownCommand || catalog.catalogLoadFailed ? refusal : null
@@ -484,19 +487,13 @@ type SendMessageOptions = {
   workMode?: WorkModeId
   /** Send although the catalog says the model cannot call tools; see routeMessage. */
   allowUnverifiedToolCalling?: boolean
-  /**
-   * Called once, right before a draft-backed send asks the runtime to create its session. From then on a session may
-   * exist even when the send fails; before it, a refusal has created nothing.
-   */
-  onDraftCreateStart?: () => void
-  /**
-   * Report a draft-backed refusal made before anything was created only by throwing, without writing the shared
-   * composer error. For a sender with its own surface (Quick Dispatch), whose draft may no longer be on screen.
-   */
-  silentRefusal?: boolean
 }
 
-function notifyMessageSent(sessionId: string): void {
+/**
+ * Stamp the session's last user message on the server. The runtime raises needs-attention when a session that is not
+ * being watched goes idle only when this stamp is set, so every sender of a user prompt calls it.
+ */
+export function notifyMessageSent(sessionId: string): void {
   fetch(replacePathParams(API_ENDPOINTS.config.sessionsMessageSent, { sessionId }), { method: "POST" }).catch(() => {
     /* ignore */
   })
@@ -531,11 +528,6 @@ type OpenNewSessionDraftOptions = Partial<NewSessionDraftState> & {
    * restores the previous view; resetting the chip there changed a setting the user never touched.
    */
   preserveWorkMode?: boolean
-  /**
-   * Remember this draft's target as the one a later plain draft opens on (default true). Quick dispatch opens a draft
-   * on a worktree it may remove again; remembering it would send the next plain draft into that worktree.
-   */
-  rememberTarget?: boolean
 }
 type SessionUIState = {
   currentSessionId: string | null
@@ -828,6 +820,26 @@ const DEFAULT_DRAFT: NewSessionDraftState = {
 }
 
 const INVALID_SEND_TARGET_MESSAGE = "Cannot send message without an active session or draft"
+const DRAFT_RETARGETED_MESSAGE = "The draft's target changed before the message was sent"
+
+/**
+ * Record the model, agent and variant a new session was started with, so opening it later shows the selection its
+ * first prompt used rather than the directory's.
+ */
+export function saveSessionSendSelection(
+  sessionId: string,
+  selection: { providerID?: string; modelID?: string; agent?: string; variant?: string },
+): void {
+  const { providerID, modelID, agent, variant } = selection
+  const selections = useSelectionStore.getState()
+  if (providerID && modelID) selections.saveSessionModelSelection(sessionId, providerID, modelID)
+  if (!agent) return
+  selections.saveSessionAgentSelection(sessionId, agent)
+  if (providerID && modelID) {
+    selections.saveAgentModelForSession(sessionId, agent, providerID, modelID)
+    selections.saveAgentModelVariantForSession(sessionId, agent, providerID, modelID, variant)
+  }
+}
 
 /**
  * Where a draft would create its session: its effective directory and any worktree still pending. The project is left
@@ -982,7 +994,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       return normalizePath(selectedProject?.path ?? null)
     })()
 
-    if (options?.rememberTarget !== false) persistDraftTarget({ projectId: selectedProject?.id ?? null, directory })
+    persistDraftTarget({ projectId: selectedProject?.id ?? null, directory })
 
     // Re-opening a draft during a draft-backed create must not consume the +1 the
     // close performed: createSession's rollback guard compares against it.
@@ -1325,9 +1337,9 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
   ) => {
     const draft = get().newSessionDraft
     const startedFromDraft = options?.fromNewSessionDraft ?? (!options?.sessionId && Boolean(draft?.open))
-    const refuseDraftSend = (): never => {
-      if (!options?.silentRefusal) set({ error: INVALID_SEND_TARGET_MESSAGE })
-      throw new Error(INVALID_SEND_TARGET_MESSAGE)
+    const refuseDraftSend = (message = INVALID_SEND_TARGET_MESSAGE): never => {
+      set({ error: message })
+      throw new Error(message)
     }
     if (startedFromDraft && !draft?.open) {
       // Validate the captured draft target before touching the now-selected
@@ -1384,16 +1396,14 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       // The check can wait for the command catalog; the draft may have been replaced or retargeted meanwhile. That
       // comes first: a refusal worked out for the old target would be reported on the new one.
       const draftAfterCheck = get().newSessionDraft
-      if (
-        !draftAfterCheck?.open ||
-        draftLifecycleRevision !== draftRevision ||
-        draftTargetKey(draftAfterCheck) !== admittedTarget
-      ) {
+      if (!draftAfterCheck?.open || draftLifecycleRevision !== draftRevision) {
         refuseDraftSend()
       }
-      throwWorkModeRefusal(workModeRefusal, { silent: options?.silentRefusal })
+      if (draftTargetKey(draftAfterCheck) !== admittedTarget) {
+        refuseDraftSend(DRAFT_RETARGETED_MESSAGE)
+      }
+      throwWorkModeRefusal(workModeRefusal)
 
-      options?.onDraftCreateStart?.()
       const created = await get().createSession(draft.title, draftDirectoryOverride, draft.parentID ?? null)
       if (!created?.id) throw new Error("Failed to create session")
 
@@ -1420,30 +1430,12 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       const configState = useConfigStore.getState()
       const draftAgentName = configState.currentAgentName
       const effectiveDraftAgent = submittedAgent ?? draftAgentName
-      const sessionProviderID = submittedProviderID || configState.currentProviderId
-      const sessionModelID = submittedModelID || configState.currentModelId
-
-      if (sessionProviderID && sessionModelID) {
-        useSelectionStore.getState().saveSessionModelSelection(created.id, sessionProviderID, sessionModelID)
-      }
-
-      if (effectiveDraftAgent) {
-        useSelectionStore.getState().saveSessionAgentSelection(created.id, effectiveDraftAgent)
-        if (sessionProviderID && sessionModelID) {
-          useSelectionStore
-            .getState()
-            .saveAgentModelForSession(created.id, effectiveDraftAgent, sessionProviderID, sessionModelID)
-          useSelectionStore
-            .getState()
-            .saveAgentModelVariantForSession(
-              created.id,
-              effectiveDraftAgent,
-              sessionProviderID,
-              sessionModelID,
-              variant,
-            )
-        }
-      }
+      saveSessionSendSelection(created.id, {
+        providerID: submittedProviderID || configState.currentProviderId,
+        modelID: submittedModelID || configState.currentModelId,
+        agent: effectiveDraftAgent,
+        variant,
+      })
 
       const createdDirectory = normalizePath(draftDirectoryOverride ?? created.directory ?? null)
 

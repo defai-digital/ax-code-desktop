@@ -665,7 +665,17 @@ class AxCodeService {
   }
 
   async createSession(params?: { parentID?: string; title?: string }): Promise<Session> {
-    const directory = this.currentDirectory
+    return this.createSessionInDirectory(this.currentDirectory, params)
+  }
+
+  /**
+   * Create a session in an explicit directory. Unlike `withDirectory(dir, () => createSession())` it takes no
+   * directory lock, so a background sender cannot be refused before its request is sent.
+   */
+  async createSessionInDirectory(
+    directory: string | undefined,
+    params?: { parentID?: string; title?: string },
+  ): Promise<Session> {
     const client = directory ? this.getScopedApiClient(directory) : this.client
     const response = await client.session.create({
       ...(directory ? { directory } : {}),

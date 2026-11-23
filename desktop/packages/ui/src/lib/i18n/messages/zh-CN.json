@@ -5460,6 +5460,7 @@
   "supervision.dispatch.worktreeHint": "仅隔离新分支上的文件；本地端口、凭据和外部写入仍为共享。",
   "supervision.dispatch.sharedDirectoryHint": "在共享的项目目录中执行。",
   "supervision.dispatch.worktreeFailed": "无法为本次派工创建 Git worktree。",
+  "supervision.dispatch.createUnknown": "会话可能未启动。其 Git worktree 已保留在 {path}。",
   "supervision.seal.word.stale": "已过时",
   "supervision.seal.word.current": "当前提交",
   "supervision.seal.word.uncommitted": "未提交",

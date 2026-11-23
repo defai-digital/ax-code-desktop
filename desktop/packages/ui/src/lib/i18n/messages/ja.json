@@ -5460,6 +5460,7 @@
   "supervision.dispatch.worktreeHint": "新しいブランチ上のファイルのみ分離します。ポート、認証情報、外部書き込みは共有されます。",
   "supervision.dispatch.sharedDirectoryHint": "共有プロジェクトディレクトリで実行します。",
   "supervision.dispatch.worktreeFailed": "ディスパッチ用の Git worktree を作成できませんでした。",
+  "supervision.dispatch.createUnknown": "セッションが開始されていない可能性があります。Git worktree は {path} に残してあります。",
   "supervision.seal.word.stale": "古い",
   "supervision.seal.word.current": "このコミット",
   "supervision.seal.word.uncommitted": "未コミット",

@@ -232,18 +232,16 @@ describe("createSession draft rollback", () => {
   test("a draft retargeted while the send waited for the command catalog is refused before the create", async () => {
     // No bootstrap directory: it would win over the retargeted directory and keep the send where it was.
     useSessionUIStore.setState({ newSessionDraft: { ...draft(), bootstrapPendingDirectory: null } as never })
-    const onDraftCreateStart = vi.fn()
 
     await expect(
-      sendWhileCatalogLoads(
-        () => useSessionUIStore.getState().setNewSessionDraftTarget({ directoryOverride: "/proj-c" }, { preserveWorkMode: true }),
-        { onDraftCreateStart },
+      sendWhileCatalogLoads(() =>
+        useSessionUIStore.getState().setNewSessionDraftTarget({ directoryOverride: "/proj-c" }, { preserveWorkMode: true }),
       ),
-    ).rejects.toThrow("Cannot send message without an active session or draft")
+    ).rejects.toThrow("The draft's target changed before the message was sent")
 
     expect(createSessionAction).not.toHaveBeenCalled()
-    expect(onDraftCreateStart).not.toHaveBeenCalled()
-    expect(useSessionUIStore.getState().error).toBe("Cannot send message without an active session or draft")
+    // The draft is still open, so "no active draft" would be wrong: the message names what happened.
+    expect(useSessionUIStore.getState().error).toBe("The draft's target changed before the message was sent")
   })
 
   test("a retarget during the catalog wait is reported instead of the old target's work-mode refusal", async () => {
@@ -255,9 +253,7 @@ describe("createSession draft rollback", () => {
     })
     useCommandsStore.setState({ commands: [], loadCommands } as never)
 
-    await expect(composerSend("/council rate the API", "agent")).rejects.toThrow(
-      "Cannot send message without an active session or draft",
-    )
+    await expect(composerSend("/council rate the API", "agent")).rejects.toThrow("The draft's target changed before the message was sent")
     expect(createSessionAction).not.toHaveBeenCalled()
   })
 
@@ -275,50 +271,11 @@ describe("createSession draft rollback", () => {
     expect(createSessionAction).toHaveBeenCalledOnce()
   })
 
-  test("a silent refusal leaves the shared composer error alone", async () => {
-    useSessionUIStore.setState({ error: "The draft's own error" })
-
+  test("a draft closed while the send waited for the command catalog is refused as having no target", async () => {
     await expect(
-      sendWhileCatalogLoads(() => useSessionUIStore.getState().openNewSessionDraft({ directoryOverride: "/proj-c" }), {
-        silentRefusal: true,
-      }),
+      sendWhileCatalogLoads(() => useSessionUIStore.getState().closeNewSessionDraft()),
     ).rejects.toThrow("Cannot send message without an active session or draft")
-    // Opening the new draft cleared the error; the refusal did not write its own over it.
-    expect(useSessionUIStore.getState().error).toBeNull()
-
-    useSessionUIStore.setState({ error: "The draft's own error" })
-    await expect(
-      useSessionUIStore
-        .getState()
-        .sendMessage(
-          "rate this module",
-          "claude-code",
-          "claude-fable-5-2",
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          { workMode: "council", silentRefusal: true },
-        ),
-    ).rejects.toThrow("Council needs a non-CLI model")
-    expect(useSessionUIStore.getState().error).toBe("The draft's own error")
     expect(createSessionAction).not.toHaveBeenCalled()
-  })
-
-  test("reports the start of its own create just before the runtime is asked", async () => {
-    const order: string[] = []
-    createSessionAction.mockImplementation(async () => {
-      order.push("create")
-      return null
-    })
-
-    await expect(
-      sendWhileCatalogLoads(() => {}, { onDraftCreateStart: () => order.push("start") }),
-    ).rejects.toThrow()
-
-    expect(order).toEqual(["start", "create"])
   })
 
   test("an existing session refuses the same send before the message-sent notification goes out", async () => {

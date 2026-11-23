@@ -295,6 +295,73 @@ export const resolveFirstSelectableSelection = (
   return null
 }
 
+/** The model, agent and variant a send in a directory uses, with the catalog they were chosen from. */
+export interface DirectorySendSelection {
+  providerID: string
+  modelID: string
+  agent?: string
+  variant?: string
+  providers: ProviderWithModelList[]
+}
+
+/**
+ * The selection a new session in `directory` would get, worked out without activating that directory. The active
+ * directory answers with the composer's live selection; another one with its saved snapshot while that selection is
+ * still offered, otherwise with the same defaults activation applies to a fresh provider list (the Settings default,
+ * then the first selectable model). Null until that directory's providers are known.
+ */
+export const resolveDirectorySendSelection = (
+  state: Pick<
+    ConfigStore,
+    | "activeDirectoryKey"
+    | "providers"
+    | "currentProviderId"
+    | "currentModelId"
+    | "currentVariant"
+    | "currentAgentName"
+    | "directoryScoped"
+    | "settingsDefaultModel"
+    | "settingsDefaultVariant"
+  >,
+  directory: string,
+): DirectorySendSelection | null => {
+  const key = toDirectoryKey(directory)
+  const source =
+    state.activeDirectoryKey === key
+      ? {
+          providers: state.providers,
+          currentProviderId: state.currentProviderId,
+          currentModelId: state.currentModelId,
+          currentVariant: state.currentVariant,
+          currentAgentName: state.currentAgentName,
+        }
+      : state.directoryScoped[key]
+  if (!source || source.providers.length === 0) return null
+  if (
+    source.currentProviderId &&
+    source.currentModelId &&
+    hasProviderModel(source.providers, source.currentProviderId, source.currentModelId)
+  ) {
+    return {
+      providerID: source.currentProviderId,
+      modelID: source.currentModelId,
+      agent: source.currentAgentName?.trim() || undefined,
+      variant: source.currentVariant,
+      providers: source.providers,
+    }
+  }
+  const fallback =
+    resolveSettingsDefaultSelection(source.providers, state.settingsDefaultModel, state.settingsDefaultVariant) ??
+    resolveFirstSelectableSelection(source.providers, source.currentProviderId)
+  if (!fallback) return null
+  return {
+    providerID: fallback.currentProviderId,
+    modelID: fallback.currentModelId,
+    variant: fallback.currentVariant,
+    providers: source.providers,
+  }
+}
+
 /**
  * Safely transform provider.models (which may be a record, array, or missing)
  * into a ProviderModel[].

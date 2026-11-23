@@ -18,32 +18,29 @@ import type { ProjectEntry } from "@/lib/api/types"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { generateBranchName } from "@/lib/git/branchNameGenerator"
 import { useI18n } from "@/lib/i18n"
-import { normalizeProjectPath } from "@/lib/projectResolution"
 import { formatShortcutForDisplay, getEffectiveShortcutCombo } from "@/lib/shortcuts"
 import { checkIsGitRepository } from "@/lib/gitApi"
+import { waitForWorktreeBootstrap } from "@/lib/worktrees/worktreeBootstrap"
 import { createWorktreeWithDefaults } from "@/lib/worktrees/worktreeCreate"
-import { removeProjectWorktree } from "@/lib/worktrees/worktreeManager"
-import {
-  createDispatchToken,
-  dispatchStillShowingAttempt,
-  planQuickDispatchCompletion,
-  planQuickDispatchFailure,
-  quickDispatchSessionLabel,
-  reduceDispatchToken,
-} from "@/lib/supervision/quickDispatch"
+import { quickDispatchSessionLabel } from "@/lib/supervision/quickDispatch"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
 import { cn } from "@/lib/utils"
-import { workModeBlockedReasonOfError } from "@/lib/workMode"
-import { useConfigStore } from "@/stores/useConfigStore"
-import { useDirectoryStore } from "@/stores/useDirectoryStore"
+import { resolveDirectorySendSelection, useConfigStore, type DirectorySendSelection } from "@/stores/useConfigStore"
 import { useGitStore } from "@/stores/useGitStore"
 import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import { MESSAGE_QUEUE_MAX_PER_SESSION, useMessageQueueStore } from "@/stores/messageQueueStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useUIStore } from "@/stores/useUIStore"
-import { getNewSessionDraftRevision, useSessionUIStore } from "@/sync/session-ui-store"
-import { getAllSyncSessions } from "@/sync/sync-refs"
+import { seedSessionAutoAccept } from "@/stores/utils/sessionAutoAcceptSeed"
+import { registerCreatedSession } from "@/sync/register-created-session"
+import {
+  notifyMessageSent,
+  routeMessage,
+  saveSessionSendSelection,
+  useSessionUIStore,
+  workModeSendRefusalMessage,
+} from "@/sync/session-ui-store"
 import { useAllLiveSessions } from "@/sync/sync-context"
 
 const RECENT_LIMIT = 5
@@ -55,35 +52,6 @@ const projectDisplayLabel = (project: ProjectEntry): string => {
   return parts[parts.length - 1] || project.path
 }
 
-const knownSessionIds = (previousSessionId: string | null): Set<string> => {
-  const ids = new Set<string>()
-  if (previousSessionId) ids.add(previousSessionId)
-  for (const session of getAllSyncSessions()) ids.add(session.id)
-  const global = useGlobalSessionsStore.getState()
-  for (const session of global.activeSessions) ids.add(session.id)
-  for (const session of global.archivedSessions) ids.add(session.id)
-  for (const sessions of global.sessionsByDirectory.values()) {
-    for (const session of sessions) ids.add(session.id)
-  }
-  return ids
-}
-
-/** Every directory a session known here lives in. */
-const sessionDirectories = (): string[] => {
-  const directories: string[] = []
-  for (const session of getAllSyncSessions()) {
-    if (session.directory) directories.push(session.directory)
-  }
-  const global = useGlobalSessionsStore.getState()
-  for (const session of [...global.activeSessions, ...global.archivedSessions]) {
-    if (session.directory) directories.push(session.directory)
-  }
-  for (const [directory, sessions] of global.sessionsByDirectory) {
-    if (sessions.length > 0) directories.push(directory)
-  }
-  return directories
-}
-
 const labelForCreatedSession = (sessionId: string, prompt: string): string => {
   const global = useGlobalSessionsStore.getState()
   const session =
@@ -93,244 +61,107 @@ const labelForCreatedSession = (sessionId: string, prompt: string): string => {
 }
 
 type QuickDispatchResult =
-  | { ok: true }
-  | { ok: false; reason: "no-model" | "failed" | "worktree-failed" }
-  | { ok: false; reason: "reported"; message: string }
+  | { ok: true; sessionId: string; directory: string }
+  | { ok: false; reason: "no-model" | "worktree-failed" | "failed" }
+  | { ok: false; reason: "refused"; message: string }
+  /** The create request went out and failed; the runtime may still have made the session, so its worktree stays. */
+  | { ok: false; reason: "create-unknown"; worktreePath: string }
   | { ok: false; reason: "created"; sessionId: string; label: string; directory: string }
 
 /**
- * Start a session through the same draft path the composer uses, then either open it or
- * return to the view that was on screen. The draft path clears the current session, so the
- * previous target is captured before the draft opens. A dispatch token records the session
- * this attempt creates; the previous view is restored only while that session (or the draft)
- * is still what the user is looking at.
+ * The selection the project's new session gets. A project not opened in this run has no provider list yet; loading it
+ * for that directory fills its snapshot without switching the composer to it. A worktree shares its repository's
+ * configuration, so the project path is the key for both.
+ */
+const resolveDispatchSelection = async (projectPath: string): Promise<DirectorySendSelection | null> => {
+  const known = resolveDirectorySendSelection(useConfigStore.getState(), projectPath)
+  if (known) return known
+  await useConfigStore.getState().loadProviders({ directory: projectPath })
+  return resolveDirectorySendSelection(useConfigStore.getState(), projectPath)
+}
+
+/**
+ * Start a session in the background, the way Multi-Run starts its runs: the view, the composer and its draft are never
+ * touched, and only "Open the session" navigates. Every refusal that can be known in advance (no model, a work mode
+ * the model cannot run, no worktree) is decided before anything exists, so those failures leave nothing behind.
  */
 const startQuickDispatch = async (input: {
   project: ProjectEntry
   prompt: string
-  openAfter: boolean
   isolateWorktree: boolean
 }): Promise<QuickDispatchResult> => {
-  let targetDirectory = input.project.path
   const projectRef = { id: input.project.id, path: input.project.path }
-  let createdWorktree: Awaited<ReturnType<typeof createWorktreeWithDefaults>> | null = null
+  const selection = await resolveDispatchSelection(input.project.path).catch(() => null)
+  if (!selection) return { ok: false, reason: "no-model" }
+
+  let refusal: string | null
+  try {
+    refusal = await workModeSendRefusalMessage({
+      content: input.prompt,
+      workMode: undefined,
+      providerID: selection.providerID,
+      modelID: selection.modelID,
+      providers: selection.providers,
+    })
+  } catch {
+    // The send below skips its own check on the strength of this one, so a check that could not run stops it.
+    return { ok: false, reason: "failed" }
+  }
+  if (refusal) return { ok: false, reason: "refused", message: refusal }
+
+  let directory = input.project.path
+  let worktree: Awaited<ReturnType<typeof createWorktreeWithDefaults>> | null = null
   if (input.isolateWorktree) {
     try {
-      createdWorktree = await createWorktreeWithDefaults(projectRef, { preferredName: generateBranchName() })
-      if (!createdWorktree?.path) {
-        return { ok: false, reason: "worktree-failed" }
-      }
-      targetDirectory = createdWorktree.path
+      worktree = await createWorktreeWithDefaults(projectRef, { preferredName: generateBranchName() })
     } catch {
       return { ok: false, reason: "worktree-failed" }
     }
-  }
-  // A dispatch that never produced a session must not leave its worktree and branch behind. Once a session exists the
-  // worktree is that session's home and stays.
-  let createStarted = false
-  // The revision of the draft this dispatch opened; null until it opened one.
-  let ownDraftRevision: number | null = null
-  const discardUnusedWorktree = async () => {
-    if (!createdWorktree) return
-    // A create can fail after the runtime made the session but before any store here learned of it. That session
-    // lives in this worktree, and removing the worktree would delete its files and branch. An unused worktree left
-    // behind can be removed by hand; deleted work cannot be recovered. So once the create started, keep it.
-    if (createStarted) return
-    const worktreePath = normalizeProjectPath(createdWorktree.path)
-    // The draft this dispatch opened is an ordinary composer draft: the person can send from it themselves. A create
-    // in flight may be aimed at the worktree, and a session that already lives there makes it that session's home.
-    if (useSessionUIStore.getState().draftCreateInFlight) return
-    if (sessionDirectories().some((directory) => normalizeProjectPath(directory) === worktreePath)) return
-    const current = useSessionUIStore.getState()
-    const draft = current.newSessionDraft
-    if (draft.open && normalizeProjectPath(draft.directoryOverride) === worktreePath) {
-      // A draft someone else opened on the worktree has adopted it; removing the worktree would strand that draft.
-      if (getNewSessionDraftRevision() !== ownDraftRevision) return
-      // This dispatch's own draft is still aimed at the worktree. A pending worktree request or bootstrap moves the
-      // draft elsewhere before it sends; a plain one would send into a removed directory, so it closes with it.
-      if (!draft.pendingWorktreeRequestId && !draft.bootstrapPendingDirectory) current.closeNewSessionDraft()
-    }
-    await removeProjectWorktree(projectRef, createdWorktree, { deleteLocalBranch: true }).catch(() => {})
+    if (!worktree?.path) return { ok: false, reason: "worktree-failed" }
+    directory = worktree.path
   }
 
-  const session = useSessionUIStore.getState()
-  const previousSessionId = session.currentSessionId
-  const previousSessionDirectory = previousSessionId ? session.getDirectoryForSession(previousSessionId) : null
-  const previousDirectoryPath = useDirectoryStore.getState().currentDirectory
-
-  const restorePreviousView = async () => {
-    const current = useSessionUIStore.getState()
-    if (previousSessionId) {
-      current.setCurrentSession(previousSessionId, previousSessionDirectory ?? previousDirectoryPath)
-    } else {
-      if (current.newSessionDraft.open) current.closeNewSessionDraft()
-      current.setCurrentSession(null)
-      if (previousDirectoryPath && useDirectoryStore.getState().currentDirectory !== previousDirectoryPath) {
-        useDirectoryStore.getState().setDirectory(previousDirectoryPath)
-      }
-    }
-    const directoryToRestore = previousSessionDirectory ?? previousDirectoryPath
-    if (directoryToRestore) {
-      await useConfigStore.getState().activateDirectory(directoryToRestore)
-    }
-  }
-
-  const revisionBeforeOpen = getNewSessionDraftRevision()
+  let sessionId: string
   try {
-    session.openNewSessionDraft({
-      selectedProjectId: input.project.id,
-      directoryOverride: targetDirectory,
-      // The composer may not have discovered the newly created branch yet.
-      preserveDirectoryOverride: Boolean(createdWorktree),
-      // The dispatch is always an Agent prompt; the project's own work mode is not its to change.
-      preserveWorkMode: true,
-      // The worktree may be removed again if the dispatch fails; the next plain draft must not open on it.
-      rememberTarget: !createdWorktree,
+    // An explicit directory takes no directory lock, so the request cannot be refused before it is sent.
+    const created = await axCodeClient.createSessionInDirectory(directory)
+    sessionId = registerCreatedSession(created, directory).id
+  } catch {
+    // Every failure here comes after the request went out: a lost response or an error body does not prove the
+    // runtime made no session. The worktree is also already listed in the sidebar, where it can be picked up, so it
+    // stays; the person is told where it is.
+    if (worktree) return { ok: false, reason: "create-unknown", worktreePath: worktree.path }
+    return { ok: false, reason: "failed" }
+  }
+
+  seedSessionAutoAccept(sessionId, null)
+  if (worktree) useSessionUIStore.getState().setWorktreeMetadata(sessionId, worktree)
+  saveSessionSendSelection(sessionId, selection)
+
+  try {
+    if (worktree) await waitForWorktreeBootstrap(directory)
+    notifyMessageSent(sessionId)
+    await routeMessage({
+      sessionId,
+      directory,
+      content: input.prompt,
+      providerID: selection.providerID,
+      modelID: selection.modelID,
+      agent: selection.agent,
+      variant: selection.variant,
+      // Admitted above, before the session existed.
+      workModeAdmitted: true,
     })
   } catch {
-    // The draft can open before the throw. Nothing else ran in between, so a moved revision is this dispatch's draft
-    // and the view it replaced comes back; an unmoved one means the view on screen was never touched.
-    if (getNewSessionDraftRevision() !== revisionBeforeOpen) {
-      ownDraftRevision = getNewSessionDraftRevision()
-      await restorePreviousView().catch(() => {})
+    return {
+      ok: false,
+      reason: "created",
+      sessionId,
+      label: labelForCreatedSession(sessionId, input.prompt),
+      directory,
     }
-    await discardUnusedWorktree()
-    return { ok: false, reason: "failed" }
   }
-
-  const draftRevision = getNewSessionDraftRevision()
-  ownDraftRevision = draftRevision
-  const targetPath = normalizeProjectPath(targetDirectory)
-  // The composer error when the send began; a failed create writes the runtime's reason over it.
-  let errorBeforeSend: string | null = null
-  const ownsDraft = () => {
-    const draft = useSessionUIStore.getState().newSessionDraft
-    const revision = getNewSessionDraftRevision()
-    return (
-      draft.open &&
-      // A failed create puts this draft back one revision later; a draft opened after that is someone else's.
-      (revision === draftRevision || (createStarted && revision === draftRevision + 1)) &&
-      draft.selectedProjectId === projectRef.id &&
-      normalizeProjectPath(draft.directoryOverride) === targetPath &&
-      !draft.pendingWorktreeRequestId &&
-      !draft.bootstrapPendingDirectory
-    )
-  }
-  // Whether the person has left this attempt's draft for another. Once the create started, the draft is closed (and
-  // put back on failure) one revision later and the chat container's stand-in draft keeps that revision, so only a
-  // revision past it means another draft was opened.
-  const stillOwnsView = () => {
-    if (!createStarted) return ownsDraft()
-    const revision = getNewSessionDraftRevision()
-    return revision === draftRevision || revision === draftRevision + 1
-  }
-  const known = knownSessionIds(previousSessionId)
-  let token = createDispatchToken()
-  const unsubscribe = useSessionUIStore.subscribe((state) => {
-    // Until this dispatch asks for its session, a new session on screen is one the person started elsewhere.
-    if (!createStarted && state.currentSessionId) known.add(state.currentSessionId)
-    token = reduceDispatchToken(token, state.currentSessionId, known)
-  })
-
-  const currentView = () => {
-    const current = useSessionUIStore.getState()
-    return { sessionId: current.currentSessionId, draftOpen: current.newSessionDraft.open }
-  }
-
-  try {
-    await useConfigStore.getState().activateDirectory(targetDirectory)
-
-    // Activation yields to the composer, which may have closed, replaced or retargeted the draft.
-    if (token.superseded || token.createdSessionId || useSessionUIStore.getState().currentSessionId || !ownsDraft()) {
-      throw new Error("superseded")
-    }
-
-    const config = useConfigStore.getState()
-    if (!config.currentProviderId || !config.currentModelId) {
-      throw new Error("no-model")
-    }
-
-    errorBeforeSend = useSessionUIStore.getState().error
-
-    await useSessionUIStore
-      .getState()
-      .sendMessage(
-        input.prompt,
-        config.currentProviderId,
-        config.currentModelId,
-        config.currentAgentName?.trim() ? config.currentAgentName : undefined,
-        undefined,
-        undefined,
-        undefined,
-        config.currentVariant,
-        undefined,
-        {
-          fromNewSessionDraft: true,
-          draftRevision,
-          // The send can still refuse (work mode, a replaced or retargeted draft) without creating anything; from
-          // here on a session may exist even if the send fails.
-          onDraftCreateStart: () => {
-            createStarted = true
-          },
-          // The dispatch reports refusals in its own toast; the draft on screen may already be another one.
-          silentRefusal: true,
-        },
-      )
-
-    const completion = planQuickDispatchCompletion({
-      openAfter: input.openAfter,
-      createdSessionId: token.createdSessionId,
-      showingAttempt: dispatchStillShowingAttempt(token, currentView()),
-    })
-    if (completion.type === "open") {
-      openSupervisedSession({
-        sessionId: completion.sessionId,
-        projectId: input.project.id,
-        directory: useSessionUIStore.getState().getDirectoryForSession(completion.sessionId) ?? targetDirectory,
-      })
-    } else if (completion.type === "restore") {
-      await restorePreviousView()
-    }
-    return { ok: true }
-  } catch (error) {
-    const failure = planQuickDispatchFailure({
-      noModel: error instanceof Error && error.message === "no-model",
-      createdSessionId: token.createdSessionId,
-      superseded: token.superseded || !stillOwnsView(),
-      currentSessionId: useSessionUIStore.getState().currentSessionId,
-    })
-    // A create that failed without a session stores the runtime's reason as the composer error. When the dispatch takes
-    // the person back, that error would sit on the previous view; the dispatch reports it in its own toast instead.
-    const createError =
-      createStarted && !token.createdSessionId && useSessionUIStore.getState().error !== errorBeforeSend
-        ? useSessionUIStore.getState().error
-        : null
-    if (failure.restore) {
-      await restorePreviousView().catch(() => {})
-      if (createError && useSessionUIStore.getState().error === createError) {
-        useSessionUIStore.setState({ error: errorBeforeSend })
-      }
-    }
-    if (failure.report === "created" && token.createdSessionId) {
-      const sessionId = token.createdSessionId
-      return {
-        ok: false,
-        reason: "created",
-        sessionId,
-        label: labelForCreatedSession(sessionId, input.prompt),
-        directory: useSessionUIStore.getState().getDirectoryForSession(sessionId) ?? targetDirectory,
-      }
-    }
-    if (!token.createdSessionId) await discardUnusedWorktree()
-    if (failure.report === "no-model") return { ok: false, reason: "no-model" }
-    if (!createStarted && error instanceof Error && workModeBlockedReasonOfError(error)) {
-      return { ok: false, reason: "reported", message: error.message }
-    }
-    if (failure.restore && createError) return { ok: false, reason: "reported", message: createError }
-    return { ok: false, reason: "failed" }
-  } finally {
-    unsubscribe()
-  }
+  return { ok: true, sessionId, directory }
 }
 
 export const QuickDispatchDialog: React.FC = () => {
@@ -343,8 +174,6 @@ export const QuickDispatchDialog: React.FC = () => {
   const activeProjectId = useProjectsStore((state) => state.activeProjectId)
   const rows = useSupervisionRows()
   const sessions = useAllLiveSessions()
-  const currentModelId = useConfigStore((state) => state.currentModelId)
-  const activeDirectoryKey = useConfigStore((state) => state.activeDirectoryKey)
 
   const [projectId, setProjectId] = React.useState<string | null>(null)
   const [filter, setFilter] = React.useState("")
@@ -422,6 +251,10 @@ export const QuickDispatchDialog: React.FC = () => {
   const [probeFailedPath, setProbeFailedPath] = React.useState<string | null>(null)
   const [probeAttempt, setProbeAttempt] = React.useState(0)
   const selectedPath = selectedProject?.path ?? null
+  // The model this dispatch will use, for any project whose providers are known; a cold project resolves on Start.
+  const dispatchModelId = useConfigStore((state) =>
+    selectedPath ? (resolveDirectorySendSelection(state, selectedPath)?.modelID ?? null) : null,
+  )
   React.useEffect(() => {
     if (!open || !selectedPath || knownGitRepo !== null) return
     let cancelled = false
@@ -460,42 +293,49 @@ export const QuickDispatchDialog: React.FC = () => {
       const result = await startQuickDispatch({
         project,
         prompt: prompt.trim(),
-        openAfter,
         isolateWorktree: effectiveIsolateWorktree,
       })
       if (result.ok) {
+        // Dismissing the dialog while the dispatch ran is leaving it: a late finish must not take the view.
+        const stillWaiting = useSupervisionStore.getState().quickDispatchOpen
         setQuickDispatchOpen(false)
+        if (openAfter && stillWaiting) {
+          openSupervisedSession({ sessionId: result.sessionId, projectId: project.id, directory: result.directory })
+        }
         return
       }
-      if (result.reason === "no-model") {
-        toast.error(t("chat.chatInput.toast.noModelSelected"))
-        return
-      }
-      if (result.reason === "worktree-failed") {
-        toast.error(t("supervision.dispatch.worktreeFailed"))
-        return
-      }
-      if (result.reason === "reported") {
-        toast.error(result.message)
-        return
-      }
-      if (result.reason === "created") {
-        toast.error(t("supervision.dispatch.createdFailed", { title: result.label }), {
-          action: {
-            label: t("supervision.dispatch.openCreated"),
-            onClick: () => {
-              openSupervisedSession({
-                sessionId: result.sessionId,
-                projectId: project.id,
-                directory: result.directory,
-              })
+      switch (result.reason) {
+        case "no-model":
+          toast.error(t("chat.chatInput.toast.noModelSelected"))
+          return
+        case "worktree-failed":
+          toast.error(t("supervision.dispatch.worktreeFailed"))
+          return
+        case "refused":
+          toast.error(result.message)
+          return
+        case "create-unknown":
+          toast.error(t("supervision.dispatch.createUnknown", { path: result.worktreePath }))
+          return
+        case "created":
+          toast.error(t("supervision.dispatch.createdFailed", { title: result.label }), {
+            action: {
+              label: t("supervision.dispatch.openCreated"),
+              onClick: () => {
+                openSupervisedSession({
+                  sessionId: result.sessionId,
+                  projectId: project.id,
+                  directory: result.directory,
+                })
+              },
             },
-          },
-        })
-        setQuickDispatchOpen(false)
-        return
+          })
+          setQuickDispatchOpen(false)
+          return
+        case "failed":
+          toast.error(t("session.githubIssuePicker.toast.startSessionFailed"))
+          return
       }
-      toast.error(t("session.githubIssuePicker.toast.startSessionFailed"))
     } finally {
       startingRef.current = false
       setStarting(false)
@@ -651,8 +491,8 @@ export const QuickDispatchDialog: React.FC = () => {
               {effectiveIsolateWorktree ? (
                 <p data-dispatch-fail-closed-hint>{t("supervision.dispatch.failClosedHint")}</p>
               ) : null}
-              {currentModelId && activeDirectoryKey === selectedProject.path ? (
-                <p>{t("supervision.dispatch.targetModel", { model: currentModelId })}</p>
+              {dispatchModelId ? (
+                <p>{t("supervision.dispatch.targetModel", { model: dispatchModelId })}</p>
               ) : null}
             </div>
           ) : null}

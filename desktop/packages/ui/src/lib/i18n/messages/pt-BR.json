@@ -5460,6 +5460,7 @@
   "supervision.dispatch.worktreeHint": "Isola arquivos em uma nova branch; portas, credenciais e gravações externas permanecem compartilhadas.",
   "supervision.dispatch.sharedDirectoryHint": "Executa no diretório compartilhado do projeto.",
   "supervision.dispatch.worktreeFailed": "Não foi possível criar um Git worktree para o envio.",
+  "supervision.dispatch.createUnknown": "A sessão pode não ter sido iniciada. O Git worktree foi mantido em {path}.",
   "supervision.seal.word.stale": "desatualizado",
   "supervision.seal.word.current": "este commit",
   "supervision.seal.word.uncommitted": "sem commit",

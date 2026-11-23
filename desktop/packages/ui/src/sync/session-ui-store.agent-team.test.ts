@@ -22,7 +22,7 @@ vi.mock("./session-actions", async (importOriginal) => ({
     input.send(input.messageId ?? "msg_optimistic"),
 }))
 
-const { routeMessage, useSessionUIStore } = await import("./session-ui-store")
+const { routeMessage, useSessionUIStore, workModeSendRefusalMessage } = await import("./session-ui-store")
 const { useAgentTeamStore } = await import("@/stores/useAgentTeamStore")
 const { useWorkModeStore } = await import("@/stores/useWorkModeStore")
 const { useCommandsStore } = await import("@/stores/useCommandsStore")
@@ -277,6 +277,23 @@ describe("agent team send routing", () => {
     try {
       await expect(send("rate this module")).rejects.toThrow("Council needs a model with tool calling")
       expect(sendMessage).not.toHaveBeenCalled()
+    } finally {
+      useConfigStore.setState({ providers: [] } as never)
+    }
+  })
+
+  test("a refusal check for another directory judges the model against that directory's catalog", async () => {
+    // A background sender (Quick Dispatch) checks a project that need not be the active one.
+    useConfigStore.setState({
+      providers: [{ id: "alibaba", models: [{ id: "qwen", capabilities: { toolcall: true } }] }],
+    } as never)
+    const check = { content: "rate this module", workMode: "council" as const, providerID: "alibaba", modelID: "qwen" }
+    try {
+      expect(await workModeSendRefusalMessage(check)).toBeNull()
+      const withoutTools = [{ id: "alibaba", models: [{ id: "qwen", capabilities: { toolcall: false } }] }]
+      expect(await workModeSendRefusalMessage({ ...check, providers: withoutTools as never })).toContain(
+        "Council needs a model with tool calling",
+      )
     } finally {
       useConfigStore.setState({ providers: [] } as never)
     }

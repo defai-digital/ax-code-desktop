@@ -3830,6 +3830,7 @@ export const dict = {
   "supervision.dispatch.worktreeHint": "Isolates files on a new branch; ports, credentials, and external writes remain shared.",
   "supervision.dispatch.sharedDirectoryHint": "Runs in the shared project directory.",
   "supervision.dispatch.worktreeFailed": "Could not create a Git worktree for dispatch.",
+  "supervision.dispatch.createUnknown": "The session may not have started. Its Git worktree was kept at {path}.",
   "supervision.seal.word.stale": "stale",
   "supervision.seal.word.current": "this commit",
   "supervision.seal.word.uncommitted": "uncommitted",

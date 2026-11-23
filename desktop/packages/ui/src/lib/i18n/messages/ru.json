@@ -5460,6 +5460,7 @@
   "supervision.dispatch.worktreeHint": "Изолирует файлы в новой ветке; порты, учетные данные и внешние записи остаются общими.",
   "supervision.dispatch.sharedDirectoryHint": "Выполняется в общем каталоге проекта.",
   "supervision.dispatch.worktreeFailed": "Не удалось создать Git worktree для запуска.",
+  "supervision.dispatch.createUnknown": "Сеанс мог не запуститься. Его Git worktree сохранён в {path}.",
   "supervision.seal.word.stale": "устарело",
   "supervision.seal.word.current": "этот коммит",
   "supervision.seal.word.uncommitted": "не закоммичено",

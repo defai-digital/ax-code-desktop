@@ -4,6 +4,7 @@ import { registerAgentsSource } from "@/lib/agents"
 import { composerOwnsActivatedDirectory, restoreSubmittedComposerSelection } from "@/sync/session-ui-store"
 import {
   keepsManualSelection,
+  resolveDirectorySendSelection,
   resolveFirstSelectableSelection,
   shouldKeepCurrentSelection,
   useConfigStore,
@@ -319,5 +320,68 @@ describe("restoreSubmittedComposerSelection", () => {
     expect(composerOwnsActivatedDirectory("/proj-b", "/proj-b")).toBe(true)
     expect(composerOwnsActivatedDirectory("/proj-c", "/proj-b")).toBe(false)
     expect(composerOwnsActivatedDirectory("__global__", null)).toBe(true)
+  })
+})
+
+describe("resolveDirectorySendSelection", () => {
+  const catalog = [
+    { id: "defai", models: [{ id: "flash" }, { id: "mimo", variants: { high: {} } }] },
+  ] as unknown as ProviderWithModelList[]
+  const base = {
+    activeDirectoryKey: "/active",
+    providers: catalog,
+    currentProviderId: "defai",
+    currentModelId: "flash",
+    currentVariant: undefined,
+    currentAgentName: "build",
+    directoryScoped: {},
+    settingsDefaultModel: undefined,
+    settingsDefaultVariant: undefined,
+  }
+
+  test("the active directory answers with the composer's live selection", () => {
+    expect(resolveDirectorySendSelection(base, "/active")).toEqual({
+      providerID: "defai",
+      modelID: "flash",
+      agent: "build",
+      variant: undefined,
+      providers: catalog,
+    })
+  })
+
+  test("another directory answers with its saved selection, never the composer's", () => {
+    const state = {
+      ...base,
+      directoryScoped: {
+        "/other": {
+          providers: catalog,
+          currentProviderId: "defai",
+          currentModelId: "mimo",
+          currentVariant: "high",
+          currentAgentName: "plan",
+        },
+      },
+    } as never
+    expect(resolveDirectorySendSelection(state, "/other")).toMatchObject({ modelID: "mimo", variant: "high", agent: "plan" })
+  })
+
+  test("a saved selection the catalog no longer offers yields to the Settings default, then the first model", () => {
+    const stale = {
+      ...base,
+      directoryScoped: { "/other": { providers: catalog, currentProviderId: "gone", currentModelId: "gone" } },
+    } as never
+    expect(resolveDirectorySendSelection(stale, "/other")).toMatchObject({ providerID: "defai", modelID: "flash" })
+    expect(
+      resolveDirectorySendSelection(
+        { ...(stale as object), settingsDefaultModel: "defai/mimo", settingsDefaultVariant: "high" } as never,
+        "/other",
+      ),
+    ).toEqual({ providerID: "defai", modelID: "mimo", variant: "high", providers: catalog })
+  })
+
+  test("a directory whose providers are not known yet has no selection", () => {
+    expect(resolveDirectorySendSelection(base, "/unknown")).toBeNull()
+    const empty = { ...base, directoryScoped: { "/other": { providers: [] } } } as never
+    expect(resolveDirectorySendSelection(empty, "/other")).toBeNull()
   })
 })

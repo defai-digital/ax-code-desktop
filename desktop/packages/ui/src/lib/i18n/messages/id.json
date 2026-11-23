@@ -5460,6 +5460,7 @@
   "supervision.dispatch.worktreeHint": "Mengisolasi file di cabang baru; port, kredensial, dan penulisan eksternal tetap berbagi.",
   "supervision.dispatch.sharedDirectoryHint": "Berjalan di direktori proyek bersama.",
   "supervision.dispatch.worktreeFailed": "Tidak dapat membuat Git worktree untuk pengiriman.",
+  "supervision.dispatch.createUnknown": "Sesi mungkin belum dimulai. Git worktree-nya disimpan di {path}.",
   "supervision.seal.word.stale": "usang",
   "supervision.seal.word.current": "commit ini",
   "supervision.seal.word.uncommitted": "belum commit",

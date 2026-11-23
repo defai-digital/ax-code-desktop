@@ -5460,6 +5460,7 @@
   "supervision.dispatch.worktreeHint": "Yalnızca yeni daldaki dosyaları yalıtır; portlar, kimlik bilgileri ve dış yazmalar paylaşılmaya devam eder.",
   "supervision.dispatch.sharedDirectoryHint": "Paylaşılan proje dizininde çalışır.",
   "supervision.dispatch.worktreeFailed": "Gönderim için Git worktree oluşturulamadı.",
+  "supervision.dispatch.createUnknown": "Oturum başlamamış olabilir. Git worktree {path} konumunda tutuldu.",
   "supervision.seal.word.stale": "güncel değil",
   "supervision.seal.word.current": "bu commit",
   "supervision.seal.word.uncommitted": "commit edilmemiş",

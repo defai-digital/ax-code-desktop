@@ -32,6 +32,11 @@ vi.mock("@/components/sections/skills/SkillsSidebar", async () => {
     ),
   }
 })
+vi.mock("@/components/sections/commands/CommandsSidebar", () => ({
+  CommandsSidebar: ({ onItemSelect }: { onItemSelect?: () => void }) => (
+    <button onClick={() => onItemSelect?.()}>Example command</button>
+  ),
+}))
 vi.mock("@/components/sections/skills/SkillsPage", () => ({
   SkillsPage: ({ view, onShowInstalled }: { view: string; onShowInstalled?: () => void }) => (
     <div data-test-skills-pane={view}>
@@ -284,6 +289,110 @@ test("Back to Settings after history restored a Skills detail stays on the setti
 
     expect(container.querySelector("[data-settings-navigation]")).not.toBeNull()
     expect(navButton("Example skill")).toBeUndefined()
+  }))
+
+const DETAIL_KEY = "__openchamberSettingsDetail"
+const detailMarker = () => (window.history.state as Record<string, unknown> | null)?.[DETAIL_KEY]
+// List loads the test settles by hand, all at once: `true` once they loaded, `false` when they failed.
+const deferSkillsLoad = () => {
+  const pendingLoads: Array<(loaded: boolean) => void> = []
+  useSkillsStore.setState({
+    loadSkills: () => new Promise<boolean>((resolve) => pendingLoads.push(resolve)),
+  })
+  return (loaded: boolean) =>
+    act(async () => {
+      expect(pendingLoads.length).toBeGreaterThan(0)
+      pendingLoads.splice(0).forEach((resolve) => resolve(loaded))
+    })
+}
+
+test("a restored detail whose skill a later load no longer lists falls back to the list and leaves history", async () =>
+  withMobileHistory(async () => {
+    await act(async () => navButton("Example skill")!.click())
+    await act(async () => navButton("Commands")!.click())
+    const settle = deferSkillsLoad()
+
+    await traverse("back")
+    // Still loading: the list cannot say yet that the skill is gone.
+    expect(skillsPane()).toBe("installed")
+    expect(useSkillsStore.getState().selectedSkillName).toBe("alpha")
+
+    useSkillsStore.setState({ skills: [{ name: "beta" }] as never })
+    await settle(true)
+    await flush()
+
+    expect(skillsPane()).toBeUndefined()
+    expect(navButton("Example skill")).toBeDefined()
+    expect(useSkillsStore.getState().selectedSkillName).toBeNull()
+    // The entry is the list's now, so Back and Forward do not land on the missing detail again.
+    expect(detailMarker()).toBeUndefined()
+  }))
+
+test("a restored detail stays when the list failed to load", async () =>
+  withMobileHistory(async () => {
+    await act(async () => navButton("Example skill")!.click())
+    await act(async () => navButton("Commands")!.click())
+    const settle = deferSkillsLoad()
+
+    await traverse("back")
+    // A failed load put back what it had, which says nothing about the skill.
+    useSkillsStore.setState({ skills: [] as never })
+    await settle(false)
+    await flush()
+
+    expect(skillsPane()).toBe("installed")
+    expect(useSkillsStore.getState().selectedSkillName).toBe("alpha")
+  }))
+
+test.each([
+  ["of that skill keeps its detail", "alpha", "installed"],
+  ["of another skill does not keep a deleted skill's detail", "unsaved", undefined],
+] as const)("a draft %s", async (_label, draftName, pane) =>
+  withMobileHistory(async () => {
+    await act(async () => navButton("Example skill")!.click())
+    await act(async () => navButton("Commands")!.click())
+    useSkillsStore.setState({ skills: [] as never, skillDraft: { name: draftName } as never })
+
+    await traverse("back")
+
+    expect(skillsPane()).toBe(pane)
+    useSkillsStore.setState({ skillDraft: null })
+  }),
+)
+
+test("a detail that showed no skill restores no skill, not the one selected since", async () =>
+  withMobileHistory(async () => {
+    // The catalog's Back makes an installed entry with nothing selected.
+    await act(async () => navButton("Example catalog")!.click())
+    await act(async () => navButton("Catalog back")!.click())
+    await act(async () => navButton("Commands")!.click())
+    await act(async () => navButton("Skills")!.click())
+    await act(async () => navButton("Other skill")!.click())
+
+    // Back through beta's detail, the Skills list and Commands to the empty detail.
+    await traverse("back")
+    await traverse("back")
+    await traverse("back")
+
+    expect(skillsPane()).toBe("installed")
+    expect(useSkillsStore.getState().selectedSkillName).toBeNull()
+    // The entry still names no skill: following the selection did not rewrite it to beta.
+    expect(detailMarker()).toMatchObject({ skillName: null })
+  }))
+
+test("Back to a Skills page entry from a sibling page's detail shows the Skills list", async () =>
+  withMobileHistory(async () => {
+    expect(navButton("Example skill")).toBeDefined()
+    await act(async () => navButton("Commands")!.click())
+    await act(async () => navButton("Example command")!.click())
+    expect(navButton("Example command")).toBeUndefined()
+
+    await traverse("back")
+
+    // The Skills entry carries no detail: it opens at the Skills list, not at the Commands detail's stage.
+    expect(useUIStore.getState().settingsPage).toBe("skills.installed")
+    expect(skillsPane()).toBeUndefined()
+    expect(navButton("Example skill")).toBeDefined()
   }))
 
 test("selecting an installed skill on mobile opens its detail after returning from the catalog", async () => {
