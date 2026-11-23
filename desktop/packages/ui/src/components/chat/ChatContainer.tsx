@@ -8,7 +8,7 @@ import { SessionVersionSeal } from "@/components/supervision/SessionVersionSeal"
 import { SinceYouLeftStrip } from "@/components/supervision/SinceYouLeftStrip"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
 import { readSessionRecap } from "@/lib/supervision/sessionRecap"
-import { shouldAutoOpenChatDraft } from "./chatDraftState"
+import { canRetargetDraftToProject, shouldAutoOpenChatDraft } from "./chatDraftState"
 import { DraftPresetChips } from "./DraftPresetChips"
 import { ActivityBreadcrumb } from "./ActivityBreadcrumb"
 import { HookActivityRows } from "./HookActivityRows"
@@ -595,6 +595,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
   // Picking a project row retargets the open draft instead of leaving the composer.
   const switchDraftToProject = React.useCallback(
     (projectId: string) => {
+      if (!canRetargetDraftToProject(useSessionUIStore.getState().newSessionDraft)) return
       const project = useProjectsStore.getState().projects.find((entry) => entry.id === projectId)
       if (!project) return
       setNewSessionDraftTarget(

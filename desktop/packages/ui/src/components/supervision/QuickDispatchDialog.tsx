@@ -30,6 +30,7 @@ import { cn } from "@/lib/utils"
 import {
   directoryProviderCatalog,
   isActiveConfigDirectory,
+  isDirectoryProviderLoadPending,
   resolveDirectorySendSelection,
   useConfigStore,
   type ActivationAgent,
@@ -53,6 +54,7 @@ import {
 import { useAllLiveSessions } from "@/sync/sync-context"
 
 const RECENT_LIMIT = 5
+const QUICK_DISPATCH_BOOTSTRAP_TIMEOUT_MS = 30 * 60 * 1000
 
 const projectDisplayLabel = (project: ProjectEntry): string => {
   const label = project.label?.trim()
@@ -71,7 +73,7 @@ const labelForCreatedSession = (sessionId: string, prompt: string): string => {
 
 type QuickDispatchResult =
   | { ok: true; sessionId: string; directory: string }
-  | { ok: false; reason: "no-model" | "worktree-failed" | "failed" }
+  | { ok: false; reason: "no-model" | "providers-loading" | "worktree-failed" | "failed" }
   | { ok: false; reason: "refused"; message: string }
   /** The create request went out and failed; the runtime may still have made the session, so its worktree stays. */
   | { ok: false; reason: "create-unknown"; worktreePath: string }
@@ -114,7 +116,16 @@ const startQuickDispatch = async (input: {
 }): Promise<QuickDispatchResult> => {
   const projectRef = { id: input.project.id, path: input.project.path }
   const selection = await resolveDispatchSelection(input.project.path).catch(() => null)
-  if (!selection) return { ok: false, reason: "no-model" }
+  if (!selection) {
+    // A catalog still being read (the runtime is starting) is no proof the project has no model.
+    const loading =
+      directoryProviderCatalog(useConfigStore.getState(), input.project.path).length === 0 &&
+      isDirectoryProviderLoadPending(input.project.path)
+    return { ok: false, reason: loading ? "providers-loading" : "no-model" }
+  }
+  // Slash commands are judged by the target project's own catalog. The command store follows whichever project is
+  // active, and the person can switch projects while the worktree bootstraps.
+  const commandCatalogDirectory = input.project.path
 
   let refusal: string | null
   try {
@@ -124,6 +135,7 @@ const startQuickDispatch = async (input: {
       providerID: selection.providerID,
       modelID: selection.modelID,
       providers: selection.providers,
+      commandCatalogDirectory,
     })
   } catch {
     // The send below skips its own check on the strength of this one, so a check that could not run stops it.
@@ -171,7 +183,8 @@ const startQuickDispatch = async (input: {
   saveSessionSendSelection(sessionId, selection)
 
   try {
-    if (worktree) await waitForWorktreeBootstrap(directory)
+    // The dispatch runs in the background, so a long setup such as pnpm install must not drop the prompt at 5 minutes.
+    if (worktree) await waitForWorktreeBootstrap(directory, QUICK_DISPATCH_BOOTSTRAP_TIMEOUT_MS)
     notifyMessageSent(sessionId)
     await routeMessage({
       sessionId,
@@ -184,6 +197,7 @@ const startQuickDispatch = async (input: {
       // Checked above before anything existed; checked again here against the same catalog, so a command the catalog
       // gained meanwhile cannot go out unchecked.
       workModeProviders: selection.providers,
+      commandCatalogDirectory,
     })
   } catch {
     return {
@@ -214,13 +228,16 @@ export const QuickDispatchDialog: React.FC = () => {
   const [openAfter, setOpenAfter] = React.useState(false)
   const [isolateWorktree, setIsolateWorktree] = React.useState(true)
   const [starting, setStarting] = React.useState(false)
-  const startingRef = React.useRef(false)
+  // The generation that owns the running dispatch, if any: a reopened dialog may start its own, and a late finish
+  // from an older generation must not clear the new generation's starting state.
+  const startingGenerationRef = React.useRef<number | null>(null)
   const promptRef = React.useRef<HTMLTextAreaElement>(null)
   // Counts every open and close. A dispatch may only close or navigate for the dialog it was started from: one
   // dismissed and opened again belongs to the next prompt.
   const openGenerationRef = React.useRef(0)
   React.useEffect(() => {
     openGenerationRef.current += 1
+    if (startingGenerationRef.current !== openGenerationRef.current) setStarting(false)
   }, [open])
   // "Open the session" stays editable while a dispatch runs; its finish reads the box as it is then.
   const openAfterRef = React.useRef(openAfter)
@@ -349,14 +366,15 @@ export const QuickDispatchDialog: React.FC = () => {
 
   const start = React.useCallback(async () => {
     // The keyboard shortcut reaches here without the disabled button, so the repository check is enforced again.
-    if (!selectedProject || !prompt.trim() || startingRef.current || gitRepoState === null) return
-    const project = selectedProject
     const generation = openGenerationRef.current
+    if (!selectedProject || !prompt.trim() || startingGenerationRef.current === generation || gitRepoState === null)
+      return
+    const project = selectedProject
     // Dismissing the dialog while the dispatch ran is leaving it, and reopening it starts another: a late finish then
     // neither closes the dialog nor takes the view.
     const stillWaiting = () =>
       useSupervisionStore.getState().quickDispatchOpen && openGenerationRef.current === generation
-    startingRef.current = true
+    startingGenerationRef.current = generation
     setStarting(true)
     try {
       const result = await startQuickDispatch({
@@ -375,6 +393,9 @@ export const QuickDispatchDialog: React.FC = () => {
       switch (result.reason) {
         case "no-model":
           toast.error(t("chat.chatInput.toast.noModelSelected"))
+          return
+        case "providers-loading":
+          toast.error(t("supervision.dispatch.providersLoading"))
           return
         case "worktree-failed":
           toast.error(t("supervision.dispatch.worktreeFailed"))
@@ -405,8 +426,10 @@ export const QuickDispatchDialog: React.FC = () => {
           return
       }
     } finally {
-      startingRef.current = false
-      setStarting(false)
+      if (startingGenerationRef.current === generation) {
+        startingGenerationRef.current = null
+        setStarting(false)
+      }
     }
   }, [effectiveIsolateWorktree, gitRepoState, prompt, selectedProject, setQuickDispatchOpen, t])
 
@@ -420,7 +443,11 @@ export const QuickDispatchDialog: React.FC = () => {
   }
 
   const sendToRecent = async (item: (typeof recent)[number]) => {
-    if (startingRef.current) return
+    const generation = openGenerationRef.current
+    if (startingGenerationRef.current === generation) return
+    // As in `start`: a send that finishes after the dialog was dismissed and reopened leaves the new dialog alone.
+    const stillWaiting = () =>
+      useSupervisionStore.getState().quickDispatchOpen && openGenerationRef.current === generation
     const content = prompt.trim()
     if (!content) {
       jumpTo(item)
@@ -446,7 +473,7 @@ export const QuickDispatchDialog: React.FC = () => {
       variant: (choice?.variant ?? config.currentVariant) || undefined,
     }
 
-    startingRef.current = true
+    startingGenerationRef.current = generation
     setStarting(true)
     try {
       if (rows.some((row) => row.sessionId === item.sessionId && row.state === "running")) {
@@ -460,15 +487,18 @@ export const QuickDispatchDialog: React.FC = () => {
           axCodeClient.sendMessage({ id: item.sessionId, text: content, ...sendConfig }),
         )
       }
-      if (openAfter) {
+      if (!stillWaiting()) return
+      if (openAfterRef.current) {
         openSupervisedSession({ sessionId: item.sessionId, projectId: item.projectId, directory: item.directory })
       }
       setQuickDispatchOpen(false)
     } catch {
       toast.error(t("session.githubIssuePicker.toast.startSessionFailed"))
     } finally {
-      startingRef.current = false
-      setStarting(false)
+      if (startingGenerationRef.current === generation) {
+        startingGenerationRef.current = null
+        setStarting(false)
+      }
     }
   }
 

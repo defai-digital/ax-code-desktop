@@ -23,6 +23,7 @@ import { useAllLiveSessions, useAllSessionStatuses, usePendingPermissionSessionI
 import { resolveGlobalSessionDirectory } from "@/stores/useGlobalSessionsStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { ImportProjectsDialog } from "@/components/projects/ImportProjectsDialog"
+import { canRetargetDraftToProject } from "@/components/chat/chatDraftState"
 
 type ProjectsHomeProps = {
   /** When true, render a denser list suitable for the sidebar empty state. */
@@ -168,21 +169,30 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
   const handleClone = React.useCallback(() => sessionEvents.requestDirectoryDialog({ mode: "clone" }), [])
   const handleBrowsePath = React.useCallback(() => sessionEvents.requestDirectoryDialog({ mode: "browse" }), [])
 
+  // On the draft home a row retargets the open draft, which stays put while its worktree is still being created.
+  // Activating the project first would move the app's directory away from a draft that did not follow.
+  const draftIsLocked = React.useCallback(
+    () => variant === "draft" && !canRetargetDraftToProject(useSessionUIStore.getState().newSessionDraft),
+    [variant],
+  )
+
   const handleOpen = React.useCallback(
     (project: ProjectEntry) => {
+      if (draftIsLocked()) return
       setActiveProject(project.id)
       onOpenProject?.(project.id)
     },
-    [onOpenProject, setActiveProject],
+    [draftIsLocked, onOpenProject, setActiveProject],
   )
 
   const handleNewSession = React.useCallback(
     (project: ProjectEntry, event: React.SyntheticEvent) => {
       event.stopPropagation()
+      if (draftIsLocked()) return
       setActiveProject(project.id)
       onNewSession?.(project.id)
     },
-    [onNewSession, setActiveProject],
+    [draftIsLocked, onNewSession, setActiveProject],
   )
 
   const handleTogglePin = React.useCallback(

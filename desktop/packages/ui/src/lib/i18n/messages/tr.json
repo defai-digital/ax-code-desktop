@@ -5475,5 +5475,7 @@
   "supervision.dispatch.failClosedHint": "Worktree oluşturulamazsa hiçbir şey gönderilmez.",
   "supervision.dispatch.repoChecking": "Bu projenin bir Git deposu olup olmadığı denetleniyor…",
   "supervision.dispatch.repoCheckFailed": "Bu projenin bir Git deposu olup olmadığı denetlenemedi, bu yüzden henüz hiçbir şey gönderilemez.",
-  "supervision.dispatch.repoCheckRetry": "Yeniden denetle"
+  "supervision.dispatch.repoCheckRetry": "Yeniden denetle",
+  "chat.chatInput.draftRetargeted": "Tasla\u011f\u0131n hedefi, mesaj g\u00f6nderilmeden \u00f6nce de\u011fi\u015fti",
+  "supervision.dispatch.providersLoading": "Bu projenin modelleri h\u00e2l\u00e2 y\u00fckleniyor. Biraz sonra tekrar deneyin."
 }

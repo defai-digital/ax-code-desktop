@@ -10,6 +10,13 @@ All notable changes to this project will be documented in this file.
 - Load the command catalog before a slash-command send takes the directory lock, instead of waiting on that lock until it times out, and read another project's providers without moving the shared directory.
 - Stop a new-session send whose draft was retargeted while it waited for the command catalog, and say that the target changed.
 - Return mobile Settings history to the Skills pane and skill a detail showed, including after the catalog's Back button, a rename, or reopening Settings. Show the Skills list when a restored skill is gone once the list loads, and open a page reached by Back at its first stage.
+- Let a reopened Quick Dispatch dialog start a new dispatch while an earlier one is still running, and give a background dispatch up to 30 minutes for worktree setup before its prompt is dropped.
+- Route a slash command sent to another project by that project's own command catalog, and say that a project's models are still loading instead of "Select a model before sending".
+- Stop a new-session send whose pending worktree was replaced by another while it waited, show the retargeted-draft message in the app's language, and send the same normalized directory in the query or body as in the scoped request header.
+
+### Security
+
+- Stop migrating `setup-worktree` commands from a repository's legacy `.openchamber/openchamber.json`. A cloned project could otherwise run shell commands whenever a worktree was created, without them being shown. Commands saved in Settings still apply.
 
 ## [7.30.30] - 2026-11-21
 

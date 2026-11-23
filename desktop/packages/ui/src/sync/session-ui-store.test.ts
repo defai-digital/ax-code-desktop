@@ -332,6 +332,36 @@ describe("session-worktree-store worktree routing", () => {
     },
   )
 
+  test("refuses a draft whose pending worktree was replaced by another while the send waited", async () => {
+    const requestId = createPendingDraftWorktreeRequest()
+    const originalCreate = useSessionUIStore.getState().createSession
+    const createSession = vi.fn().mockResolvedValue(null)
+    useSessionUIStore.setState({
+      newSessionDraft: {
+        open: true,
+        directoryOverride: "/repo/original",
+        parentID: null,
+        pendingWorktreeRequestId: requestId,
+      },
+      createSession,
+      error: null,
+    })
+    const pending = useSessionUIStore.getState().sendMessage("hello", "provider", "model")
+    const rejected = expect(pending).rejects.toThrow("The draft's target changed before the message was sent")
+    // The composer's pickers are locked while a worktree is pending; a new worktree request is what can retarget.
+    useSessionUIStore.getState().setPendingDraftWorktreeRequest("worktree_other")
+    resolvePendingDraftWorktreeRequest(requestId, "/repo/original/worktree")
+
+    try {
+      await rejected
+      // The abandoned worktree is not where the draft points any more; creating there would hide the retarget.
+      expect(createSession).not.toHaveBeenCalled()
+      expect(useSessionUIStore.getState().newSessionDraft.open).toBe(true)
+    } finally {
+      useSessionUIStore.setState({ createSession: originalCreate })
+    }
+  })
+
   test("allows the original pending worktree to resolve before session creation", async () => {
     const requestId = createPendingDraftWorktreeRequest()
     const originalCreate = useSessionUIStore.getState().createSession

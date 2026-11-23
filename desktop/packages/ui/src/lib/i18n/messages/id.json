@@ -5475,5 +5475,7 @@
   "supervision.dispatch.failClosedHint": "Jika worktree tidak dapat dibuat, tidak ada yang dikirim.",
   "supervision.dispatch.repoChecking": "Memeriksa apakah proyek ini repositori Git…",
   "supervision.dispatch.repoCheckFailed": "Tidak dapat memeriksa apakah proyek ini repositori Git, jadi belum ada yang bisa dikirim.",
-  "supervision.dispatch.repoCheckRetry": "Periksa lagi"
+  "supervision.dispatch.repoCheckRetry": "Periksa lagi",
+  "chat.chatInput.draftRetargeted": "Target draf berubah sebelum pesan dikirim",
+  "supervision.dispatch.providersLoading": "Model proyek ini masih dimuat. Coba lagi sebentar lagi."
 }

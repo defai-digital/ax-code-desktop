@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest"
 import { axCodeClient } from "@/lib/ax-code/client"
-import { useConfigStore } from "./useConfigStore"
+import { isDirectoryProviderLoadPending, useConfigStore } from "./useConfigStore"
 
 const deferred = <T>() => {
   let resolve!: (value: T) => void
@@ -123,6 +123,47 @@ describe("loading another directory's providers", () => {
         currentModelId: previous.currentModelId,
         directoryScoped: previous.directoryScoped,
       })
+    }
+  })
+})
+
+describe("provider load pending state", () => {
+  it("reports a directory's provider load as pending only while it runs", async () => {
+    // Quick Dispatch reads an empty catalog during a pending load as "not known yet" rather than "no model".
+    vi.stubGlobal("fetch", vi.fn(async () => Response.json({})))
+    const providers = deferred<Awaited<ReturnType<typeof axCodeClient.getProviders>>>()
+    vi.mocked(axCodeClient.getProviders).mockReturnValueOnce(providers.promise)
+
+    expect(isDirectoryProviderLoadPending("/pending-test")).toBe(false)
+    const load = useConfigStore.getState().loadProviders({ directory: "/pending-test" })
+    expect(isDirectoryProviderLoadPending("/pending-test")).toBe(true)
+    expect(isDirectoryProviderLoadPending("/another-directory")).toBe(false)
+
+    providers.resolve({ providers: [], default: {} })
+    await load
+
+    expect(isDirectoryProviderLoadPending("/pending-test")).toBe(false)
+  })
+
+  it("stays pending while a startup re-poll is scheduled after the load gave up", async () => {
+    // loadProviders returns at once while this re-poll waits, so the catalog stays empty without being "no model".
+    vi.useFakeTimers()
+    try {
+      vi.stubGlobal("fetch", vi.fn(async () => Response.json({})))
+      vi.mocked(axCodeClient.getProviders).mockRejectedValue(new Error("503 restarting"))
+      const load = useConfigStore.getState().loadProviders({ directory: "/repoll-test" })
+      // Twelve attempts back off 250 ms more each (19.5 s in all); the re-poll is then due 2 s later, so at 20.5 s the
+      // load has given up and only the re-poll timer is left.
+      await vi.advanceTimersByTimeAsync(20_500)
+      await load
+
+      // The load itself is over; only the scheduled re-poll keeps the directory pending.
+      expect(isDirectoryProviderLoadPending("/repoll-test")).toBe(true)
+
+      useConfigStore.getState().invalidateAllProviderCaches()
+      expect(isDirectoryProviderLoadPending("/repoll-test")).toBe(false)
+    } finally {
+      vi.useRealTimers()
     }
   })
 })

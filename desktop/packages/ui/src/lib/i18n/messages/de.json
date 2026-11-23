@@ -5475,5 +5475,7 @@
   "supervision.dispatch.failClosedHint": "Wenn der Worktree nicht erstellt werden kann, wird nichts gestartet.",
   "supervision.dispatch.repoChecking": "Es wird geprüft, ob dieses Projekt ein Git-Repository ist…",
   "supervision.dispatch.repoCheckFailed": "Es konnte nicht geprüft werden, ob dieses Projekt ein Git-Repository ist. Daher kann noch nichts gestartet werden.",
-  "supervision.dispatch.repoCheckRetry": "Erneut prüfen"
+  "supervision.dispatch.repoCheckRetry": "Erneut prüfen",
+  "chat.chatInput.draftRetargeted": "Das Ziel des Entwurfs wurde vor dem Senden ge\u00e4ndert",
+  "supervision.dispatch.providersLoading": "Die Modelle dieses Projekts werden noch geladen. Versuche es gleich erneut."
 }

@@ -12,7 +12,6 @@
  * SDK-calling actions that need domain data read it from sync-refs.
  */
 
-import type { ProviderWithModelList } from "@/types/providerModels"
 import { create } from "zustand"
 import type {
   FilePartInput,
@@ -25,6 +24,7 @@ import type {
 } from "@defai-digital/ax-code-sdk/v2/client"
 import type { AttachedFile, SessionContextUsage, SessionWorktreeAttachment } from "@/stores/types/sessionTypes"
 import type { WorktreeMetadata } from "@/types/worktree"
+import type { ProviderWithModelList } from "@/types/providerModels"
 import { axCodeClient, ascendingId, isValidMessageId } from "@/lib/ax-code/client"
 import { formatSdkError } from "@/lib/ax-code/sdkError"
 import { useConfigStore } from "@/stores/useConfigStore"
@@ -173,7 +173,17 @@ function throwWorkModeRefusal(refusal: { message: string; reason: WorkModeBlocke
 async function resolveSlashCommand(
   name: string,
   preloaded?: boolean,
+  directoryCatalog?: DirectoryCommandCatalog,
 ): Promise<{ knownCommand: boolean; commandsLoaded: boolean; catalogLoadFailed: boolean }> {
+  if (directoryCatalog !== undefined) {
+    // Another directory's own catalog, read for this send; null is a failed read, decided like a failed store load.
+    const commands = directoryCatalog ?? []
+    return {
+      knownCommand: commands.some((command) => command.name === name),
+      commandsLoaded: commands.length > 0,
+      catalogLoadFailed: directoryCatalog === null,
+    }
+  }
   let storeCommands = useCommandsStore.getState().commands
   let catalogLoadFailed = false
   if (preloaded !== undefined) {
@@ -196,6 +206,16 @@ async function resolveSlashCommand(
   }
 }
 
+/** A directory's command catalog read through its own scoped client; null when the read failed. */
+type DirectoryCommandCatalog = readonly { name: string }[] | null
+
+/**
+ * The command catalog of a directory other than the active one. useCommandsStore holds the active project's only, so a
+ * sender that targets another project (Quick Dispatch) would otherwise decide its slash commands by the wrong catalog.
+ */
+const loadDirectoryCommandCatalog = (directory: string): Promise<DirectoryCommandCatalog> =>
+  axCodeClient.listCommands(directory).catch(() => null)
+
 interface WorkModeSendCheck {
   content: string
   workMode: WorkModeId | undefined
@@ -205,6 +225,8 @@ interface WorkModeSendCheck {
   allowUnverifiedToolCalling?: boolean
   /** The catalog of the directory the send goes to; defaults to the active directory's. */
   providers?: ProviderWithModelList[]
+  /** The directory whose command catalog decides an explicit `/council` or `/arena`; defaults to the active one. */
+  commandCatalogDirectory?: string
 }
 
 /**
@@ -227,7 +249,9 @@ async function findWorkModeSendRefusal(
     ? workModeRefusal(command, model, input.allowUnverifiedToolCalling, input.providers)
     : null
   if (!command || !refusal) return null
-  const catalog = await resolveSlashCommand(command)
+  const catalog = input.commandCatalogDirectory
+    ? await resolveSlashCommand(command, undefined, await loadDirectoryCommandCatalog(input.commandCatalogDirectory))
+    : await resolveSlashCommand(command)
   return catalog.knownCommand || catalog.catalogLoadFailed ? refusal : null
 }
 
@@ -285,9 +309,15 @@ export function routeMessage(params: {
    * other than the active one (Quick Dispatch). Defaults to the active directory's.
    */
   workModeProviders?: ProviderWithModelList[]
+  /**
+   * The directory whose command catalog decides how a slash command is routed, for a sender that targets a project
+   * other than the active one (Quick Dispatch). Defaults to the active project's catalog in useCommandsStore.
+   */
+  commandCatalogDirectory?: string
 }): Promise<void> {
   // Set when the command catalog was loaded before the directory lock was taken; see resolveSlashCommand.
   let commandCatalogPreload: boolean | undefined
+  let directoryCommandCatalog: DirectoryCommandCatalog | undefined
   const run = async (): Promise<void> => {
     if (params.inputMode === "shell") {
       const sdk = axCodeClient.getSdkClient()
@@ -349,6 +379,7 @@ export function routeMessage(params: {
       const { knownCommand, commandsLoaded, catalogLoadFailed } = await resolveSlashCommand(
         cmdName,
         commandCatalogPreload,
+        directoryCommandCatalog,
       )
 
       // An explicit `/council` or `/arena` asks for the same tool only when it is sent as that
@@ -472,13 +503,21 @@ export function routeMessage(params: {
     })
   }
 
+  // The command catalog loads under the same directory lock this send takes, so a cold catalog is loaded first:
+  // loading it from inside the lock waited for the lock until it timed out.
+  const mayRouteCommand =
+    params.inputMode !== "shell" &&
+    (params.content.trimStart().startsWith("/") || (params.workMode ?? DEFAULT_WORK_MODE) !== DEFAULT_WORK_MODE)
+  const catalogDirectory = params.commandCatalogDirectory
+  if (mayRouteCommand && catalogDirectory) {
+    return loadDirectoryCommandCatalog(catalogDirectory).then((catalog) => {
+      directoryCommandCatalog = catalog
+      return params.directory !== undefined ? axCodeClient.withDirectory(params.directory, run) : run()
+    })
+  }
+
   if (params.directory !== undefined) {
     const directory = params.directory
-    // The command catalog loads under the same directory lock this send takes, so a cold catalog is loaded first:
-    // loading it from inside the lock waited for the lock until it timed out.
-    const mayRouteCommand =
-      params.inputMode !== "shell" &&
-      (params.content.trimStart().startsWith("/") || (params.workMode ?? DEFAULT_WORK_MODE) !== DEFAULT_WORK_MODE)
     if (!mayRouteCommand || useCommandsStore.getState().commands.length > 0) {
       return axCodeClient.withDirectory(directory, run)
     }
@@ -855,7 +894,8 @@ const DEFAULT_DRAFT: NewSessionDraftState = {
 }
 
 const INVALID_SEND_TARGET_MESSAGE = "Cannot send message without an active session or draft"
-const DRAFT_RETARGETED_MESSAGE = "The draft's target changed before the message was sent"
+const draftRetargetedMessage = (): string =>
+  formatMessage(useI18nStore.getState().dictionary, "chat.chatInput.draftRetargeted")
 
 /**
  * Record the model, agent and variant a new session was started with, so opening it later shows the selection its
@@ -1413,6 +1453,17 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
         if (!get().newSessionDraft?.open || draftLifecycleRevision !== draftRevision) {
           refuseDraftSend()
         }
+        // Picking another project or branch during the wait replaces the pending request: the worktree it produced is
+        // no longer where the draft points, and creating there would leave the draft showing another target. The
+        // worktree creator may already have resolved this request onto the draft, which is no retarget.
+        const draftAfterWait = get().newSessionDraft
+        const stillPending = draftAfterWait?.pendingWorktreeRequestId === draft.pendingWorktreeRequestId
+        const resolvedHere =
+          !draftAfterWait?.pendingWorktreeRequestId &&
+          normalizePath(draftAfterWait?.directoryOverride ?? null) === normalizePath(draftDirectoryOverride)
+        if (!stillPending && !resolvedHere) {
+          refuseDraftSend(draftRetargetedMessage())
+        }
         get().resolvePendingDraftWorktreeTarget(draft.pendingWorktreeRequestId, draftDirectoryOverride)
       }
 
@@ -1435,7 +1486,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
         refuseDraftSend()
       }
       if (draftTargetKey(draftAfterCheck) !== admittedTarget) {
-        refuseDraftSend(DRAFT_RETARGETED_MESSAGE)
+        refuseDraftSend(draftRetargetedMessage())
       }
       throwWorkModeRefusal(workModeRefusal)
 

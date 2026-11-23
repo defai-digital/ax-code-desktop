@@ -16,11 +16,16 @@ const fixtures = vi.hoisted(() => ({
     { id: "session-b", directory: "/work/team-b/shared", time: { created: 1, updated: 2 } },
   ],
   statuses: {}, permissions: new Set<string>(),
+  newSessionDraft: null as { pendingWorktreeRequestId?: string | null } | null,
 }))
 vi.mock("@/stores/useProjectsStore", () => ({ useProjectsStore: (select: (state: typeof fixtures) => unknown) => select(fixtures) }))
 vi.mock("@/stores/useDirectoryStore", () => ({ useDirectoryStore: (select: (state: { homeDirectory: string }) => unknown) => select({ homeDirectory: "/work" }) }))
 vi.mock("@/stores/useUIStore", () => ({ useUIStore: (select: (state: typeof fixtures) => unknown) => select(fixtures) }))
-vi.mock("@/sync/session-ui-store", () => ({ useSessionUIStore: (select: (state: typeof fixtures) => unknown) => select(fixtures) }))
+vi.mock("@/sync/session-ui-store", () => ({
+  useSessionUIStore: Object.assign((select: (state: typeof fixtures) => unknown) => select(fixtures), {
+    getState: () => fixtures,
+  }),
+}))
 vi.mock("@/sync/sync-context", () => ({
   useAllLiveSessions: () => fixtures.sessions, useAllSessionStatuses: () => fixtures.statuses,
   usePendingPermissionSessionIds: () => fixtures.permissions,
@@ -50,6 +55,7 @@ beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([{}] as unknown as DOMRectList)
   fixtures.projects.forEach(project => { project.label = "Shared"; project.pinned = false })
   fixtures.activeProjectId = "a"
+  fixtures.newSessionDraft = null
   vi.clearAllMocks()
   container = document.createElement("div")
   document.body.appendChild(container)
@@ -99,6 +105,17 @@ test("pin and draft actions carry project context and do not also open the card"
   render()
   clickNative("Unpin project · Shared · ~/team-b/shared")
   expect(fixtures.setProjectPinned).toHaveBeenLastCalledWith("b", false)
+})
+
+test("a draft whose worktree is still being created keeps its project: rows neither activate nor retarget", () => {
+  // Activating the project first moved the app's directory away from a draft that stayed on its pending worktree.
+  fixtures.newSessionDraft = { pendingWorktreeRequestId: "worktree_req_1" }
+  render()
+  clickNative("Shared · ~/team-b/shared")
+  clickNative("New session · Shared · ~/team-b/shared")
+  expect(fixtures.setActiveProject).not.toHaveBeenCalled()
+  expect(open).not.toHaveBeenCalled()
+  expect(draft).not.toHaveBeenCalled()
 })
 
 test("compact attention controls remain named and open their own session without card navigation", () => {

@@ -5475,5 +5475,7 @@
   "supervision.dispatch.failClosedHint": "Se o worktree não puder ser criado, nada é despachado.",
   "supervision.dispatch.repoChecking": "Verificando se este projeto é um repositório Git…",
   "supervision.dispatch.repoCheckFailed": "Não foi possível verificar se este projeto é um repositório Git, então nada pode ser despachado ainda.",
-  "supervision.dispatch.repoCheckRetry": "Verificar novamente"
+  "supervision.dispatch.repoCheckRetry": "Verificar novamente",
+  "chat.chatInput.draftRetargeted": "O destino do rascunho mudou antes do envio da mensagem",
+  "supervision.dispatch.providersLoading": "Os modelos deste projeto ainda est\u00e3o carregando. Tente novamente em instantes."
 }

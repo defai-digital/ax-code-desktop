@@ -676,9 +676,11 @@ class AxCodeService {
     directory: string | undefined,
     params?: { parentID?: string; title?: string },
   ): Promise<Session> {
-    const client = directory ? this.getScopedApiClient(directory) : this.client
+    // Normalized once, so the request names the same directory as its scoped client's header.
+    const target = directory ? (this.normalizeCandidatePath(directory) ?? directory) : undefined
+    const client = target ? this.getScopedApiClient(target) : this.client
     const response = await client.session.create({
-      ...(directory ? { directory } : {}),
+      ...(target ? { directory: target } : {}),
       parentID: params?.parentID,
       title: params?.title,
     })
@@ -1722,8 +1724,9 @@ class AxCodeService {
     providers: Provider[]
     default: { [key: string]: string }
   }> {
-    const target = directory || this.currentDirectory
-    const client = directory ? this.getScopedApiClient(directory) : this.client
+    const explicit = directory ? (this.normalizeCandidatePath(directory) ?? directory) : null
+    const target = explicit || this.currentDirectory
+    const client = explicit ? this.getScopedApiClient(explicit) : this.client
     const response = await client.config.providers(target ? { directory: target } : undefined)
     if (!response.data) {
       const errorDetail = response.error ? `: ${JSON.stringify(response.error)}` : ""
@@ -1758,8 +1761,9 @@ class AxCodeService {
    * empty list would defeat retries and clear the cached agent list.
    */
   async listAgents(directory?: string | null): Promise<Agent[]> {
-    const target = directory || this.currentDirectory
-    const client = directory ? this.getScopedApiClient(directory) : this.client
+    const explicit = directory ? (this.normalizeCandidatePath(directory) ?? directory) : null
+    const target = explicit || this.currentDirectory
+    const client = explicit ? this.getScopedApiClient(explicit) : this.client
     const response = await client.app.agents(target ? { directory: target } : undefined)
     if (response.error) {
       throw new Error(`app.agents failed: ${formatSdkError(response.error)}`)
@@ -1771,12 +1775,14 @@ class AxCodeService {
   // all SSE event ingestion via the SDK's global.event() async iterator.
 
   // Command Management
-  async listCommands(): Promise<
+  /** The command catalog of `directory` through its scoped client, or of the current directory when none is given. */
+  async listCommands(directory?: string | null): Promise<
     Array<{ name: string; description?: string; agent?: string; model?: string; source?: string }>
   > {
-    const response = await this.client.command.list(
-      this.currentDirectory ? { directory: this.currentDirectory } : undefined,
-    )
+    const explicit = directory ? (this.normalizeCandidatePath(directory) ?? directory) : null
+    const target = explicit || this.currentDirectory
+    const client = explicit ? this.getScopedApiClient(explicit) : this.client
+    const response = await client.command.list(target ? { directory: target } : undefined)
     // Throws on failure like listAgents: the SDK answers a non-2xx with
     // `{ error }` instead of throwing, and returning an empty list here made
     // the caller's retry/keep-old-list logic unreachable while caching the

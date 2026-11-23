@@ -5475,5 +5475,7 @@
   "supervision.dispatch.failClosedHint": "Nếu không thể tạo worktree, sẽ không có gì được điều phối.",
   "supervision.dispatch.repoChecking": "Đang kiểm tra xem dự án này có phải là kho Git không…",
   "supervision.dispatch.repoCheckFailed": "Không thể kiểm tra dự án này có phải là kho Git hay không, nên chưa thể điều phối.",
-  "supervision.dispatch.repoCheckRetry": "Kiểm tra lại"
+  "supervision.dispatch.repoCheckRetry": "Kiểm tra lại",
+  "chat.chatInput.draftRetargeted": "\u0110\u00edch \u0111\u1ebfn c\u1ee7a b\u1ea3n nh\u00e1p \u0111\u00e3 thay \u0111\u1ed5i tr\u01b0\u1edbc khi g\u1eedi tin nh\u1eafn",
+  "supervision.dispatch.providersLoading": "C\u00e1c m\u00f4 h\u00ecnh c\u1ee7a d\u1ef1 \u00e1n n\u00e0y v\u1eabn \u0111ang \u0111\u01b0\u1ee3c t\u1ea3i. Vui l\u00f2ng th\u1eed l\u1ea1i sau gi\u00e2y l\u00e1t."
 }

@@ -5475,5 +5475,7 @@
   "supervision.dispatch.failClosedHint": "worktree를 생성할 수 없으면 아무 작업도 전달되지 않습니다.",
   "supervision.dispatch.repoChecking": "이 프로젝트가 Git 저장소인지 확인하는 중…",
   "supervision.dispatch.repoCheckFailed": "이 프로젝트가 Git 저장소인지 확인할 수 없어 아직 디스패치할 수 없습니다.",
-  "supervision.dispatch.repoCheckRetry": "다시 확인"
+  "supervision.dispatch.repoCheckRetry": "다시 확인",
+  "chat.chatInput.draftRetargeted": "\uba54\uc2dc\uc9c0 \uc804\uc1a1 \uc804\uc5d0 \ucd08\uc548 \ub300\uc0c1\uc774 \ubcc0\uacbd\ub418\uc5c8\uc2b5\ub2c8\ub2e4",
+  "supervision.dispatch.providersLoading": "\uc774 \ud504\ub85c\uc81d\ud2b8\uc758 \ubaa8\ub378\uc744 \uc544\uc9c1 \ubd88\ub7ec\uc624\ub294 \uc911\uc785\ub2c8\ub2e4. \uc7a0\uc2dc \ud6c4 \ub2e4\uc2dc \uc2dc\ub3c4\ud574 \uc8fc\uc138\uc694."
 }

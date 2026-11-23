@@ -5475,5 +5475,7 @@
   "supervision.dispatch.failClosedHint": "如果无法创建 worktree，则不会派发任何任务。",
   "supervision.dispatch.repoChecking": "正在检查此项目是否为 Git 仓库…",
   "supervision.dispatch.repoCheckFailed": "无法检查此项目是否为 Git 仓库，因此暂时不能派发。",
-  "supervision.dispatch.repoCheckRetry": "重新检查"
+  "supervision.dispatch.repoCheckRetry": "重新检查",
+  "chat.chatInput.draftRetargeted": "\u6d88\u606f\u53d1\u9001\u524d\uff0c\u8349\u7a3f\u7684\u76ee\u6807\u5df2\u66f4\u6539",
+  "supervision.dispatch.providersLoading": "\u6b64\u9879\u76ee\u7684\u6a21\u578b\u4ecd\u5728\u52a0\u8f7d\u4e2d\u3002\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002"
 }

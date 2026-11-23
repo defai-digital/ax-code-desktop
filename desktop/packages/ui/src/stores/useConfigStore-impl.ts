@@ -411,6 +411,15 @@ export interface DirectorySendSelection {
 }
 
 /** The provider catalog known for `directory`: the live one when it is active, else its snapshot's (maybe empty). */
+/**
+ * Whether a provider load for `directory` is running or a startup re-poll is pending. `loadProviders` returns at once in
+ * the second case, so an empty catalog right after it means "not known yet", not "no model".
+ */
+export const isDirectoryProviderLoadPending = (directory: string): boolean => {
+  const key = toDirectoryKey(directory)
+  return _inFlightProviders.has(key) || _providerPollTimer.has(key)
+}
+
 export const directoryProviderCatalog = (
   state: Pick<ConfigStore, "activeDirectoryKey" | "providers" | "directoryScoped">,
   directory: string,

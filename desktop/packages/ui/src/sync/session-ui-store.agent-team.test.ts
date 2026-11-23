@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 
 const sendMessage = vi.fn<(input: Record<string, unknown>) => Promise<void>>(async () => {})
 const sendCommand = vi.fn<(input: Record<string, unknown>) => Promise<void>>(async () => {})
+const listCommands = vi.fn<(directory?: string | null) => Promise<Array<{ name: string }>>>(async () => [])
 // Whether a directory-scoped call holds the client's directory lock right now.
 const directoryLock = vi.hoisted(() => ({ held: false }))
 
@@ -19,6 +20,7 @@ vi.mock("@/lib/ax-code/client", () => ({
     },
     sendMessage: (input: Record<string, unknown>) => sendMessage(input),
     sendCommand: (input: Record<string, unknown>) => sendCommand(input),
+    listCommands: (directory?: string | null) => listCommands(directory),
   },
   ascendingId: (prefix: string) => `${prefix}_minted`,
   isValidMessageId: (id: string) => id.startsWith("msg_"),
@@ -83,6 +85,7 @@ describe("agent team send routing", () => {
   beforeEach(() => {
     sendMessage.mockClear()
     sendCommand.mockClear()
+    listCommands.mockClear()
     useAgentTeamStore.setState({ teamByDirectory: {}, coderMessageIds: [] })
     useWorkModeStore.setState({ modeByDirectory: {} })
   })
@@ -364,6 +367,106 @@ describe("agent team send routing", () => {
     } finally {
       useConfigStore.setState({ providers: [] } as never)
     }
+  })
+
+  test("a slash command for another project is routed by that project's own command catalog", async () => {
+    // The command store holds the active project's catalog only: /review existing just in the target went out as text.
+    const heldDuringLoad: boolean[] = []
+    listCommands.mockImplementationOnce(async () => {
+      heldDuringLoad.push(directoryLock.held)
+      return [{ name: "review" }]
+    })
+    const loadCommands = vi.fn(async () => true)
+    useCommandsStore.setState({ commands: [{ name: "help" }], loadCommands } as never)
+
+    await routeMessage({
+      sessionId: "session-1",
+      directory: "/other/worktree",
+      content: "/review the API",
+      providerID: "alibaba",
+      modelID: "qwen",
+      commandCatalogDirectory: "/other",
+    })
+
+    expect(listCommands).toHaveBeenLastCalledWith("/other")
+    expect(heldDuringLoad).toEqual([false])
+    expect(loadCommands).not.toHaveBeenCalled()
+    expect(sendCommand).toHaveBeenCalledWith(expect.objectContaining({ command: "review", arguments: "the API" }))
+  })
+
+  test("a send without a directory still routes by the command catalog it names", async () => {
+    listCommands.mockResolvedValueOnce([{ name: "review" }])
+    useCommandsStore.setState({ commands: [{ name: "help" }] } as never)
+
+    await routeMessage({
+      sessionId: "session-1",
+      content: "/review the API",
+      providerID: "alibaba",
+      modelID: "qwen",
+      commandCatalogDirectory: "/other",
+    })
+
+    expect(listCommands).toHaveBeenLastCalledWith("/other")
+    expect(sendCommand).toHaveBeenCalledWith(expect.objectContaining({ command: "review" }))
+  })
+
+  test("a command only the active project offers goes to another project as plain text", async () => {
+    listCommands.mockResolvedValueOnce([{ name: "review" }])
+    useCommandsStore.setState({ commands: [{ name: "deploy" }] } as never)
+
+    await routeMessage({
+      sessionId: "session-1",
+      directory: "/other",
+      content: "/deploy now",
+      providerID: "alibaba",
+      modelID: "qwen",
+      commandCatalogDirectory: "/other",
+    })
+
+    expect(sendCommand).not.toHaveBeenCalled()
+    expect(sentMessage()).toMatchObject({ text: "/deploy now" })
+  })
+
+  test("a failed read of another project's catalog lets the server judge the slash command", async () => {
+    listCommands.mockRejectedValueOnce(new Error("offline"))
+    useCommandsStore.setState({ commands: [] } as never)
+
+    await routeMessage({
+      sessionId: "session-1",
+      directory: "/other",
+      content: "/review the API",
+      providerID: "alibaba",
+      modelID: "qwen",
+      commandCatalogDirectory: "/other",
+    })
+
+    expect(sendCommand).toHaveBeenCalledWith(expect.objectContaining({ command: "review" }))
+  })
+
+  test("the pre-check of an explicit /council for another project waits for that project's catalog", async () => {
+    // A CLI lead is refused the council tool, but only when the target offers /council; otherwise it is plain text.
+    useCommandsStore.setState({ commands: [{ name: "council" }] } as never)
+    listCommands.mockResolvedValueOnce([])
+    await expect(
+      workModeSendRefusalMessage({
+        content: "/council rate this",
+        workMode: undefined,
+        ...CLI_LEAD,
+        commandCatalogDirectory: "/other",
+      }),
+    ).resolves.toBeNull()
+
+    listCommands.mockResolvedValueOnce([{ name: "council" }])
+    useCommandsStore.setState({ commands: [] } as never)
+    await expect(
+      workModeSendRefusalMessage({
+        content: "/council rate this",
+        workMode: undefined,
+        ...CLI_LEAD,
+        commandCatalogDirectory: "/other",
+      }),
+    ).resolves.toMatch(/Council needs a non-CLI model/)
+    expect(listCommands).toHaveBeenLastCalledWith("/other")
   })
 
   test("a sender with no mode control sends the text it built, whatever the directory's chip says", async () => {

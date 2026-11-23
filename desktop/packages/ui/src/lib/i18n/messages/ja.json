@@ -5475,5 +5475,7 @@
   "supervision.dispatch.failClosedHint": "worktree を作成できない場合、何もディスパッチされません。",
   "supervision.dispatch.repoChecking": "このプロジェクトが Git リポジトリかどうかを確認しています…",
   "supervision.dispatch.repoCheckFailed": "このプロジェクトが Git リポジトリかどうかを確認できなかったため、まだディスパッチできません。",
-  "supervision.dispatch.repoCheckRetry": "再確認"
+  "supervision.dispatch.repoCheckRetry": "再確認",
+  "chat.chatInput.draftRetargeted": "\u9001\u4fe1\u524d\u306b\u4e0b\u66f8\u304d\u306e\u5bfe\u8c61\u304c\u5909\u66f4\u3055\u308c\u307e\u3057\u305f",
+  "supervision.dispatch.providersLoading": "\u3053\u306e\u30d7\u30ed\u30b8\u30a7\u30af\u30c8\u306e\u30e2\u30c7\u30eb\u306f\u307e\u3060\u8aad\u307f\u8fbc\u307f\u4e2d\u3067\u3059\u3002\u3057\u3070\u3089\u304f\u3057\u3066\u304b\u3089\u518d\u8a66\u884c\u3057\u3066\u304f\u3060\u3055\u3044\u3002"
 }

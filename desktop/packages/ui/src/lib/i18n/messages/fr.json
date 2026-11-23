@@ -5475,5 +5475,7 @@
   "supervision.dispatch.failClosedHint": "Si le worktree ne peut pas être créé, rien n'est lancé.",
   "supervision.dispatch.repoChecking": "Vérification en cours : ce projet est-il un dépôt Git…",
   "supervision.dispatch.repoCheckFailed": "Impossible de vérifier si ce projet est un dépôt Git ; rien ne peut être lancé pour l'instant.",
-  "supervision.dispatch.repoCheckRetry": "Vérifier à nouveau"
+  "supervision.dispatch.repoCheckRetry": "Vérifier à nouveau",
+  "chat.chatInput.draftRetargeted": "La cible du brouillon a chang\u00e9 avant l'envoi du message",
+  "supervision.dispatch.providersLoading": "Les mod\u00e8les de ce projet sont encore en cours de chargement. R\u00e9essayez dans un instant."
 }

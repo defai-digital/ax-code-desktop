@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 
-import { shouldAutoOpenChatDraft } from "./chatDraftState"
+import { canRetargetDraftToProject, shouldAutoOpenChatDraft } from "./chatDraftState"
 
 describe("shouldAutoOpenChatDraft", () => {
   test("does not replace a session while a session route is restoring", () => {
@@ -42,5 +42,16 @@ describe("shouldAutoOpenChatDraft", () => {
         hasSessionRoute: false,
       }),
     ).toBe(false)
+  })
+})
+
+describe("canRetargetDraftToProject", () => {
+  test("keeps a draft whose worktree is still being created on that worktree", () => {
+    expect(canRetargetDraftToProject({ pendingWorktreeRequestId: "worktree_req_1" })).toBe(false)
+  })
+
+  test("lets a project row retarget a draft with no pending worktree", () => {
+    expect(canRetargetDraftToProject({ pendingWorktreeRequestId: null })).toBe(true)
+    expect(canRetargetDraftToProject(null)).toBe(true)
   })
 })

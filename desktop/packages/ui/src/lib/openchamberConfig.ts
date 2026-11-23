@@ -614,10 +614,15 @@ async function readOpenChamberConfig(project: ProjectRef): Promise<OpenChamberCo
   // 2) Migrate legacy <project>/.openchamber/openchamber.json.
   // LEGACY_PROJECT_CONFIG: migrate project-local openchamber.json -> ~/.config/openchamber/projects/<projectId>.json
   const legacyPath = getLegacyConfigPath(projectDirectory)
-  const legacyConfig = parseConfig(await readText(legacyPath))
-  if (!legacyConfig) {
+  const parsedLegacyConfig = parseConfig(await readText(legacyPath))
+  if (!parsedLegacyConfig) {
     return null
   }
+  // The legacy file sits inside the repository, so a cloned project can ship it. Its setup commands run in a shell
+  // whenever a worktree is created, with nothing shown first; migrating them would make them look like commands the
+  // person saved. They are left out and can be entered in Settings (the same reason plan paths are re-checked below).
+  const legacyConfig: OpenChamberConfig = { ...parsedLegacyConfig }
+  delete legacyConfig["setup-worktree"]
 
   // Best-effort write + delete legacy.
   try {

@@ -5475,5 +5475,7 @@
   "supervision.dispatch.failClosedHint": "Se non è possibile creare il worktree, non viene inviato nulla.",
   "supervision.dispatch.repoChecking": "Verifica in corso: questo progetto è un repository Git…",
   "supervision.dispatch.repoCheckFailed": "Impossibile verificare se questo progetto è un repository Git, quindi per ora non si può avviare nulla.",
-  "supervision.dispatch.repoCheckRetry": "Verifica di nuovo"
+  "supervision.dispatch.repoCheckRetry": "Verifica di nuovo",
+  "chat.chatInput.draftRetargeted": "La destinazione della bozza \u00e8 cambiata prima dell'invio del messaggio",
+  "supervision.dispatch.providersLoading": "I modelli di questo progetto sono ancora in caricamento. Riprova tra un momento."
 }
