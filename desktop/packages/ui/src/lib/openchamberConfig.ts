@@ -13,6 +13,7 @@ import { projectPathIsInsideRoot } from "./projectResolution"
 import { sanitizeStarterRefs, type DraftStarterRef } from "./draftStarters"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "./http"
 import { migrateLegacyProjectAction } from "./projectActionMigration"
+import { AUTO_DISCOVER_ACTION_ID } from "./projectActions"
 
 type ProjectRef = { id: string; path: string }
 
@@ -32,6 +33,19 @@ interface OpenChamberConfig {
   projectActions?: OpenChamberProjectAction[]
   projectActionsPrimaryId?: string
   draftStarters?: DraftStarterRef[]
+  importedFromRepository?: ImportedRepositoryCommands
+}
+
+/**
+ * Executable settings found in a repository's legacy `.openchamber/openchamber.json`, held apart from the live
+ * settings until the person reviews them in Settings. Nothing here runs: worktree creation and project actions read
+ * only the live keys. The snapshot is taken once, so a later change to the repository file cannot change what the
+ * person approves.
+ */
+export interface ImportedRepositoryCommands {
+  setupCommands: string[]
+  actions: OpenChamberProjectAction[]
+  primaryActionId: string | null
 }
 
 export type OpenChamberProjectActionPlatform = "macos" | "linux" | "windows"
@@ -410,7 +424,9 @@ const sanitizeProjectActions = (value: unknown): OpenChamberProjectAction[] => {
       AX_CODE_DESKTOP_PROJECT_ACTION_COMMAND_MAX_LENGTH,
     )
 
-    if (!id || !name || !command || seenIds.has(id)) {
+    // The launcher's Auto-discover entry owns its id: an action saved under it would run something other than the
+    // command it shows.
+    if (!id || !name || !command || seenIds.has(id) || id === AUTO_DISCOVER_ACTION_ID) {
       continue
     }
     seenIds.add(id)
@@ -567,7 +583,10 @@ export const parseProjectPlanMarkdown = (raw: string): { title: string; body: st
  * Read the config for a project.
  * Returns null if file doesn't exist or is invalid.
  */
-async function readOpenChamberConfig(project: ProjectRef): Promise<OpenChamberConfig | null> {
+async function readOpenChamberConfig(
+  project: ProjectRef,
+  options?: { userOnly?: boolean },
+): Promise<OpenChamberConfig | null> {
   const projectDirectory = typeof project?.path === "string" ? project.path : ""
   if (!projectDirectory) {
     return null
@@ -610,31 +629,106 @@ async function readOpenChamberConfig(project: ProjectRef): Promise<OpenChamberCo
       return existing
     }
   }
-
-  // 2) Migrate legacy <project>/.openchamber/openchamber.json.
-  // LEGACY_PROJECT_CONFIG: migrate project-local openchamber.json -> ~/.config/openchamber/projects/<projectId>.json
-  const legacyPath = getLegacyConfigPath(projectDirectory)
-  const parsedLegacyConfig = parseConfig(await readText(legacyPath))
-  if (!parsedLegacyConfig) {
+  if (options?.userOnly) {
     return null
   }
-  // The legacy file sits inside the repository, so a cloned project can ship it. Its setup commands run in a shell
-  // whenever a worktree is created, with nothing shown first; migrating them would make them look like commands the
-  // person saved. They are left out and can be entered in Settings (the same reason plan paths are re-checked below).
-  const legacyConfig: OpenChamberConfig = { ...parsedLegacyConfig }
-  delete legacyConfig["setup-worktree"]
 
-  // Best-effort write + delete legacy.
-  try {
-    const wrote = await writeOpenChamberConfig(project, legacyConfig)
-    if (wrote) {
-      await deleteLegacyOpenChamberConfig(projectDirectory)
-    }
-  } catch {
-    // Ignore migration failures; still return legacy content.
+  // 2) Migrate legacy <project>/.openchamber/openchamber.json. Concurrent first reads share one migration, so a second
+  // writer cannot land after the person already added or discarded the held commands.
+  const key = configPath ?? projectDirectory
+  const pending = legacyMigrations.get(key)
+  if (pending) {
+    return pending
+  }
+  const migration = migrateLegacyConfig(project, projectDirectory, readText, parseConfig, configPath)
+  legacyMigrations.set(key, migration)
+  void migration.finally(() => {
+    if (legacyMigrations.get(key) === migration) legacyMigrations.delete(key)
+  })
+  return migration
+}
+
+const legacyMigrations = new Map<string, Promise<OpenChamberConfig | null>>()
+
+async function migrateLegacyConfig(
+  project: ProjectRef,
+  projectDirectory: string,
+  readText: (path: string) => Promise<string | null>,
+  parseConfig: (text: string | null) => OpenChamberConfig | null,
+  configPath: string | null,
+): Promise<OpenChamberConfig | null> {
+  // LEGACY_PROJECT_CONFIG: migrate project-local openchamber.json -> ~/.config/openchamber/projects/<projectId>.json
+  const legacyConfig = buildLegacyMigration(parseConfig(await readText(getLegacyConfigPath(projectDirectory))))
+  if (!legacyConfig) {
+    return null
   }
 
-  return legacyConfig
+  // Best effort. The legacy file is left where it is: it may be tracked by the repository, and deleting it would
+  // change the person's working tree. Once the per-user file exists the legacy file is not read again.
+  try {
+    // Only while no per-user file exists (another window may have migrated meanwhile).
+    await writeOpenChamberConfig(project, legacyConfig, { onlyIfAbsent: true })
+  } catch {
+    // Ignore migration failures; still return the migrated subset.
+  }
+
+  // Whatever is stored now is the answer, so held commands shown for review are the ones Add and Discard act on.
+  const stored = configPath ? parseConfig(await readText(configPath)) : null
+  return stored ?? legacyConfig
+}
+
+/**
+ * The legacy file sits inside the repository, so a cloned project can ship it. Only keys that run nothing migrate as
+ * live settings (an allowlist, so unknown keys such as the server-owned `scheduledTasks` never cross). Setup commands
+ * and project actions run shell commands — setup on every worktree creation with nothing shown, actions behind a
+ * repository-chosen name — so they are held for review instead (see ImportedRepositoryCommands).
+ */
+const buildLegacyMigration = (legacy: OpenChamberConfig | null): OpenChamberConfig | null => {
+  if (!legacy) {
+    return null
+  }
+  const migrated: OpenChamberConfig = {}
+  if (typeof legacy.projectNotes === "string") migrated.projectNotes = legacy.projectNotes
+  if (Array.isArray(legacy.projectTodos)) migrated.projectTodos = legacy.projectTodos
+  // Plan paths are re-checked when they are used (see getProjectPlanFiles).
+  if (Array.isArray(legacy.projectPlanFiles)) migrated.projectPlanFiles = legacy.projectPlanFiles
+  if (Array.isArray(legacy.draftStarters)) migrated.draftStarters = legacy.draftStarters
+
+  const held = sanitizeImportedRepositoryCommands({
+    setupCommands: legacy["setup-worktree"],
+    actions: legacy.projectActions,
+    primaryActionId: legacy.projectActionsPrimaryId,
+  })
+  if (held) {
+    migrated.importedFromRepository = held
+  }
+  return migrated
+}
+
+const sanitizeSetupCommands = (value: unknown): string[] => {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((entry): entry is string => typeof entry === "string")
+    .map((entry) => entry.trim())
+    .filter(Boolean)
+}
+
+const sanitizeImportedRepositoryCommands = (value: unknown): ImportedRepositoryCommands | null => {
+  if (!value || typeof value !== "object") {
+    return null
+  }
+  const record = value as { setupCommands?: unknown; actions?: unknown; primaryActionId?: unknown }
+  const setupCommands = sanitizeSetupCommands(record.setupCommands)
+  const actions = sanitizeProjectActions(record.actions)
+  if (setupCommands.length === 0 && actions.length === 0) {
+    return null
+  }
+  const primary = typeof record.primaryActionId === "string" ? record.primaryActionId.trim() : ""
+  return {
+    setupCommands,
+    actions,
+    primaryActionId: primary && actions.some((action) => action.id === primary) ? primary : null,
+  }
 }
 
 /**
@@ -644,7 +738,11 @@ async function readOpenChamberConfig(project: ProjectRef): Promise<OpenChamberCo
  * dedicated route and never round-trips them through this config write path to
  * avoid a read-then-write race clobbering a concurrent server update.
  */
-async function writeOpenChamberConfig(project: ProjectRef, config: OpenChamberConfig): Promise<boolean> {
+async function writeOpenChamberConfig(
+  project: ProjectRef,
+  config: OpenChamberConfig,
+  options?: { onlyIfAbsent?: boolean },
+): Promise<boolean> {
   const projectDirectory = typeof project?.path === "string" ? project.path : ""
   if (!projectDirectory) {
     return false
@@ -663,6 +761,9 @@ async function writeOpenChamberConfig(project: ProjectRef, config: OpenChamberCo
     }
 
     const existingRaw = await readTextFile(configPath)
+    if (options?.onlyIfAbsent && typeof existingRaw === "string" && existingRaw.trim()) {
+      return false
+    }
     let existing: Record<string, unknown> = {}
     if (typeof existingRaw === "string" && existingRaw.trim()) {
       try {
@@ -741,14 +842,9 @@ async function updateOpenChamberConfig(project: ProjectRef, updates: Partial<Ope
  */
 export async function getWorktreeSetupCommands(project: ProjectRef): Promise<string[]> {
   const config = await readOpenChamberConfig(project)
-  const value = config?.["setup-worktree"]
   // The raw value is user-editable JSON: a string or a sparse/null entry used
   // to reach `.trim()`/`.map()` on the creation path and crash it.
-  if (!Array.isArray(value)) return []
-  return value
-    .filter((entry): entry is string => typeof entry === "string")
-    .map((entry) => entry.trim())
-    .filter(Boolean)
+  return sanitizeSetupCommands(config?.["setup-worktree"])
 }
 
 export async function saveWorktreeSetupCommands(project: ProjectRef, commands: string[]): Promise<boolean> {
@@ -980,6 +1076,86 @@ export async function saveProjectActionsState(
 }
 
 /**
+ * Commands a repository's legacy project file carried, waiting for review. Null when there are none.
+ */
+export async function getImportedRepositoryCommands(project: ProjectRef): Promise<ImportedRepositoryCommands | null> {
+  const config = await readOpenChamberConfig(project)
+  return sanitizeImportedRepositoryCommands(config?.importedFromRepository)
+}
+
+export type ImportedRepositoryCommandsResult = "done" | "changed" | "failed"
+
+const sameImportedCommands = (a: ImportedRepositoryCommands | null, b: ImportedRepositoryCommands): boolean =>
+  a !== null && JSON.stringify(a) === JSON.stringify(b)
+
+/**
+ * Add the held commands the person was shown to the live settings. Only the per-user file is read: the repository file
+ * is never consulted again, and a migration that could not be saved has nothing to add. When the stored snapshot is
+ * no longer the one shown, nothing is saved and the caller shows the current one for review ("changed").
+ * Setup commands already present are not repeated; an action whose id the person already uses keeps the person's
+ * version; the held primary action applies only when none is set.
+ */
+export async function acceptImportedRepositoryCommands(
+  project: ProjectRef,
+  shown: ImportedRepositoryCommands,
+): Promise<ImportedRepositoryCommandsResult> {
+  return runConfigWrite(project, async () => {
+    const existing = await readOpenChamberConfig(project, { userOnly: true })
+    const held = sanitizeImportedRepositoryCommands(existing?.importedFromRepository)
+    // No per-user file means the migration could not be saved, so there is no stored snapshot to act on.
+    if (!existing) return "failed"
+    if (!held) return "changed"
+    if (!sameImportedCommands(held, shown)) {
+      return "changed"
+    }
+    const setup = sanitizeSetupCommands(existing["setup-worktree"])
+    const seenSetup = new Set(setup)
+    for (const command of held.setupCommands) {
+      if (seenSetup.has(command)) continue
+      seenSetup.add(command)
+      setup.push(command)
+    }
+    const live = sanitizeProjectActionsState({
+      actions: existing.projectActions,
+      primaryActionId: existing.projectActionsPrimaryId,
+    })
+    const liveIds = new Set(live.actions.map((action) => action.id))
+    const added = held.actions.filter((action) => !liveIds.has(action.id))
+    const primary =
+      live.primaryActionId ??
+      (held.primaryActionId && added.some((action) => action.id === held.primaryActionId) ? held.primaryActionId : null)
+    const next: OpenChamberConfig = {
+      ...existing,
+      "setup-worktree": setup,
+      projectActions: [...live.actions, ...added],
+      projectActionsPrimaryId: primary ?? undefined,
+      // Undefined, not deleted: the write merges over the file's existing keys, and JSON drops an undefined value.
+      importedFromRepository: undefined,
+    }
+    return (await writeOpenChamberConfig(project, next)) ? "done" : "failed"
+  })
+}
+
+/** Drop the held commands the person was shown, without running or saving any of them. */
+export async function discardImportedRepositoryCommands(
+  project: ProjectRef,
+  shown: ImportedRepositoryCommands,
+): Promise<ImportedRepositoryCommandsResult> {
+  return runConfigWrite(project, async () => {
+    const existing = await readOpenChamberConfig(project, { userOnly: true })
+    const held = sanitizeImportedRepositoryCommands(existing?.importedFromRepository)
+    // No per-user file means the migration could not be saved, so there is no stored snapshot to act on.
+    if (!existing) return "failed"
+    if (!held) return "changed"
+    if (!sameImportedCommands(held, shown)) {
+      return "changed"
+    }
+    const wrote = await writeOpenChamberConfig(project, { ...existing, importedFromRepository: undefined })
+    return wrote ? "done" : "failed"
+  })
+}
+
+/**
  * Substitute variables in a command string.
  * Supported variables:
  * - $ROOT_PROJECT_PATH: The root project directory path
@@ -996,24 +1172,5 @@ export function substituteCommandVariables(command: string, variables: { rootWor
   )
 }
 
-async function deleteLegacyOpenChamberConfig(projectDirectory: string): Promise<void> {
-  const legacyPath = getLegacyConfigPath(projectDirectory)
-  const runtimeFiles = getRuntimeFilesAPI()
-
-  if (runtimeFiles?.delete) {
-    try {
-      await runtimeFiles.delete(legacyPath)
-      return
-    } catch {
-      // fall through
-    }
-  }
-
-  try {
-    await postJson(makeFsUrl(API_ENDPOINTS.fs.delete), { path: legacyPath })
-  } catch {
-    // ignored
-  }
-}
 
 export type { ProjectRef }

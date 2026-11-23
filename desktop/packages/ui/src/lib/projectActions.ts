@@ -58,3 +58,56 @@ export const normalizeProjectActionDirectory = (value: string): string => {
 export const toProjectActionRunKey = (directory: string, actionId: string): string => {
   return `${normalizeProjectActionDirectory(directory)}::${actionId}`
 }
+
+/** Reserved id of the launcher's built-in "Auto-discover" entry; a saved action may never use it. */
+export const AUTO_DISCOVER_ACTION_ID = "__openchamber_auto_discover_preview__"
+
+const stripControlChars = (value: string): string => {
+  let next = ""
+  for (let index = 0; index < value.length; index += 1) {
+    const code = value.charCodeAt(index)
+    const isControl =
+      (code >= 0 && code <= 8) || code === 11 || code === 12 || (code >= 14 && code <= 31) || code === 127
+    if (!isControl) {
+      next += value[index]
+    }
+  }
+  return next
+}
+
+/** The text the launcher types into the terminal for an action's command. */
+export const normalizeProjectActionCommand = (command: string): string =>
+  stripControlChars(command.trim().replace(/\r\n|\r/g, "\n"))
+
+/** The URL an action opens, or null when the launcher would reject it. */
+export const normalizeManualOpenUrl = (value: string | undefined): string | null => {
+  const raw = (value || "").trim()
+  if (!raw) {
+    return null
+  }
+
+  const candidate = /^https?:\/\//i.test(raw) ? raw : `http://${raw}`
+  try {
+    const parsed = new URL(candidate)
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
+      return null
+    }
+    return parsed.toString()
+  } catch {
+    return null
+  }
+}
+
+// Controls, format characters (bidirectional embeddings, overrides and isolates, zero-width joiners, the BOM) and every
+// default-ignorable code point (combining grapheme joiner, Hangul fillers, variation selectors…), except tab and newline.
+const INVISIBLE_CHARACTER_PATTERN = /(?![\t\n])[\p{Cc}\p{Cf}\p{Default_Ignorable_Code_Point}]/gu
+
+/**
+ * Show a command exactly enough to approve it: characters that render as nothing, or reorder the text around them,
+ * are written out as ⟨U+XXXX⟩ so a reviewed command cannot hide or rearrange what runs.
+ */
+export const revealInvisibleCharacters = (value: string): string =>
+  value.replace(
+    INVISIBLE_CHARACTER_PATTERN,
+    (char) => `⟨U+${(char.codePointAt(0) ?? 0).toString(16).toUpperCase().padStart(4, "0")}⟩`,
+  )

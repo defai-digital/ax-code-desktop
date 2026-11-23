@@ -22,6 +22,9 @@ import {
   PROJECT_ACTIONS_UPDATED_EVENT,
   PROJECT_ACTION_ICON_MAP,
   toProjectActionRunKey,
+  AUTO_DISCOVER_ACTION_ID,
+  normalizeManualOpenUrl,
+  normalizeProjectActionCommand,
 } from "@/lib/projectActions"
 import { projectScopedEventMatchesProject } from "@/lib/projectScopedEvents"
 import { detectDevServerCommand, readPackageJsonScripts } from "@/lib/detectDevServer"
@@ -55,41 +58,9 @@ interface ProjectActionsButtonProps {
 const ANSI_ESCAPE_PREFIX = String.fromCharCode(27)
 const ANSI_ESCAPE_PATTERN = new RegExp(`${ANSI_ESCAPE_PREFIX}\\[[0-9;?]*[ -/]*[@-~]`, "g")
 const URL_GLOBAL_PATTERN = /https?:\/\/[^\s<>'"`]+/gi
-const AUTO_DISCOVER_ACTION_ID = "__openchamber_auto_discover_preview__"
 const AUTO_DISCOVER_PREVIEW_WAIT_TIMEOUT_MS = 15_000
 // A session or project switch during terminal acquisition cancels the pending action.
 const STALE_ACTION_REQUEST_ERROR = new Error("stale project action request")
-
-const stripControlChars = (value: string): string => {
-  let next = ""
-  for (let index = 0; index < value.length; index += 1) {
-    const code = value.charCodeAt(index)
-    const isControl =
-      (code >= 0 && code <= 8) || code === 11 || code === 12 || (code >= 14 && code <= 31) || code === 127
-    if (!isControl) {
-      next += value[index]
-    }
-  }
-  return next
-}
-
-const normalizeManualOpenUrl = (value: string | undefined): string | null => {
-  const raw = (value || "").trim()
-  if (!raw) {
-    return null
-  }
-
-  const candidate = /^https?:\/\//i.test(raw) ? raw : `http://${raw}`
-  try {
-    const parsed = new URL(candidate)
-    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") {
-      return null
-    }
-    return parsed.toString()
-  } catch {
-    return null
-  }
-}
 
 const extractBestUrl = (value: string): string | null => {
   const cleaned = value.replace(ANSI_ESCAPE_PATTERN, "")
@@ -715,7 +686,7 @@ export const ProjectActionsButton = ({
         }
         setTabPreviewUrl(normalizedDirectory, tabId, null, { locked: hasCustomOpenUrl, autoOpened: false })
 
-        const normalizedCommand = stripControlChars(command.trim().replace(/\r\n|\r/g, "\n"))
+        const normalizedCommand = normalizeProjectActionCommand(command)
         if (!requestIsCurrent()) throw STALE_ACTION_REQUEST_ERROR
         if (!isCurrentTerminal()) throw STALE_ACTION_REQUEST_ERROR
         await terminal.sendInput(runningSessionId, `${normalizedCommand}\r`)

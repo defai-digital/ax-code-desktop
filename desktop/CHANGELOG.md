@@ -16,7 +16,7 @@ All notable changes to this project will be documented in this file.
 
 ### Security
 
-- Stop migrating `setup-worktree` commands from a repository's legacy `.openchamber/openchamber.json`. A cloned project could otherwise run shell commands whenever a worktree was created, without them being shown. Commands saved in Settings still apply.
+- Hold the worktree setup commands and project actions found in a repository's legacy `.openchamber/openchamber.json` instead of migrating them as settings. A cloned project could otherwise run shell commands whenever a worktree was created, or behind a header action whose name it chose. Settings > Projects shows each held command in full, with invisible and reordering characters written out, and offers Add and Discard; nothing runs until it is added, and Add saves only the snapshot that was shown. Only notes, todos, plan links and draft starters migrate automatically, and the legacy file is no longer deleted from the repository.
 
 ## [7.30.30] - 2026-11-21
 
