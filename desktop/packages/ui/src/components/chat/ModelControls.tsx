@@ -23,6 +23,7 @@ import {
   type ModelPickerProvider,
 } from "@/components/model-picker/ModelPickerList"
 import { isDesktopShell } from "@/lib/desktop"
+import { openAddProviderSettings } from "@/lib/settings/addProvider"
 import { effortLabel } from "@/lib/effort-label"
 import { getAgentColor } from "@/lib/agentColors"
 import { mergeModelMetadataWithLiveModel } from "@/lib/modelMetadata"
@@ -185,7 +186,6 @@ const CURRENCY_FORMATTER = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
 })
 
-const ADD_PROVIDER_ID = "__add_provider__"
 
 const IconBadge: React.FC<{ iconName: ModelControlIconName; label: string }> = ({ iconName, label }) => (
   <span
@@ -263,7 +263,6 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
   const settingsDefaultVariant = useConfigStore((state) => state.settingsDefaultVariant)
   const settingsDefaultAgent = useConfigStore((state) => state.settingsDefaultAgent)
   const setProvider = useConfigStore((state) => state.setProvider)
-  const setSelectedProvider = useConfigStore((state) => state.setSelectedProvider)
   const setModel = useConfigStore((state) => state.setModel)
   const setCurrentVariant = useConfigStore((state) => state.setCurrentVariant)
   const getCurrentModelVariants = useConfigStore((state) => state.getCurrentModelVariants)
@@ -321,8 +320,6 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
   const addRecentEffort = useUIStore((state) => state.addRecentEffort)
   const isModelSelectorOpen = useUIStore((state) => state.isModelSelectorOpen)
   const setModelSelectorOpen = useUIStore((state) => state.setModelSelectorOpen)
-  const setSettingsDialogOpen = useUIStore((state) => state.setSettingsDialogOpen)
-  const setSettingsPage = useUIStore((state) => state.setSettingsPage)
   const hiddenModels = useUIStore((state) => state.hiddenModels)
   const cycleAgentShortcutOverride = useUIStore((state) => state.shortcutOverrides.cycle_agent)
   const cycleAgentShortcut = React.useMemo(
@@ -343,12 +340,10 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
   // Use global state for model selector (allows Ctrl+M shortcut)
   const agentMenuOpen = isModelSelectorOpen
   const setAgentMenuOpen = setModelSelectorOpen
-  const openAddProviderSettings = React.useCallback(() => {
-    setSelectedProvider(ADD_PROVIDER_ID)
-    setSettingsPage("providers")
-    setSettingsDialogOpen(true)
+  const openAddProvider = React.useCallback(() => {
+    openAddProviderSettings()
     setAgentMenuOpen(false)
-  }, [setSelectedProvider, setSettingsPage, setSettingsDialogOpen, setAgentMenuOpen])
+  }, [setAgentMenuOpen])
   const [desktopModelQuery, setDesktopModelQuery] = React.useState("")
   const keyboardOwnsModelSelectionRef = React.useRef(false)
   const lastModelPointerPositionRef = React.useRef<{ x: number; y: number } | null>(null)
@@ -1573,7 +1568,7 @@ export const ModelControls: React.FC<ModelControlsProps> = ({ className }) => {
             <div className="p-1 border-b border-border/40">
               <button
                 type="button"
-                onClick={openAddProviderSettings}
+                onClick={openAddProvider}
                 className="typography-meta group flex w-full items-center gap-1 rounded-md px-2 py-1.5 cursor-pointer hover:bg-interactive-hover/50"
               >
                 <span className="flex size-4 items-center justify-center text-primary">

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { cn } from "@/lib/utils"
+import { ADD_PROVIDER_ID } from "@/lib/settings/addProvider"
 import { SettingsProjectSelector } from "@/components/sections/shared/SettingsProjectSelector"
 import { ViewLoadingSkeleton } from "@/components/ui/ViewLoadingSkeleton"
 import { Icon } from "@/components/icon/Icon"
@@ -12,7 +13,6 @@ import { useI18n } from "@/lib/i18n"
 import type { ProviderSources } from "./types"
 import { fetchProviderSources, getCurrentDirectory } from "@/lib/ax-code/providerApi"
 
-const ADD_PROVIDER_ID = "__add_provider__"
 
 interface ProvidersSidebarProps {
   onItemSelect?: () => void

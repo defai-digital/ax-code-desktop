@@ -3,6 +3,7 @@ import { revealToolPart } from "@/lib/revealToolPart"
 import type { Message, Part, Session } from "@defai-digital/ax-code-sdk/v2"
 
 import { ChatInput } from "./ChatInput"
+import { DraftSetupSteps } from "./DraftSetupSteps"
 import { ReturnToWorkRecapStrip } from "./ReturnToWorkRecapStrip"
 import { SessionVersionSeal } from "@/components/supervision/SessionVersionSeal"
 import { SinceYouLeftStrip } from "@/components/supervision/SinceYouLeftStrip"
@@ -991,6 +992,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
                 )}
               </div>
             )}
+            <DraftSetupSteps className="mt-6 w-full max-w-md text-left" />
             <DraftPresetChips
               onSubmit={(text) => useInputStore.getState().requestPresetSubmit(text)}
               className="mt-8 max-w-md"
@@ -1011,6 +1013,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
             // Order is the reading and Tab order: composer, sessions that need a person, projects,
             // then bounded starter suggestions. The queue sits below the composer so arriving requests never move it.
             <div data-draft-home className="flex w-full flex-col items-center">
+              <DraftSetupSteps className="chat-input-column mb-6" />
               {promptReadOnly ? <ReadOnlyPromptBanner /> : <ChatInput scrollToBottom={resumeToLatestInstant} />}
               <NeedsYouQueue className="chat-input-column mt-1" />
               {showDraftProjects ? (

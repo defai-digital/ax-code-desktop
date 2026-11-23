@@ -68,6 +68,7 @@ import { useGlobalSessionStatus, useSessionPermissions } from "@/sync/sync-conte
 import { useChatSurfaceMode } from "./useChatSurfaceMode"
 import { useCurrentSessionActivity } from "@/hooks/useSessionActivity"
 import { isQueuedAutoSendHeld, markQueuedEntryInFlight } from "@/hooks/useQueuedMessageAutoSend"
+import { draftSendNeedsModel, draftSetup } from "@/lib/draftSetup"
 import { toast } from "@/components/ui"
 import { Button } from "@/components/ui/button"
 import { isDesktopShell } from "@/lib/desktop"
@@ -691,6 +692,8 @@ type ComposerActionButtonsProps = {
   sendIconSizeClass: string
   stopIconSizeClass: string
   canSend: boolean
+  /** Why a draft cannot be sent yet; shown beside the composer and named by the disabled Send. */
+  blockedReason: string | null
   canAbort: boolean
   hasContent: boolean
   currentSessionId: string | null
@@ -708,6 +711,7 @@ const ComposerActionButtons = React.memo(
       sendIconSizeClass,
       stopIconSizeClass,
       canSend,
+      blockedReason,
       canAbort,
       hasContent,
       currentSessionId,
@@ -740,6 +744,8 @@ const ComposerActionButtons = React.memo(
             : "bg-[var(--surface-muted)] text-muted-foreground opacity-60",
         )}
         aria-label={t("chat.chatInput.actions.sendMessageAria")}
+        aria-describedby={blockedReason ? "composer-send-blocked-reason" : undefined}
+        title={blockedReason ?? undefined}
       >
         <Icon name="arrow-up" className={cn(sendIconSizeClass)} />
       </button>
@@ -788,6 +794,7 @@ const ComposerActionButtons = React.memo(
     prev.sendIconSizeClass === next.sendIconSizeClass &&
     prev.stopIconSizeClass === next.stopIconSizeClass &&
     prev.canSend === next.canSend &&
+    prev.blockedReason === next.blockedReason &&
     prev.canAbort === next.canAbort &&
     prev.hasContent === next.hasContent &&
     prev.currentSessionId === next.currentSessionId &&
@@ -1017,6 +1024,15 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
 
   const currentProviderId = useConfigStore((state) => state.currentProviderId)
   const currentModelId = useConfigStore((state) => state.currentModelId)
+  const providersReady = useConfigStore((state) => state.isInitialized)
+  const loadedProviders = useConfigStore((state) => state.providers)
+  const draftModelStep = draftSetup({
+    projectCount: 1,
+    providersReady,
+    providers: loadedProviders,
+    currentProviderId,
+    currentModelId,
+  }).modelStep
   const currentVariant = useConfigStore((state) => state.currentVariant)
   const currentAgentName = useConfigStore((state) => state.currentAgentName)
   const setAgent = useConfigStore((state) => state.setAgent)
@@ -1422,7 +1438,16 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   // An entry being sent, or whose send is unconfirmed, is not folded into a composer send: the runtime may already
   // have it (C UX-02). Its chip offers its own Send again.
   const hasQueuedMessages = React.useMemo(() => queuedMessages.some(isQueuedMessageSendable), [queuedMessages])
-  const canSend = !workSendDisabled && (hasContent || hasQueuedMessages)
+  // A draft with no model to run on cannot become a session: Send says so up front instead of a toast after it
+  // (C UX-05). The draft's setup steps above the composer offer the fix; the typed prompt stays.
+  const draftSendBlockedReason = draftSendNeedsModel({
+    currentSessionId,
+    draftOpen: newSessionDraftOpen,
+    modelStep: draftModelStep,
+  })
+    ? t("chat.chatInput.sendNeedsModel")
+    : null
+  const canSend = !workSendDisabled && !draftSendBlockedReason && (hasContent || hasQueuedMessages)
 
   const canAbort = sessionPhase !== "idle"
 
@@ -4279,6 +4304,15 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             {WORK_SESSION_SEND_DISABLED}
           </div>
         ) : null}
+        {draftSendBlockedReason ? (
+          <p
+            id="composer-send-blocked-reason"
+            data-send-blocked-reason
+            className="chat-input-column mb-2 text-right typography-meta text-muted-foreground"
+          >
+            {draftSendBlockedReason}
+          </p>
+        ) : null}
         {newSessionDraftOpen && !isDesktopExpanded && !isMobile && !isMiniChatSurface ? (
           // Left-aligned header row: the question on the left, project knowledge on the right.
           <div data-draft-header className="chat-input-column mb-4 flex flex-wrap items-center justify-between gap-x-3 gap-y-2">
@@ -4865,6 +4899,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                           sendIconSizeClass={sendIconSizeClass}
                           stopIconSizeClass={stopIconSizeClass}
                           canSend={canSend}
+                          blockedReason={draftSendBlockedReason}
                           canAbort={canAbort}
                           hasContent={!!hasContent}
                           currentSessionId={currentSessionId}
@@ -4923,6 +4958,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                       sendIconSizeClass={sendIconSizeClass}
                       stopIconSizeClass={stopIconSizeClass}
                       canSend={canSend}
+                      blockedReason={draftSendBlockedReason}
                       canAbort={canAbort}
                       hasContent={!!hasContent}
                       currentSessionId={currentSessionId}

@@ -5,6 +5,7 @@ import { ProviderLogo } from "@/components/ui/ProviderLogo"
 import { useConfigStore } from "@/stores/useConfigStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useUIStore } from "@/stores/useUIStore"
+import { ADD_PROVIDER_ID } from "@/lib/settings/addProvider"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
@@ -85,7 +86,6 @@ const formatTokens = (value?: number | null) => {
   return formatted.endsWith(".0") ? formatted.slice(0, -2) : formatted
 }
 
-const ADD_PROVIDER_ID = "__add_provider__"
 const PROVIDER_RESTART_POLL_MAX_MS = 30_000
 
 const CONNECT_TYPE_I18N: Record<ProviderConnectCategory, I18nKey> = {
