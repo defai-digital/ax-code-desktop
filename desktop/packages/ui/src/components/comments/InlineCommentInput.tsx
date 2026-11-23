@@ -16,6 +16,8 @@ interface InlineCommentInputProps {
   isEditing?: boolean
   className?: string
   maxWidth?: number
+  /** Reports each edit, so the text survives this input being mounted again on a new line node. */
+  onTextChange?: (text: string) => void
 }
 
 export function InlineCommentInput({
@@ -27,6 +29,7 @@ export function InlineCommentInput({
   isEditing = false,
   className,
   maxWidth,
+  onTextChange,
 }: InlineCommentInputProps) {
   const { t } = useI18n()
   const themeContext = useOptionalThemeSystem()
@@ -148,7 +151,10 @@ export function InlineCommentInput({
           simple
           ref={textareaRef}
           value={text}
-          onChange={(e) => setText(e.target.value)}
+          onChange={(e) => {
+            setText(e.target.value)
+            onTextChange?.(e.target.value)
+          }}
           onKeyDown={handleKeyDown}
           placeholder={t("inlineComment.input.placeholder")}
           outerClassName="rounded-[var(--radius-xl)] bg-[var(--surface-subtle)] ring-1 ring-inset ring-border/60 focus-within:ring-2 focus-within:ring-[var(--interactive-focus-ring)]"

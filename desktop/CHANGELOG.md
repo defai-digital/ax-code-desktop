@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
 - Open the session when a native notification for a finished, failed or blocked run, or for a permission request, is clicked. The click only focused the window, because the session was dropped on the way to the main process.
 - Keep a queued message saved, marked as sending, until its send returns, whether it was sent automatically or by hand, so quitting mid-send no longer loses it. A message whose send was not confirmed is never sent again by itself or folded into the next composer send: its chip says it may already be in the chat and offers Send again, and it clears once the delivered message loads.
 - Stop a new-session send whose pending worktree was replaced by another while it waited, show the retargeted-draft message in the app's language, and send the same normalized directory in the query or body as in the scoped request header.
+- Keep a review comment on its line when that line scrolls out of a long diff and back. A comment whose line was not yet rendered gave up after a few frames and stayed hidden; it now appears whenever Pierre renders the line, is measured again when the line returns, and keeps unsaved text in an open comment box. The diff viewer no longer re-renders on every DOM change of the diff.
 
 ### Changed
 
