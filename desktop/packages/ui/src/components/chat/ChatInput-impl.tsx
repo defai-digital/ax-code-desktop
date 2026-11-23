@@ -5,6 +5,7 @@ import { useConfigStore } from "@/stores/useConfigStore"
 import { useAgentsStore } from "@/stores/useAgentsStore"
 import { useUIStore } from "@/stores/useUIStore"
 import {
+  isQueuedMessageSendable,
   MESSAGE_QUEUE_MAX_PER_SESSION,
   useMessageQueueStore,
   type QueuedMessage,
@@ -66,7 +67,7 @@ import { useNudgeDismissedAt, useSessionRunEndedAt } from "@/sync/run-state-stor
 import { useGlobalSessionStatus, useSessionPermissions } from "@/sync/sync-context"
 import { useChatSurfaceMode } from "./useChatSurfaceMode"
 import { useCurrentSessionActivity } from "@/hooks/useSessionActivity"
-import { isQueuedAutoSendHeld } from "@/hooks/useQueuedMessageAutoSend"
+import { isQueuedAutoSendHeld, markQueuedEntryInFlight } from "@/hooks/useQueuedMessageAutoSend"
 import { toast } from "@/components/ui"
 import { Button } from "@/components/ui/button"
 import { isDesktopShell } from "@/lib/desktop"
@@ -1292,7 +1293,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     ),
   )
   const addToQueue = useMessageQueueStore((state) => state.addToQueue)
-  const clearQueue = useMessageQueueStore((state) => state.clearQueue)
   const removeFromQueue = useMessageQueueStore((state) => state.removeFromQueue)
 
   // Inline comment drafts
@@ -1419,7 +1419,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   }, [pendingInputText, consumePendingInputText, currentSessionId])
 
   const hasContent = message.trim().length > 0 || sendableAttachedFiles.length > 0 || hasDrafts
-  const hasQueuedMessages = queuedMessages.length > 0
+  // An entry being sent, or whose send is unconfirmed, is not folded into a composer send: the runtime may already
+  // have it (C UX-02). Its chip offers its own Send again.
+  const hasQueuedMessages = React.useMemo(() => queuedMessages.some(isQueuedMessageSendable), [queuedMessages])
   const canSend = !workSendDisabled && (hasContent || hasQueuedMessages)
 
   const canAbort = sessionPhase !== "idle"
@@ -1676,13 +1678,21 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     // A paste read may have settled while the submit waited for it; this render's
     // closure predates that, so the submit's own attachments come from the live store.
     const liveAttachments = useInputStore.getState().attachedFiles
-    const queuedMessagesToSend = queuedMessageId
-      ? queuedMessages.filter((message) => message.id === queuedMessageId)
+    // The queue is read live for the same reason: while the submit waited, the auto-sender may have started sending
+    // the head entry, and folding it in from this render's copy would deliver it twice.
+    const liveQueuedMessages = currentSessionId
+      ? useMessageQueueStore.getState().getQueueForSession(currentSessionId)
       : queuedMessages
+    const queuedMessagesToSend = queuedMessageId
+      ? liveQueuedMessages.filter((message) => message.id === queuedMessageId)
+      : liveQueuedMessages.filter(isQueuedMessageSendable)
 
     if (queuedOnly) {
       if (queuedMessagesToSend.length === 0 || !currentSessionId) return
-    } else if ((!inputSnapshot.hasContent && !hasQueuedMessages) || (!currentSessionId && !newSessionDraftOpen)) {
+    } else if (
+      (!inputSnapshot.hasContent && queuedMessagesToSend.length === 0) ||
+      (!currentSessionId && !newSessionDraftOpen)
+    ) {
       return
     }
 
@@ -1873,9 +1883,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     const consumedQueueIndex = queuedMessageId
       ? Math.max(
           0,
-          queuedMessages.findIndex((message) => message.id === queuedMessageId),
+          liveQueuedMessages.findIndex((message) => message.id === queuedMessageId),
         )
-      : 0
+      : Math.max(0, liveQueuedMessages.findIndex(isQueuedMessageSendable))
     const consumedInputSnapshot = !queuedOnly && inputSnapshot.hasContent ? inputSnapshot.message : ""
     // The @-mention confirmations this submit clears. A failed send restores them with the
     // text; without them a top-level mention that relied on confirmation (@LICENSE, @src)
@@ -1883,11 +1893,15 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     const consumedConfirmedMentions = new Set(confirmedMentionsRef.current)
 
     // Clear queue and input
+    // A single entry sent by hand stays saved, marked as sending, until its send returns: taking it out first lost the
+    // prompt when the app quit mid-send (C UX-02). Its chip offers nothing that sends it again meanwhile.
+    const manualQueuedEntryId = consumesQueue && currentSessionId && queuedMessageId ? queuedMessageId : null
     if (consumesQueue) {
-      if (currentSessionId && queuedMessageId) {
-        removeFromQueue(currentSessionId, queuedMessageId)
-      } else if (currentSessionId && hasQueuedMessages) {
-        clearQueue(currentSessionId)
+      if (currentSessionId && manualQueuedEntryId) {
+        markQueuedEntryInFlight(manualQueuedEntryId, true)
+        useMessageQueueStore.getState().setDelivery(currentSessionId, manualQueuedEntryId, "sending")
+      } else if (currentSessionId) {
+        for (const message of queuedMessagesToSend) removeFromQueue(currentSessionId, message.id)
       }
     }
     if (!queuedOnly) {
@@ -2361,6 +2375,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
 
     void sendPromise
       .then(() => {
+        if (currentSessionId && manualQueuedEntryId) {
+          markQueuedEntryInFlight(manualQueuedEntryId, false)
+          useMessageQueueStore.getState().removeFromQueue(currentSessionId, manualQueuedEntryId)
+        }
         // Remember free-form prompts for the recent chips (skip slash commands).
         if (primaryText.trim() && !primaryText.trimStart().startsWith("/")) {
           recordRecentPrompt(primaryText)
@@ -2381,6 +2399,14 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         const normalized = rawMessage.toLowerCase()
 
         console.error("Message send failed:", rawMessage || error)
+
+        // Back to what it was before this send: queued, or still unconfirmed when it was a Send again.
+        if (currentSessionId && manualQueuedEntryId) {
+          markQueuedEntryInFlight(manualQueuedEntryId, false)
+          useMessageQueueStore
+            .getState()
+            .setDelivery(currentSessionId, manualQueuedEntryId, consumedQueueSnapshot[0]?.delivery)
+        }
 
         const { failedSessionId, viewingFailedSession } = restoreConsumedInput(error)
 

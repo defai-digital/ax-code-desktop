@@ -2,7 +2,6 @@ import { describe, expect, test } from "vitest"
 
 import {
   deriveSupervisionState,
-  isHighTouchState,
   isLiveState,
   needsFollowUp,
   needsHuman,
@@ -73,10 +72,9 @@ describe("deriveSupervisionState", () => {
 })
 
 describe("goal state classification", () => {
-  test("counts as needing a person and live, but not high-touch", () => {
+  test("counts as needing a person and live", () => {
     expect(needsHuman("goal")).toBe(true)
     expect(isLiveState("goal")).toBe(true)
-    expect(isHighTouchState("goal")).toBe(false)
   })
 
   test("urgency and tree precedence place a goal decision ahead of the error and review follow-ups", () => {
@@ -105,9 +103,9 @@ describe("goal state classification", () => {
     }
   })
 
-  test("work in progress counts a goal as needing you, not as running or high-touch", () => {
+  test("work in progress counts a goal as needing you, not as running", () => {
     const summary = summarizeWorkInProgress([{ state: "goal" as const }, { state: "running" as const }])
-    expect(summary).toEqual({ running: 1, needsYou: 1, followUp: 0, highTouch: 1, overSoftLimit: false })
+    expect(summary).toEqual({ running: 1, needsYou: 1, followUp: 0 })
   })
 })
 
@@ -179,9 +177,7 @@ describe("ranking and navigation", () => {
     expect(nextNeedsHumanSession([{ sessionId: "a", state: "running", updatedAt: 1 }], null)).toBeNull()
   })
 
-  test("summarizes work in progress with a soft limit", () => {
-    expect(summarizeWorkInProgress(rows)).toEqual({ running: 1, needsYou: 2, followUp: 2, highTouch: 3, overSoftLimit: false })
-    const busy = Array.from({ length: 5 }, (_, index) => ({ state: "running" as const, sessionId: `${index}` }))
-    expect(summarizeWorkInProgress(busy).overSoftLimit).toBe(true)
+  test("summarizes work in progress", () => {
+    expect(summarizeWorkInProgress(rows)).toEqual({ running: 1, needsYou: 2, followUp: 2 })
   })
 })

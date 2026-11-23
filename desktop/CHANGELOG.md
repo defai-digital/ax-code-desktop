@@ -12,7 +12,15 @@ All notable changes to this project will be documented in this file.
 - Return mobile Settings history to the Skills pane and skill a detail showed, including after the catalog's Back button, a rename, or reopening Settings. Show the Skills list when a restored skill is gone once the list loads, and open a page reached by Back at its first stage.
 - Let a reopened Quick Dispatch dialog start a new dispatch while an earlier one is still running, and give a background dispatch up to 30 minutes for worktree setup before its prompt is dropped.
 - Route a slash command sent to another project by that project's own command catalog, and say that a project's models are still loading instead of "Select a model before sending".
+- Keep unsaved Files edits when a session in another project or worktree is opened, or when the Files panel closes with them; before, the editor reset to the new project's file and dropped them without asking. They come back into the editor when the file is opened again unchanged on disk. Otherwise a notice above the editor offers to save them to the file they came from, never over a file that changed on disk since, to copy them, or to discard them.
+- Announce a blocked goal as "Goal needs you" with an Open action instead of "Run failed", and keep it out of the follow-ups list, since it waits in Needs you. It follows the question notification setting, and the app sends its native notification while the window is in the background. An error after a blocked goal is still announced. Each follow-up in the notification panel now opens its session in its own project and names the project, and only the main window makes these announcements.
+- Open the session when a native notification for a finished, failed or blocked run, or for a permission request, is clicked. The click only focused the window, because the session was dropped on the way to the main process.
+- Keep a queued message saved, marked as sending, until its send returns, whether it was sent automatically or by hand, so quitting mid-send no longer loses it. A message whose send was not confirmed is never sent again by itself or folded into the next composer send: its chip says it may already be in the chat and offers Send again, and it clears once the delivered message loads.
 - Stop a new-session send whose pending worktree was replaced by another while it waited, show the retargeted-draft message in the app's language, and send the same normalized directory in the query or body as in the scoped request header.
+
+### Changed
+
+- Remove the Mission Control "More than 4 sessions need close attention" chip. It counted working sessions as needing attention; the summary already counts the sessions that need you. At most 4 decision toasts still show at once.
 
 ### Security
 

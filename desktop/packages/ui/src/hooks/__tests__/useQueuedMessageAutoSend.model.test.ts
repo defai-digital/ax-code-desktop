@@ -25,7 +25,7 @@ import { runProperty, type Rng } from "../../test/prng"
 
 const SESSION_IDS = ["ses_a", "ses_b"] as const
 type StatusType = "idle" | "busy" | "retry"
-type Entry = { id: string; messageId?: string }
+type Entry = { id: string; messageId?: string; sending?: boolean }
 
 type Tick = {
   statuses: Partial<Record<string, StatusType>>
@@ -120,21 +120,20 @@ function dispatchHead(
   if (!current) return
   if (after.assignMessageId) current.messageId = after.messageId
   h.attempts.push({ entryId: head.id, messageId: after.messageId })
-  // Entry removed before the send, as the hook does.
-  h.queues.set(
-    sessionId,
-    (h.queues.get(sessionId) ?? []).filter((e) => e.id !== head.id),
-  )
+  // The entry stays queued, marked as sending, until the send returns, as the hook does.
+  current.sending = true
   if (opts.sendFails) {
     const onFailure = decideQueuedDispatchOnFailure({
       queueHasEntry: (h.queues.get(sessionId) ?? []).some((e) => e.id === head.id),
     })
     if (onFailure.releaseClaim) h.claims.delete(head.id)
-    if (onFailure.restoreEntry) {
-      h.queues.set(sessionId, [{ ...current, messageId: after.messageId }, ...(h.queues.get(sessionId) ?? [])])
-    }
+    if (onFailure.returnToQueue) current.sending = false
   } else {
     h.sends.push({ entryId: head.id, messageId: after.messageId })
+    h.queues.set(
+      sessionId,
+      (h.queues.get(sessionId) ?? []).filter((e) => e.id !== head.id),
+    )
   }
 }
 
@@ -252,8 +251,9 @@ describe("useQueuedMessageAutoSend model", () => {
       messageId: "m1",
       assignMessageId: true,
     })
-    expect(decideQueuedDispatchOnFailure({ queueHasEntry: false })).toEqual({ releaseClaim: true, restoreEntry: true })
-    expect(decideQueuedDispatchOnFailure({ queueHasEntry: true })).toEqual({ releaseClaim: true, restoreEntry: false })
+    // A failed send returns the still-saved entry to the queue; one the user removed meanwhile stays removed.
+    expect(decideQueuedDispatchOnFailure({ queueHasEntry: true })).toEqual({ releaseClaim: true, returnToQueue: true })
+    expect(decideQueuedDispatchOnFailure({ queueHasEntry: false })).toEqual({ releaseClaim: true, returnToQueue: false })
   })
 
   test("never double-sends, retry id is stable, and idle queues never strand", () => {

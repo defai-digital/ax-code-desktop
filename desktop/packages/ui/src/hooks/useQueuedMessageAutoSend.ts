@@ -47,6 +47,22 @@ const hasRecentAbort = (sessionId: string): boolean => {
 export const isQueuedAutoSendHeld = (sessionId: string): boolean =>
   useSyncNotificationStore.getState().sessionHasError(sessionId)
 
+// Entries this window is sending now. An entry marked sending that is not listed here is unconfirmed: another window
+// is sending it, or the app quit before its send returned.
+const inFlightQueuedEntries = new Set<string>()
+
+export const isQueuedEntryInFlight = (queuedMessageId: string): boolean => inFlightQueuedEntries.has(queuedMessageId)
+
+/** Record a send of a queued entry made by hand from the composer, so its chip offers nothing that sends it again. */
+export const markQueuedEntryInFlight = (queuedMessageId: string, inFlight: boolean): void => {
+  if (inFlight) inFlightQueuedEntries.add(queuedMessageId)
+  else inFlightQueuedEntries.delete(queuedMessageId)
+}
+
+/** The head entry is being sent or unconfirmed: nothing behind it may go first, and it is not sent again by itself. */
+const isQueueHeadSending = (sessionId: string): boolean =>
+  useMessageQueueStore.getState().getQueueForSession(sessionId)[0]?.delivery === "sending"
+
 export const buildQueuedAutoSendPayload = (queue: QueuedMessage[]) => {
   const queued = queue[0]
   if (!queued) {
@@ -242,11 +258,15 @@ export function decideQueuedDispatchAfterClaim(input: {
   return { action: "dispatch", messageId, assignMessageId: !input.currentMessageId }
 }
 
+/**
+ * After a failed send the entry, still saved and marked sending, goes back to the queue for a retry under the same
+ * id. One that is gone was removed by the user while it was in flight and stays gone.
+ */
 export function decideQueuedDispatchOnFailure(input: { queueHasEntry: boolean }): {
   releaseClaim: boolean
-  restoreEntry: boolean
+  returnToQueue: boolean
 } {
-  return { releaseClaim: true, restoreEntry: !input.queueHasEntry }
+  return { releaseClaim: true, returnToQueue: input.queueHasEntry }
 }
 
 /**
@@ -299,6 +319,7 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
       inFlightSessionsRef.current.has(sessionId) ||
       hasRecentAbort(sessionId) ||
       isQueuedAutoSendHeld(sessionId) ||
+      isQueueHeadSending(sessionId) ||
       // A session whose status is not tracked (its project is not the active one,
       // or the store has not seen it yet) may still be working: hold the edge
       // instead of spending it, so the queue fires on a confirmed busy -> idle.
@@ -422,15 +443,14 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
       }
 
       inFlightSessionsRef.current.add(sessionId)
+      inFlightQueuedEntries.add(payload.queuedMessageId)
 
-      // Take the entry out before the send: the chip stays interactive while the
-      // prompt is in flight, and sending it by hand would deliver it twice.
-      const dispatchedEntry = useMessageQueueStore
-        .getState()
-        .getQueueForSession(sessionId)
-        .find((message) => message.id === payload.queuedMessageId)
-      useMessageQueueStore.getState().removeFromQueue(sessionId, payload.queuedMessageId)
+      // Keep the entry saved, marked as sending, until the send returns: taking it out first lost the prompt when
+      // the app quit mid-send (C UX-02). A sending entry offers no manual send and is not folded into a composer
+      // send, so it cannot be delivered twice from here.
+      useMessageQueueStore.getState().setDelivery(sessionId, payload.queuedMessageId, "sending")
 
+      let sent = false
       try {
         await sendQueuedAutoSendPayload(
           sessionId,
@@ -443,6 +463,7 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
           },
           dispatchMessageId,
         )
+        sent = true
       } catch (error) {
         console.warn("[queue] queued auto-send failed:", error)
         // The entry is restored below and waits for a manual retry from the
@@ -451,29 +472,24 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
         toast.error(queuedAutoSendFailureMessage(error, useI18nStore.getState().dictionary), {
           id: "queued-auto-send-failed",
         })
-        // Let this or another window try again.
+        // Let this or another window try again. The in-flight mark goes first, so the chip that re-renders on the
+        // store change below already reads the entry as queued.
+        inFlightQueuedEntries.delete(payload.queuedMessageId)
         const onFailure = decideQueuedDispatchOnFailure({
-          queueHasEntry: dispatchedEntry
-            ? useMessageQueueStore
-                .getState()
-                .getQueueForSession(sessionId)
-                .some((message) => message.id === dispatchedEntry.id)
-            : false,
+          queueHasEntry: useMessageQueueStore
+            .getState()
+            .getQueueForSession(sessionId)
+            .some((message) => message.id === payload.queuedMessageId),
         })
         if (onFailure.releaseClaim) releaseQueuedDispatchClaim(payload.queuedMessageId)
-        if (dispatchedEntry && onFailure.restoreEntry) {
-          // Restore the message so a failed send does not lose it.
-          useMessageQueueStore.setState((state) => {
-            const queue = state.queuedMessages[sessionId] ?? []
-            if (queue.some((message) => message.id === dispatchedEntry.id)) return state
-            return {
-              queuedMessages: { ...state.queuedMessages, [sessionId]: [dispatchedEntry, ...queue] },
-            }
-          })
+        if (onFailure.returnToQueue) {
+          useMessageQueueStore.getState().setDelivery(sessionId, payload.queuedMessageId, undefined)
         }
       } finally {
+        inFlightQueuedEntries.delete(payload.queuedMessageId)
         inFlightSessionsRef.current.delete(sessionId)
       }
+      if (sent) useMessageQueueStore.getState().removeFromQueue(sessionId, payload.queuedMessageId)
     }
 
     const statusRecord = sessionStatusRecord ?? {}

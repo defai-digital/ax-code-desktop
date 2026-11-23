@@ -49,6 +49,10 @@ const notifyWithTauri = async (payload?: NotificationPayload): Promise<boolean> 
         title: payload?.title,
         body: payload?.body,
         tag: payload?.tag,
+        // The main process opens this session when the notification is clicked; without it a click only focused the
+        // window, even for a session in a project not on screen.
+        ...(payload?.sessionId ? { sessionId: payload.sessionId } : {}),
+        ...(payload?.directory ? { directory: payload.directory } : {}),
       },
     })
     if (typeof result === "boolean") return result

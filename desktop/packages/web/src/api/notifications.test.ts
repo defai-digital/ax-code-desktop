@@ -36,6 +36,20 @@ describe("createWebNotificationsAPI", () => {
     })
   })
 
+  it("passes the session a click opens to the desktop notification", async () => {
+    const invoke = vi.fn(async () => ({ success: true }))
+    setWindowWithInvoke(invoke)
+
+    await createWebNotificationsAPI().notifyAgentCompletion({
+      title: "Goal needs you",
+      sessionId: "ses_1",
+      directory: "/repo",
+    })
+    expect(invoke).toHaveBeenCalledWith("desktop_notify", {
+      payload: { title: "Goal needs you", body: undefined, tag: undefined, sessionId: "ses_1", directory: "/repo" },
+    })
+  })
+
   it("falls back to the web notification API when desktop reports failure", async () => {
     const invoke = vi.fn(async () => ({ success: false, reason: "unsupported" }))
     setWindowWithInvoke(invoke)

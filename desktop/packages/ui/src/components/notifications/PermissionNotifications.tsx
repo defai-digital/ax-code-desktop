@@ -62,7 +62,7 @@ function SessionPermissionWatcher({
       // the debounce window.
       if (isViewingSession(sessionId)) return
       notifiedRef.current = true
-      const payload: NotificationPayload & { sessionId?: string; directory?: string } = {
+      const payload: NotificationPayload = {
         title: t("notifications.permission.title"),
         body: sessionTitle
           ? t("notifications.permission.bodyWithTitle", { title: sessionTitle })

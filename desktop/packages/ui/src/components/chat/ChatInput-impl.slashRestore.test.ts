@@ -67,6 +67,6 @@ describe("chat slash commands keep the composer's own state", () => {
     expect(source.slice(mergeAt, mergeAt + 200)).toContain("if (consumesQueue) {")
     expect(source).toContain("const slashCommand = composerSlashCommand")
     // The queue is only cleared for a submit that consumed it.
-    expect(source).toContain("if (consumesQueue) {\n      if (currentSessionId && queuedMessageId)")
+    expect(source).toContain("if (consumesQueue) {\n      if (currentSessionId && manualQueuedEntryId)")
   })
 })

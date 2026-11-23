@@ -21,6 +21,13 @@ export interface QueuedMessage {
    */
   messageId?: string
   /**
+   * "sending" from the moment the auto-sender hands the entry to the runtime until that send returns. The entry stays
+   * saved meanwhile, so quitting mid-send cannot lose the prompt (C UX-02). An entry still marked sending that this
+   * window is not sending is unconfirmed: the runtime may already have it, so it is never sent again by itself or
+   * folded into a composer send, and it clears once a message with its `messageId` is loaded. Absent means queued.
+   */
+  delivery?: "sending"
+  /**
    * Send config captured at queue time — used as-is when auto-sending. The model is absent when
    * none was selected yet (the catalog was still loading): the send then uses the session's own,
    * and the entry still keeps the work mode it was queued in.
@@ -45,6 +52,8 @@ interface MessageQueueActions {
   addToQueue: (sessionId: string, message: Omit<QueuedMessage, "id" | "createdAt">) => boolean
   /** Record the retry id minted for an entry at its first dispatch attempt. */
   assignMessageId: (sessionId: string, queuedMessageId: string, messageId: string) => void
+  /** Mark an entry as being sent, or return it to the queue. */
+  setDelivery: (sessionId: string, queuedMessageId: string, delivery: "sending" | undefined) => void
   removeFromQueue: (sessionId: string, messageId: string) => void
   popToInput: (sessionId: string, messageId: string) => QueuedMessage | null
   clearQueue: (sessionId: string) => void
@@ -103,7 +112,12 @@ const sanitizePersistedQueues = (value: unknown): Record<string, QueuedMessage[]
             typeof (entry as QueuedMessage).createdAt === "number",
         ),
       )
-      .map((entry) => {
+      .map((stored) => {
+        // Only a sending mark with the retry id it was sent under is kept: without that id the entry could never be
+        // matched to a delivered message, and an unknown value is not a state the chip can show.
+        const { delivery, ...rest } = stored
+        const entry: QueuedMessage =
+          delivery === "sending" && typeof stored.messageId === "string" ? { ...rest, delivery } : rest
         if (entry.attachments === undefined) return entry
         // A chip is removed before Edit spreads its attachments into the composer. An invalid
         // list or entry must not throw after that removal and lose the queued prompt.
@@ -192,6 +206,9 @@ export const releaseQueuedDispatchClaim = (messageId: string): void => {
   }
 }
 
+/** Entries a send may take: an entry being sent, or whose send is unconfirmed, is not offered again. */
+export const isQueuedMessageSendable = (message: QueuedMessage): boolean => message.delivery !== "sending"
+
 export const useMessageQueueStore = create<MessageQueueStore>()(
   devtools(
     persist(
@@ -235,6 +252,21 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
             }
             const nextQueue = currentQueue.slice()
             nextQueue[index] = { ...nextQueue[index], messageId }
+            return { queuedMessages: { ...state.queuedMessages, [sessionId]: nextQueue } }
+          })
+        },
+
+        setDelivery: (sessionId, queuedMessageId, delivery) => {
+          set((state) => {
+            const currentQueue = state.queuedMessages[sessionId] ?? []
+            const index = currentQueue.findIndex((message) => message.id === queuedMessageId)
+            if (index === -1 || currentQueue[index].delivery === delivery) {
+              return state
+            }
+            const { delivery: _previous, ...rest } = currentQueue[index]
+            void _previous
+            const nextQueue = currentQueue.slice()
+            nextQueue[index] = delivery ? { ...rest, delivery } : rest
             return { queuedMessages: { ...state.queuedMessages, [sessionId]: nextQueue } }
           })
         },

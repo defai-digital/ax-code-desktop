@@ -1,5 +1,6 @@
 import React from "react"
 
+import { toast } from "@/components/ui"
 import { getRegisteredRuntimeAPIs } from "@/contexts/runtimeAPIRegistry"
 import { useConnectionStore, selectIsConnected } from "@/lib/event-stream/connection-state"
 import type { NotificationPayload } from "@/lib/api/types"
@@ -10,7 +11,9 @@ import {
   reduceRunTransitions,
   type PendingRunTransition,
   type RunTransition,
+  type RunTransitionKind,
 } from "@/lib/supervision/runTransitions"
+import { openSupervisedSession } from "@/lib/supervision/openSession"
 import { useNotificationStore } from "@/stores/useNotificationStore"
 import { useUIStore } from "@/stores/useUIStore"
 import { useSupervisionRows, type SupervisionRow } from "@/hooks/useSupervisionRows"
@@ -21,7 +24,15 @@ const isAppFocused = (): boolean => {
   return document.visibilityState === "visible" && document.hasFocus()
 }
 
-const publishRunTransition = (
+type I18nKey = Parameters<ReturnType<typeof useI18n>["t"]>[0]
+
+const ANNOUNCEMENT_COPY: Record<RunTransitionKind, { title: I18nKey; body: I18nKey }> = {
+  finished: { title: "supervision.notify.finished.title", body: "supervision.notify.finished.body" },
+  failed: { title: "supervision.notify.failed.title", body: "supervision.notify.failed.body" },
+  goal: { title: "supervision.state.goal", body: "supervision.notify.goal.body" },
+}
+
+export const publishRunTransition = (
   transition: RunTransition,
   rows: readonly SupervisionRow[],
   t: ReturnType<typeof useI18n>["t"],
@@ -36,6 +47,7 @@ const publishRunTransition = (
     settings: {
       notifyOnCompletion: settings.notifyOnCompletion,
       notifyOnError: settings.notifyOnError,
+      notifyOnQuestion: settings.notifyOnQuestion,
       nativeNotificationsEnabled: settings.nativeNotificationsEnabled,
       notificationMode: settings.notificationMode,
     },
@@ -44,25 +56,33 @@ const publishRunTransition = (
 
   const row = rows.find((candidate) => candidate.sessionId === transition.sessionId)
   const titleText = row?.title?.trim() || transition.sessionId
-  const title = t(
-    transition.kind === "finished" ? "supervision.notify.finished.title" : "supervision.notify.failed.title",
-  )
-  const body = t(
-    transition.kind === "finished" ? "supervision.notify.finished.body" : "supervision.notify.failed.body",
-    { title: titleText },
-  )
+  const title = t(ANNOUNCEMENT_COPY[transition.kind].title)
+  const body = t(ANNOUNCEMENT_COPY[transition.kind].body, { title: titleText })
+  const target = {
+    sessionId: transition.sessionId,
+    ...(row?.projectId ? { projectId: row.projectId } : {}),
+    ...(row?.directory ? { directory: row.directory } : {}),
+  }
 
-  if (decision.inApp) {
+  if (decision.inApp && transition.kind === "goal") {
+    // The bell lists follow-ups only. A blocked goal waits in Needs you, so it is announced once and not filed there.
+    toast.warning(title, {
+      id: `run-goal:${transition.sessionId}`,
+      description: body,
+      action: { label: t("supervision.request.open"), onClick: () => openSupervisedSession(target) },
+    })
+  } else if (decision.inApp) {
     useNotificationStore.getState().addNotification({
       type: "session",
       title,
       message: body,
-      sessionId: transition.sessionId,
+      ...target,
+      ...(row?.projectLabel ? { projectLabel: row.projectLabel } : {}),
     })
   }
 
   if (decision.native) {
-    const payload: NotificationPayload & { sessionId?: string; directory?: string } = {
+    const payload: NotificationPayload = {
       title,
       body,
       tag: `run-${transition.kind}:${transition.sessionId}`,

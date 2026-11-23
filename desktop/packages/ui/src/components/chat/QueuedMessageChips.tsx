@@ -4,19 +4,30 @@ import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useInputStore } from "@/sync/input-store"
 import { useI18n } from "@/lib/i18n"
 import { useSessionHasError } from "@/sync/notification-store"
+import { useSessionMessages } from "@/sync/sync-context"
+import { isQueuedEntryInFlight } from "@/hooks/useQueuedMessageAutoSend"
 import { Icon } from "@/components/icon/Icon"
 import { Button } from "@/components/ui/button"
 import { truncateToCodeUnits } from "@/lib/textTruncate"
+
+/** Queued; being sent by this window; or marked sending with no send here to confirm it (another window, or a quit). */
+type QueuedChipDelivery = "queued" | "sending" | "unconfirmed"
+
+const chipDelivery = (message: QueuedMessage): QueuedChipDelivery => {
+  if (message.delivery !== "sending") return "queued"
+  return isQueuedEntryInFlight(message.id) ? "sending" : "unconfirmed"
+}
 
 interface QueuedMessageChipProps {
   message: QueuedMessage
   sessionId: string
   held: boolean
+  delivery: QueuedChipDelivery
   onEdit: (message: QueuedMessage) => void
   onSend: (message: QueuedMessage) => void
 }
 
-const QueuedMessageChip = memo(({ message, sessionId, held, onEdit, onSend }: QueuedMessageChipProps) => {
+const QueuedMessageChip = memo(({ message, sessionId, held, delivery, onEdit, onSend }: QueuedMessageChipProps) => {
   const { t } = useI18n()
   const removeFromQueue = useMessageQueueStore((state) => state.removeFromQueue)
 
@@ -40,28 +51,45 @@ const QueuedMessageChip = memo(({ message, sessionId, held, onEdit, onSend }: Qu
             </span>
           )}
         </span>
-        {held && (
+        {delivery === "sending" && (
+          <span className="typography-ui-label text-muted-foreground block mt-0.5">
+            {t("chat.queuedMessage.sending")}
+          </span>
+        )}
+        {delivery === "unconfirmed" && (
+          <span className="typography-ui-label text-[var(--status-warning)] block mt-0.5">
+            {t("chat.queuedMessage.unconfirmed")}
+          </span>
+        )}
+        {held && delivery === "queued" && (
           <span className="typography-ui-label text-[var(--status-error)] block mt-0.5">
             {t("chat.queuedMessage.held")}
           </span>
         )}
       </div>
-      <Button type="button" variant="secondary" size="xs" onClick={() => onEdit(message)}>
-        <Icon name="edit" className="h-3 w-3" aria-hidden="true" />
-        {t("chat.queuedMessage.edit")}
-      </Button>
-      <Button type="button" variant="secondary" size="xs" onClick={() => onSend(message)}>
-        <Icon name="send-plane" className="h-3 w-3" aria-hidden="true" />
-        {t("chat.queuedMessage.send")}
-      </Button>
-      <button
-        type="button"
-        onClick={() => removeFromQueue(sessionId, message.id)}
-        className="flex items-center justify-center h-6 w-6 flex-shrink-0 hover:bg-[var(--interactive-hover)] rounded-full transition-colors"
-        aria-label={t("chat.queuedMessage.removeAria")}
-      >
-        <Icon name="close" className="h-4 w-4 text-muted-foreground" />
-      </button>
+      {/* While this window sends the entry, editing or sending it again could deliver it twice. */}
+      {delivery === "sending" ? null : (
+        <>
+          <Button type="button" variant="secondary" size="xs" onClick={() => onEdit(message)}>
+            <Icon name="edit" className="h-3 w-3" aria-hidden="true" />
+            {t("chat.queuedMessage.edit")}
+          </Button>
+          <Button type="button" variant="secondary" size="xs" onClick={() => onSend(message)}>
+            <Icon name="send-plane" className="h-3 w-3" aria-hidden="true" />
+            {delivery === "unconfirmed" ? t("chat.queuedMessage.sendAgain") : t("chat.queuedMessage.send")}
+          </Button>
+        </>
+      )}
+      {delivery === "sending" ? null : (
+        <button
+          type="button"
+          onClick={() => removeFromQueue(sessionId, message.id)}
+          className="flex items-center justify-center h-6 w-6 flex-shrink-0 hover:bg-[var(--interactive-hover)] rounded-full transition-colors"
+          aria-label={t("chat.queuedMessage.removeAria")}
+        >
+          <Icon name="close" className="h-4 w-4 text-muted-foreground" />
+        </button>
+      )}
     </div>
   )
 })
@@ -89,6 +117,22 @@ export const QueuedMessageChips = memo(({ onEditMessage, onSendMessage }: Queued
   )
   const popToInput = useMessageQueueStore((state) => state.popToInput)
   const hasError = useSessionHasError(currentSessionId ?? "")
+  const sessionMessages = useSessionMessages(currentSessionId ?? "")
+
+  // An unconfirmed entry was sent under its retry id, which the runtime keeps as the user message id. Once that
+  // message is loaded the entry was delivered and is dropped. An entry this window is still sending is left alone:
+  // its optimistic message carries the same id before the runtime has accepted it.
+  React.useEffect(() => {
+    if (!currentSessionId) return
+    const unconfirmed = queuedMessages.filter(
+      (message) => message.messageId && chipDelivery(message) === "unconfirmed",
+    )
+    if (unconfirmed.length === 0) return
+    const loaded = new Set(sessionMessages.map((message) => message.id))
+    for (const message of unconfirmed) {
+      if (loaded.has(message.messageId!)) useMessageQueueStore.getState().removeFromQueue(currentSessionId, message.id)
+    }
+  }, [currentSessionId, queuedMessages, sessionMessages])
 
   const handleEdit = React.useCallback(
     (message: QueuedMessage) => {
@@ -144,6 +188,7 @@ export const QueuedMessageChips = memo(({ onEditMessage, onSendMessage }: Queued
               message={message}
               sessionId={currentSessionId}
               held={held}
+              delivery={chipDelivery(message)}
               onEdit={handleEdit}
               onSend={handleSend}
             />

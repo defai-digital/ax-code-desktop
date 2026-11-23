@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import {
   MESSAGE_QUEUE_MAX_PER_SESSION,
   claimQueuedDispatch,
+  isQueuedMessageSendable,
   releaseQueuedDispatchClaim,
   useMessageQueueStore,
 } from "./messageQueueStore"
@@ -179,6 +180,45 @@ describe("messageQueueStore", () => {
       ses_good: [{ id: "queued-1", content: "hi", createdAt: 1 }],
       ses_mixed: [{ id: "queued-2", content: "ok", createdAt: 2 }],
     })
+  })
+
+  it("restores an entry still marked sending only with the id it was sent under", async () => {
+    window.localStorage.setItem(
+      "message-queue-store",
+      JSON.stringify({
+        state: {
+          queuedMessages: {
+            ses_a: [
+              { id: "q1", content: "sent", createdAt: 1, messageId: "msg_1", delivery: "sending" },
+              // No id to match a delivered message against: it can only be shown as queued.
+              { id: "q2", content: "no id", createdAt: 2, delivery: "sending" },
+              { id: "q3", content: "odd", createdAt: 3, messageId: "msg_3", delivery: "delivered" },
+            ],
+          },
+        },
+        version: 0,
+      }),
+    )
+    await useMessageQueueStore.persist.rehydrate()
+
+    expect(useMessageQueueStore.getState().getQueueForSession("ses_a")).toEqual([
+      { id: "q1", content: "sent", createdAt: 1, messageId: "msg_1", delivery: "sending" },
+      { id: "q2", content: "no id", createdAt: 2 },
+      { id: "q3", content: "odd", createdAt: 3, messageId: "msg_3" },
+    ])
+  })
+
+  it("marks an entry sending and returns it to the queue", () => {
+    useMessageQueueStore.setState({ queuedMessages: { ses_a: [{ id: "q1", content: "hi", createdAt: 1 }] } })
+    const entry = () => useMessageQueueStore.getState().getQueueForSession("ses_a")[0]!
+
+    useMessageQueueStore.getState().setDelivery("ses_a", "q1", "sending")
+    expect(entry().delivery).toBe("sending")
+    expect(isQueuedMessageSendable(entry())).toBe(false)
+
+    useMessageQueueStore.getState().setDelivery("ses_a", "q1", undefined)
+    expect(entry()).toEqual({ id: "q1", content: "hi", createdAt: 1 })
+    expect(isQueuedMessageSendable(entry())).toBe(true)
   })
 
   it("keeps queue actions callable when persisted data contains action names", async () => {
