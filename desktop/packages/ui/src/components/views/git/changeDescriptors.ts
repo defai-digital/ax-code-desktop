@@ -1,7 +1,7 @@
 import type { GitStatus } from "@/lib/api/types"
 import type { I18nKey } from "@/lib/i18n/store"
 
-type GitChangeDescriptor = {
+export type GitChangeDescriptor = {
   code: string
   color: string
   descriptionKey: I18nKey

@@ -249,6 +249,12 @@ export const ReviewFileRail = React.memo<ReviewFileRailProps>(
           focusTreeStop(motion.key)
           return
         }
+        if (motion.type === "viewed") {
+          const row = signed.byPath.get(motion.path)
+          if (row) toggleViewed(directory, scope, row.file.path, row.signature)
+          focusTreeStop(motion.key)
+          return
+        }
         if (motion.type === "expand") {
           setReviewDirectoryCollapsed(directory, scope, motion.directoryId, false)
           focusTreeStop(motion.key)
@@ -264,7 +270,7 @@ export const ReviewFileRail = React.memo<ReviewFileRailProps>(
           focusTreeStop(motion.key)
         }
       },
-      [directory, focusTreeStop, onSelectFile, scope],
+      [directory, focusTreeStop, onSelectFile, scope, signed, toggleViewed],
     )
 
     const commitWidth = React.useCallback((next: number) => {
@@ -335,6 +341,15 @@ export const ReviewFileRail = React.memo<ReviewFileRailProps>(
       const nearest = target.closest("[role='treeitem']")
       if (nearest && nearest !== event.currentTarget) return
       if (event.key === "Enter" && target.closest("button, a")) return
+      if (event.key === " ") {
+        // Space belongs to the row itself: from a control inside it, the control's own activation runs instead.
+        if (target !== event.currentTarget) return
+        // A held key repeats keydown; marking flips once per press, not once per repeat.
+        if (event.repeat) {
+          event.preventDefault()
+          return
+        }
+      }
       const motion = reviewTreeKeyMotion(stops, stopKey, event.key, filtering)
       if (
         motion.type === "ignore" &&

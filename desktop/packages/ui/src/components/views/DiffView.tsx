@@ -47,6 +47,7 @@ import { buildInlineCommentSessionKey } from "@/stores/useInlineCommentDraftStor
 import { useDeviceInfo } from "@/lib/device"
 import { useElementWidth } from "@/hooks/useElementWidth"
 import { FileTypeIcon } from "@/components/icons/FileTypeIcon"
+import { DiffFileHeader } from "./DiffFileHeader"
 import { Icon } from "@/components/icon/Icon"
 import { getContextFileOpenFailureMessage, validateContextFileOpen } from "@/lib/contextFileOpenGuard"
 import { sessionEvents } from "@/lib/sessionEvents"
@@ -830,115 +831,38 @@ const MultiFileDiffEntry = React.memo<MultiFileDiffEntryProps>(
     return (
       <div ref={setSectionRef} className="scroll-mt-4">
         <div className="sticky top-0 z-10 bg-background">
-          <button
-            type="button"
-            onClick={handleToggle}
-            className={cn(
-              "group/header relative flex w-full items-center gap-2 px-3 py-1.5 rounded-t-xl border border-border/60 overflow-hidden",
-              "bg-background",
-              isExpanded ? "rounded-b-none" : "rounded-b-xl",
-              "text-muted-foreground hover:text-foreground",
-              isSelected ? "ring-1 ring-inset ring-[var(--interactive-selection)]" : null,
-            )}
-          >
-            <div className="absolute inset-0 pointer-events-none group-hover/header:bg-interactive-hover" />
-            <div className="relative flex min-w-0 flex-1 items-center gap-2">
-              <span className="flex size-5 items-center justify-center opacity-70 group-hover/header:opacity-100">
-                {isExpanded ? (
-                  <Icon name="arrow-down-s" className="size-4" />
-                ) : (
-                  <Icon name="arrow-right-s" className="size-4" />
-                )}
-              </span>
-              <span
-                className="typography-micro font-semibold leading-none w-4 text-center uppercase"
-                style={{ color: descriptor.color }}
-                title={t(descriptor.descriptionKey)}
-                aria-label={t(descriptor.descriptionKey)}
-              >
-                {descriptor.code}
-              </span>
-              <span className="min-w-0 flex-1 overflow-hidden typography-ui-label" title={file.path} dir="ltr">
-                <span className="flex min-w-0 items-center gap-2">
-                  <FileTypeIcon filePath={file.path} className="h-3.5 w-3.5 flex-shrink-0 align-middle" />
-                  {(() => {
-                    const lastSlash = file.path.lastIndexOf("/")
-                    if (lastSlash === -1) {
-                      return (
-                        <span
-                          className="block min-w-0 truncate typography-ui-label text-foreground"
-                          style={{ direction: "rtl", textAlign: "left", unicodeBidi: "plaintext" }}
-                        >
-                          {file.path}
-                        </span>
-                      )
-                    }
-
-                    const dir = file.path.slice(0, lastSlash)
-                    const name = file.path.slice(lastSlash + 1)
-
-                    return (
-                      <span className="flex min-w-0 items-baseline overflow-hidden">
-                        <span
-                          className="min-w-0 truncate typography-ui-label text-muted-foreground"
-                          style={{ direction: "rtl", textAlign: "left", unicodeBidi: "plaintext" }}
-                        >
-                          {dir}
-                        </span>
-                        <span className="flex-shrink-0 typography-ui-label">
-                          <span className="text-muted-foreground">/</span>
-                          <span className="text-foreground">{name}</span>
-                        </span>
-                      </span>
-                    )
-                  })()}
-                </span>
-              </span>
-            </div>
-            <div className="relative flex items-center gap-2">
-              {formatDiffTotals(file.insertions, file.deletions)}
-              {showOpenInEditorAction && onOpenInEditor ? (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-5 w-5 p-0 opacity-70 hover:opacity-100"
-                  title={t("diffView.actions.openFileInEditorAtChange")}
-                  onClick={(event) => {
-                    event.stopPropagation()
-                    onOpenInEditor(file.path, diffData)
-                  }}
-                  disabled={isOpeningInEditor}
-                >
-                  {isOpeningInEditor ? (
-                    <Icon name="loader-4" className="size-3.5 animate-spin" />
-                  ) : (
-                    <Icon name="edit" className="size-3.5" />
-                  )}
-                </Button>
-              ) : null}
-              <DiffViewToggle
-                mode={renderSideBySide ? "side-by-side" : "unified"}
-                onModeChange={(mode: DiffViewMode) => {
-                  const nextLayout: "inline" | "side-by-side" = mode === "side-by-side" ? "side-by-side" : "inline"
-                  setDiffFileLayout(directory, file.path, nextLayout)
-                }}
-                className="opacity-70"
-              />
-            </div>
-          </button>
+          <DiffFileHeader
+            path={file.path}
+            descriptor={descriptor}
+            totals={formatDiffTotals(file.insertions, file.deletions)}
+            isExpanded={isExpanded}
+            isSelected={isSelected}
+            onToggle={handleToggle}
+            onOpenInEditor={
+              showOpenInEditorAction && onOpenInEditor ? () => onOpenInEditor(file.path, diffData) : undefined
+            }
+            isOpeningInEditor={isOpeningInEditor}
+            layoutMode={renderSideBySide ? "side-by-side" : "unified"}
+            onLayoutChange={(mode: DiffViewMode) => {
+              const nextLayout: "inline" | "side-by-side" = mode === "side-by-side" ? "side-by-side" : "inline"
+              setDiffFileLayout(directory, file.path, nextLayout)
+            }}
+          />
         </div>
         {isExpanded && (
           <div className="relative border border-t-0 border-border/60 bg-background rounded-b-xl overflow-hidden">
             {diffLoadError ? (
               <div className="flex flex-col items-center gap-2 px-4 py-8 typography-ui-label text-muted-foreground">
-                <div className="typography-ui-label font-semibold text-foreground">Failed to load diff</div>
+                <div className="typography-ui-label font-semibold text-foreground">
+                  {t("diffView.state.failedToLoadDiff")}
+                </div>
                 <div className="typography-meta text-muted-foreground max-w-[32rem] text-center">{diffLoadError}</div>
                 <button
                   type="button"
                   className="typography-ui-label text-primary hover:underline"
                   onClick={() => setDiffRetryNonce((nonce) => nonce + 1)}
                 >
-                  Retry
+                  {t("diffView.actions.retry")}
                 </button>
               </div>
             ) : null}
@@ -953,17 +877,17 @@ const MultiFileDiffEntry = React.memo<MultiFileDiffEntryProps>(
                   modified={diffData.isBinary || isImageFile(file.path) ? null : diffData.modified}
                 />
                 <div className="typography-ui-label font-semibold text-foreground">
-                  Large diff ({file.insertions + file.deletions} changed lines)
+                  {t("diffView.state.largeDiffTitle", { count: file.insertions + file.deletions })}
                 </div>
                 <div className="typography-meta text-muted-foreground">
-                  Rendering may be slow. You can still view the diff by clicking below.
+                  {t("diffView.state.largeDiffHint")}
                 </div>
                 <button
                   type="button"
                   className="typography-ui-label text-primary hover:underline"
                   onClick={() => setForceRenderLarge(true)}
                 >
-                  Render anyway
+                  {t("diffView.actions.renderAnyway")}
                 </button>
               </div>
             ) : null}
