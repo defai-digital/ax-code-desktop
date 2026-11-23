@@ -1,2 +1,7 @@
-export { useConfigStore, resolveDirectorySendSelection } from "./useConfigStore-impl"
-export type { DirectorySendSelection } from "./useConfigStore-impl"
+export {
+  useConfigStore,
+  directoryProviderCatalog,
+  isActiveConfigDirectory,
+  resolveDirectorySendSelection,
+} from "./useConfigStore-impl"
+export type { ActivationAgent, DirectorySendSelection } from "./useConfigStore-impl"

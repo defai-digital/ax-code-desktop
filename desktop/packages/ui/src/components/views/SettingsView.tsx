@@ -625,7 +625,17 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
     [settingsSlug],
   )
 
+  // Each restore and each unmount or layout change moves this on, so a list load that settles later acts only for the
+  // restore that started it, in the view that started it.
+  const restoreRunRef = React.useRef(0)
+  React.useEffect(
+    () => () => {
+      restoreRunRef.current += 1
+    },
+    [isMobile],
+  )
   const restoreSkillsDetail = React.useCallback((detail: SettingsDetailHistoryEntry) => {
+    const run = ++restoreRunRef.current
     // The deep-link jump compares against this; a stale sibling slug would bounce "Back to Settings" into Skills.
     autoNavSlugRef.current = "skills.installed"
     setSkillsPane(detail.skillsPane)
@@ -643,7 +653,11 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
     void useSkillsStore
       .getState()
       .loadSkills()
+      .catch(() => false)
       .then((loaded) => {
+        if (run !== restoreRunRef.current) {
+          return
+        }
         const skills = useSkillsStore.getState()
         // A new skill exists only as its draft until it is saved.
         if (!loaded || skills.getSkillByName(skillName) || skills.skillDraft?.name === skillName) {

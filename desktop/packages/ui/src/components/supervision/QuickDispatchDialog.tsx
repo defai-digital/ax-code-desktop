@@ -20,12 +20,21 @@ import { generateBranchName } from "@/lib/git/branchNameGenerator"
 import { useI18n } from "@/lib/i18n"
 import { formatShortcutForDisplay, getEffectiveShortcutCombo } from "@/lib/shortcuts"
 import { checkIsGitRepository } from "@/lib/gitApi"
+import { getWorktreeSetupCommands } from "@/lib/openchamberConfig"
 import { waitForWorktreeBootstrap } from "@/lib/worktrees/worktreeBootstrap"
 import { createWorktreeWithDefaults } from "@/lib/worktrees/worktreeCreate"
+import { getRootBranch } from "@/lib/worktrees/worktreeStatus"
 import { quickDispatchSessionLabel } from "@/lib/supervision/quickDispatch"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
 import { cn } from "@/lib/utils"
-import { resolveDirectorySendSelection, useConfigStore, type DirectorySendSelection } from "@/stores/useConfigStore"
+import {
+  directoryProviderCatalog,
+  isActiveConfigDirectory,
+  resolveDirectorySendSelection,
+  useConfigStore,
+  type ActivationAgent,
+  type DirectorySendSelection,
+} from "@/stores/useConfigStore"
 import { useGitStore } from "@/stores/useGitStore"
 import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import { MESSAGE_QUEUE_MAX_PER_SESSION, useMessageQueueStore } from "@/stores/messageQueueStore"
@@ -69,15 +78,28 @@ type QuickDispatchResult =
   | { ok: false; reason: "created"; sessionId: string; label: string; directory: string }
 
 /**
- * The selection the project's new session gets. A project not opened in this run has no provider list yet; loading it
- * for that directory fills its snapshot without switching the composer to it. A worktree shares its repository's
- * configuration, so the project path is the key for both.
+ * Fill in what working out another project's selection needs, without activating it: its provider list when this run
+ * has not loaded it (into that directory's snapshot only), and its own agent list, which decides the default agent and
+ * the model pinned to it. Agents stay null when they cannot be read; the selection then leaves the agent out.
+ */
+const loadProjectSelectionInputs = async (projectPath: string): Promise<readonly ActivationAgent[] | null> => {
+  const config = useConfigStore.getState()
+  if (directoryProviderCatalog(config, projectPath).length === 0) {
+    await config.loadProviders({ directory: projectPath }).catch(() => undefined)
+  }
+  return axCodeClient.listAgents(projectPath).catch(() => null)
+}
+
+/**
+ * The selection the project's new session gets: the composer's own for the active project, otherwise what activating
+ * the project would pick. A worktree shares its repository's configuration, so the project path is the key for both.
  */
 const resolveDispatchSelection = async (projectPath: string): Promise<DirectorySendSelection | null> => {
-  const known = resolveDirectorySendSelection(useConfigStore.getState(), projectPath)
-  if (known) return known
-  await useConfigStore.getState().loadProviders({ directory: projectPath })
-  return resolveDirectorySendSelection(useConfigStore.getState(), projectPath)
+  if (isActiveConfigDirectory(useConfigStore.getState(), projectPath)) {
+    return resolveDirectorySendSelection(useConfigStore.getState(), projectPath)
+  }
+  const agents = await loadProjectSelectionInputs(projectPath)
+  return resolveDirectorySendSelection(useConfigStore.getState(), projectPath, agents)
 }
 
 /**
@@ -112,12 +134,22 @@ const startQuickDispatch = async (input: {
   let directory = input.project.path
   let worktree: Awaited<ReturnType<typeof createWorktreeWithDefaults>> | null = null
   if (input.isolateWorktree) {
+    // The project's setup commands make the worktree usable (dependencies, local files); the bootstrap wait below
+    // waits for them. The branch it was cut from is what Integrate Commits compares against.
+    const [setupCommands, rootBranch] = await Promise.all([
+      getWorktreeSetupCommands(projectRef).catch(() => []),
+      getRootBranch(projectRef.path).catch(() => undefined),
+    ])
     try {
-      worktree = await createWorktreeWithDefaults(projectRef, { preferredName: generateBranchName() })
+      const created = await createWorktreeWithDefaults(projectRef, {
+        preferredName: generateBranchName(),
+        setupCommands,
+      })
+      if (!created?.path) return { ok: false, reason: "worktree-failed" }
+      worktree = { ...created, createdFromBranch: rootBranch || undefined, kind: "standard" }
     } catch {
       return { ok: false, reason: "worktree-failed" }
     }
-    if (!worktree?.path) return { ok: false, reason: "worktree-failed" }
     directory = worktree.path
   }
 
@@ -149,8 +181,9 @@ const startQuickDispatch = async (input: {
       modelID: selection.modelID,
       agent: selection.agent,
       variant: selection.variant,
-      // Admitted above, before the session existed.
-      workModeAdmitted: true,
+      // Checked above before anything existed; checked again here against the same catalog, so a command the catalog
+      // gained meanwhile cannot go out unchecked.
+      workModeProviders: selection.providers,
     })
   } catch {
     return {
@@ -183,6 +216,21 @@ export const QuickDispatchDialog: React.FC = () => {
   const [starting, setStarting] = React.useState(false)
   const startingRef = React.useRef(false)
   const promptRef = React.useRef<HTMLTextAreaElement>(null)
+  // Counts every open and close. A dispatch may only close or navigate for the dialog it was started from: one
+  // dismissed and opened again belongs to the next prompt.
+  const openGenerationRef = React.useRef(0)
+  React.useEffect(() => {
+    openGenerationRef.current += 1
+  }, [open])
+  // "Open the session" stays editable while a dispatch runs; its finish reads the box as it is then.
+  const openAfterRef = React.useRef(openAfter)
+  React.useEffect(() => {
+    openAfterRef.current = openAfter
+  }, [openAfter])
+  const [previewAgents, setPreviewAgents] = React.useState<{
+    path: string
+    agents: readonly ActivationAgent[] | null
+  } | null>(null)
 
   React.useEffect(() => {
     if (!open) return
@@ -252,9 +300,25 @@ export const QuickDispatchDialog: React.FC = () => {
   const [probeAttempt, setProbeAttempt] = React.useState(0)
   const selectedPath = selectedProject?.path ?? null
   // The model this dispatch will use, for any project whose providers are known; a cold project resolves on Start.
-  const dispatchModelId = useConfigStore((state) =>
-    selectedPath ? (resolveDirectorySendSelection(state, selectedPath)?.modelID ?? null) : null,
+  const selectedIsActive = useConfigStore((state) =>
+    selectedPath ? isActiveConfigDirectory(state, selectedPath) : false,
   )
+  const selectedAgents = previewAgents && previewAgents.path === selectedPath ? previewAgents.agents : null
+  // The model this dispatch will use, worked out the way Start works it out.
+  const dispatchModelId = useConfigStore((state) =>
+    selectedPath ? (resolveDirectorySendSelection(state, selectedPath, selectedAgents)?.modelID ?? null) : null,
+  )
+  React.useEffect(() => {
+    // Another project's selection depends on its providers and agents, which this run may not have read yet.
+    if (!open || !selectedPath || selectedIsActive) return
+    let cancelled = false
+    void loadProjectSelectionInputs(selectedPath).then((agents) => {
+      if (!cancelled) setPreviewAgents({ path: selectedPath, agents })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [open, selectedPath, selectedIsActive])
   React.useEffect(() => {
     if (!open || !selectedPath || knownGitRepo !== null) return
     let cancelled = false
@@ -287,6 +351,11 @@ export const QuickDispatchDialog: React.FC = () => {
     // The keyboard shortcut reaches here without the disabled button, so the repository check is enforced again.
     if (!selectedProject || !prompt.trim() || startingRef.current || gitRepoState === null) return
     const project = selectedProject
+    const generation = openGenerationRef.current
+    // Dismissing the dialog while the dispatch ran is leaving it, and reopening it starts another: a late finish then
+    // neither closes the dialog nor takes the view.
+    const stillWaiting = () =>
+      useSupervisionStore.getState().quickDispatchOpen && openGenerationRef.current === generation
     startingRef.current = true
     setStarting(true)
     try {
@@ -296,10 +365,9 @@ export const QuickDispatchDialog: React.FC = () => {
         isolateWorktree: effectiveIsolateWorktree,
       })
       if (result.ok) {
-        // Dismissing the dialog while the dispatch ran is leaving it: a late finish must not take the view.
-        const stillWaiting = useSupervisionStore.getState().quickDispatchOpen
+        if (!stillWaiting()) return
         setQuickDispatchOpen(false)
-        if (openAfter && stillWaiting) {
+        if (openAfterRef.current) {
           openSupervisedSession({ sessionId: result.sessionId, projectId: project.id, directory: result.directory })
         }
         return
@@ -330,7 +398,7 @@ export const QuickDispatchDialog: React.FC = () => {
               },
             },
           })
-          setQuickDispatchOpen(false)
+          if (stillWaiting()) setQuickDispatchOpen(false)
           return
         case "failed":
           toast.error(t("session.githubIssuePicker.toast.startSessionFailed"))
@@ -340,7 +408,7 @@ export const QuickDispatchDialog: React.FC = () => {
       startingRef.current = false
       setStarting(false)
     }
-  }, [effectiveIsolateWorktree, gitRepoState, openAfter, prompt, selectedProject, setQuickDispatchOpen, t])
+  }, [effectiveIsolateWorktree, gitRepoState, prompt, selectedProject, setQuickDispatchOpen, t])
 
   const jumpTo = (item: (typeof recent)[number]) => {
     openSupervisedSession({

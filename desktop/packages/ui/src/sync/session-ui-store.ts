@@ -157,6 +157,7 @@ function workModeRefusal(
   return { message, reason }
 }
 
+/** Refuse a composer send: the message goes to the composer's error line and the error names its reason. */
 function throwWorkModeRefusal(refusal: { message: string; reason: WorkModeBlockedReason } | null): void {
   if (!refusal) return
   useSessionUIStore.setState({ error: refusal.message })
@@ -171,10 +172,14 @@ function throwWorkModeRefusal(refusal: { message: string; reason: WorkModeBlocke
  */
 async function resolveSlashCommand(
   name: string,
+  preloaded?: boolean,
 ): Promise<{ knownCommand: boolean; commandsLoaded: boolean; catalogLoadFailed: boolean }> {
   let storeCommands = useCommandsStore.getState().commands
   let catalogLoadFailed = false
-  if (storeCommands.length === 0) {
+  if (preloaded !== undefined) {
+    // The caller already tried the load outside its directory lock; loading again inside it would wait on itself.
+    catalogLoadFailed = !preloaded && storeCommands.length === 0
+  } else if (storeCommands.length === 0) {
     const loaded = await useCommandsStore.getState().loadCommands()
     storeCommands = useCommandsStore.getState().commands
     // A FAILED load (store still empty after awaiting) must not degrade a real slash command into
@@ -275,7 +280,14 @@ export function routeMessage(params: {
    * opinion here would refuse after the session exists: the one decision stands.
    */
   workModeAdmitted?: boolean
+  /**
+   * The catalog of the directory the send goes to, for the work-mode check of a sender that targets a directory
+   * other than the active one (Quick Dispatch). Defaults to the active directory's.
+   */
+  workModeProviders?: ProviderWithModelList[]
 }): Promise<void> {
+  // Set when the command catalog was loaded before the directory lock was taken; see resolveSlashCommand.
+  let commandCatalogPreload: boolean | undefined
   const run = async (): Promise<void> => {
     if (params.inputMode === "shell") {
       const sdk = axCodeClient.getSdkClient()
@@ -315,8 +327,12 @@ export function routeMessage(params: {
     const forcedCommand = resolved.forcedCommand
     const commandFiles =
       userParts.length > 0 ? [...(params.files ?? []), ...userParts.flatMap((part) => part.files ?? [])] : params.files
+    // Only a sender that did not admit the send itself reaches this refusal. Those (Multi-Run, Quick Dispatch) report
+    // it on their own surface, so it is thrown without touching the composer's error line.
     const refuse = (command: "council" | "arena") => {
-      if (!params.workModeAdmitted) throwWorkModeRefusal(workModeRefusal(command, lead, params.allowUnverifiedToolCalling))
+      if (params.workModeAdmitted) return
+      const refusal = workModeRefusal(command, lead, params.allowUnverifiedToolCalling, params.workModeProviders)
+      if (refusal) throw markWorkModeBlockedError(new Error(refusal.message), refusal.reason)
     }
 
     // The work-mode remap always asks for the runtime's council/arena tool: as the slash command, or
@@ -330,7 +346,10 @@ export function routeMessage(params: {
       const cmdName = forcedCommand?.name ?? head.slice(1)
       const cmdArgs = forcedCommand?.arguments ?? tail.join(" ")
 
-      const { knownCommand, commandsLoaded, catalogLoadFailed } = await resolveSlashCommand(cmdName)
+      const { knownCommand, commandsLoaded, catalogLoadFailed } = await resolveSlashCommand(
+        cmdName,
+        commandCatalogPreload,
+      )
 
       // An explicit `/council` or `/arena` asks for the same tool only when it is sent as that
       // command. One the runtime does not offer falls through below and is sent as plain text, which
@@ -454,7 +473,23 @@ export function routeMessage(params: {
   }
 
   if (params.directory !== undefined) {
-    return axCodeClient.withDirectory(params.directory, run)
+    const directory = params.directory
+    // The command catalog loads under the same directory lock this send takes, so a cold catalog is loaded first:
+    // loading it from inside the lock waited for the lock until it timed out.
+    const mayRouteCommand =
+      params.inputMode !== "shell" &&
+      (params.content.trimStart().startsWith("/") || (params.workMode ?? DEFAULT_WORK_MODE) !== DEFAULT_WORK_MODE)
+    if (!mayRouteCommand || useCommandsStore.getState().commands.length > 0) {
+      return axCodeClient.withDirectory(directory, run)
+    }
+    return useCommandsStore
+      .getState()
+      .loadCommands()
+      .catch(() => false)
+      .then((loaded) => {
+        commandCatalogPreload = loaded
+        return axCodeClient.withDirectory(directory, run)
+      })
   }
 
   return run()

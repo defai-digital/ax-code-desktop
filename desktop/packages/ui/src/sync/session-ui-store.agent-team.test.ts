@@ -2,12 +2,21 @@ import { beforeEach, describe, expect, test, vi } from "vitest"
 
 const sendMessage = vi.fn<(input: Record<string, unknown>) => Promise<void>>(async () => {})
 const sendCommand = vi.fn<(input: Record<string, unknown>) => Promise<void>>(async () => {})
+// Whether a directory-scoped call holds the client's directory lock right now.
+const directoryLock = vi.hoisted(() => ({ held: false }))
 
 vi.mock("@/lib/ax-code/client", () => ({
   axCodeClient: {
     getDirectory: () => "/proj",
     setDirectory: () => {},
-    withDirectory: (_directory: string, run: () => Promise<void>) => run(),
+    withDirectory: async (_directory: string, run: () => Promise<void>) => {
+      directoryLock.held = true
+      try {
+        return await run()
+      } finally {
+        directoryLock.held = false
+      }
+    },
     sendMessage: (input: Record<string, unknown>) => sendMessage(input),
     sendCommand: (input: Record<string, unknown>) => sendCommand(input),
   },
@@ -252,12 +261,18 @@ describe("agent team send routing", () => {
   test("Council work mode is refused on a CLI composer model instead of sending a request it cannot run", async () => {
     useWorkModeStore.getState().setMode("/proj", "council")
 
-    await expect(send("rate this module", { lead: CLI_LEAD })).rejects.toThrow("Council needs a non-CLI model")
+    useSessionUIStore.setState({ error: null })
 
-    // Nothing was sent, and the composer keeps the text: the error is the same one the composer toasts.
+    const refusal = await send("rate this module", { lead: CLI_LEAD }).catch((error: unknown) => error)
+
+    // Nothing was sent. The error names its reason for the sender to report; the composer's error line is the
+    // composer's own (its sends are admitted before they get here), so a background sender leaves it alone.
+    expect(refusal).toBeInstanceOf(Error)
+    expect((refusal as Error).message).toContain("Council needs a non-CLI model")
+    expect(workModeBlockedReasonOfError(refusal)).toBe("cliLead")
     expect(sendMessage).not.toHaveBeenCalled()
     expect(sendCommand).not.toHaveBeenCalled()
-    expect(useSessionUIStore.getState().error).toContain("Council needs a non-CLI model")
+    expect(useSessionUIStore.getState().error).toBeNull()
   })
 
   test("Arena work mode is refused on a CLI composer model too", async () => {
@@ -294,6 +309,58 @@ describe("agent team send routing", () => {
       expect(await workModeSendRefusalMessage({ ...check, providers: withoutTools as never })).toContain(
         "Council needs a model with tool calling",
       )
+    } finally {
+      useConfigStore.setState({ providers: [] } as never)
+    }
+  })
+
+  test("a slash command with a cold catalog loads the catalog before taking the directory lock", async () => {
+    // The catalog load takes the same lock; started from inside it, it waited on itself until it timed out.
+    const heldDuringLoad: boolean[] = []
+    const loadCommands = vi.fn(async () => {
+      heldDuringLoad.push(directoryLock.held)
+      useCommandsStore.setState({ commands: [{ name: "review" }] } as never)
+      return true
+    })
+    useCommandsStore.setState({ commands: [], loadCommands } as never)
+    useWorkModeStore.getState().setMode("/proj", "agent")
+
+    await send("/review the API")
+
+    expect(heldDuringLoad).toEqual([false])
+    expect(sendCommand).toHaveBeenCalledWith(expect.objectContaining({ command: "review", arguments: "the API" }))
+  })
+
+  test("a catalog that failed to load before the lock is not loaded again inside it", async () => {
+    const loadCommands = vi.fn(async () => false)
+    useCommandsStore.setState({ commands: [], loadCommands } as never)
+    useWorkModeStore.getState().setMode("/proj", "agent")
+
+    await send("/review the API")
+
+    expect(loadCommands).toHaveBeenCalledOnce()
+    // A failed load still lets the server judge the command rather than sending it as text.
+    expect(sendCommand).toHaveBeenCalledWith(expect.objectContaining({ command: "review" }))
+  })
+
+  test("a send to another directory is judged against the catalog it names", async () => {
+    useConfigStore.setState({
+      providers: [{ id: "alibaba", models: [{ id: "qwen", capabilities: { toolcall: true } }] }],
+    } as never)
+    useWorkModeStore.getState().setMode("/proj", "council")
+    useCommandsStore.setState({ commands: [{ name: "council" }] } as never)
+    try {
+      const refusal = await routeMessage({
+        workMode: "council",
+        sessionId: "session-1",
+        directory: "/other",
+        content: "rate this module",
+        providerID: "alibaba",
+        modelID: "qwen",
+        workModeProviders: [{ id: "alibaba", models: [{ id: "qwen", capabilities: { toolcall: false } }] }] as never,
+      }).catch((error: unknown) => error)
+      expect(workModeBlockedReasonOfError(refusal)).toBe("noToolCalling")
+      expect(sendCommand).not.toHaveBeenCalled()
     } finally {
       useConfigStore.setState({ providers: [] } as never)
     }
@@ -468,7 +535,7 @@ describe("agent team send routing", () => {
 
     expect(sendCommand).not.toHaveBeenCalled()
     expect(sendMessage).not.toHaveBeenCalled()
-    expect(useSessionUIStore.getState().error).toContain("Council needs a non-CLI model")
+    expect(useSessionUIStore.getState().error).toBeNull()
   })
 
   test("a /council the runtime does not offer is sent as plain text, so a CLI model is not refused", async () => {

@@ -328,6 +328,28 @@ test("a restored detail whose skill a later load no longer lists falls back to t
     expect(detailMarker()).toBeUndefined()
   }))
 
+test("a list load left over from a closed Settings does not decide for the Settings opened again", async () =>
+  withMobileHistory(async () => {
+    await act(async () => navButton("Example skill")!.click())
+    await act(async () => navButton("Commands")!.click())
+    const settle = deferSkillsLoad()
+    await traverse("back")
+    // Closed while that restore's load is still out, then reopened on the same entry: a second restore starts.
+    await act(async () => useUIStore.setState({ isSettingsDialogOpen: false }))
+    await flush()
+    await traverse("back")
+    expect(skillsPane()).toBe("installed")
+
+    useSkillsStore.setState({ skills: [{ name: "beta" }] as never })
+    await settle(true)
+    await flush()
+
+    // The closed view's load settled first; only the open view's restore acted, on its own view and entry.
+    expect(skillsPane()).toBeUndefined()
+    expect(navButton("Example skill")).toBeDefined()
+    expect(detailMarker()).toBeUndefined()
+  }))
+
 test("a restored detail stays when the list failed to load", async () =>
   withMobileHistory(async () => {
     await act(async () => navButton("Example skill")!.click())

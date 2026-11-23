@@ -28,6 +28,16 @@ const live = vi.hoisted(() => ({
   workModeSendRefusalMessage: vi.fn<(input: Record<string, unknown>) => Promise<string | null>>(async () => null),
   waitForWorktreeBootstrap: vi.fn<(directory: string) => Promise<void>>(async () => {}),
   seedSessionAutoAccept: vi.fn<(sessionId: string, parentId: string | null) => void>(),
+  getWorktreeSetupCommands: vi.fn<(project: unknown) => Promise<string[]>>(async () => []),
+  getRootBranch: vi.fn<(directory: string) => Promise<string>>(async () => "main"),
+}))
+vi.mock("@/lib/openchamberConfig", async (original) => ({
+  ...(await original<typeof import("@/lib/openchamberConfig")>()),
+  getWorktreeSetupCommands: (project: unknown) => live.getWorktreeSetupCommands(project),
+}))
+vi.mock("@/lib/worktrees/worktreeStatus", async (original) => ({
+  ...(await original<typeof import("@/lib/worktrees/worktreeStatus")>()),
+  getRootBranch: (directory: string) => live.getRootBranch(directory),
 }))
 vi.mock("@/sync/session-ui-store", async (original) => ({
   ...(await original<typeof import("@/sync/session-ui-store")>()),
@@ -153,15 +163,27 @@ describe("QuickDispatchDialog recent sessions", () => {
       providers: [{ id: "current-provider", models: [{ id: "current-model" }] }],
       directoryScoped: {},
     } as never)
+    const loadProviders = vi.spyOn(useConfigStore.getState(), "loadProviders").mockResolvedValue()
+    vi.spyOn(axCodeClient, "listAgents").mockResolvedValue([])
     await render()
     expect(document.body.textContent).toContain("New session at /repo. Work mode will be Agent.")
     expect(document.body.textContent).toContain("Model: current-model")
-    // Another directory is active and this project's providers are not known yet: nothing to promise.
+    expect(loadProviders).not.toHaveBeenCalled()
+    // Another directory is active and this project's providers are not known yet: nothing to promise until they load.
     await act(async () => {
       useConfigStore.setState({ activeDirectoryKey: "/other" })
     })
     expect(document.body.textContent).not.toContain("Model:")
-    useConfigStore.setState({ providers: [] } as never)
+    expect(loadProviders).toHaveBeenCalledWith({ directory: "/repo" })
+    await act(async () => {
+      useConfigStore.setState({
+        directoryScoped: { "/repo": { providers: [{ id: "cold-provider", models: [{ id: "cold-model" }] }] } },
+      } as never)
+    })
+    expect(document.body.textContent).toContain("Model: cold-model")
+    // The composer stayed on its own directory and selection.
+    expect(useConfigStore.getState()).toMatchObject({ activeDirectoryKey: "/other", currentModelId: "current-model" })
+    useConfigStore.setState({ providers: [], directoryScoped: {} } as never)
   })
 
   test("an empty prompt opens the recent session without sending", async () => {
@@ -283,6 +305,7 @@ describe("QuickDispatchDialog new-session dispatch", () => {
   let createSession: ReturnType<typeof vi.spyOn>
   let activate: ReturnType<typeof vi.spyOn>
   let openDraft: ReturnType<typeof vi.spyOn>
+  let listAgents: ReturnType<typeof vi.spyOn>
   let created = 0
 
   beforeEach(() => {
@@ -305,6 +328,10 @@ describe("QuickDispatchDialog new-session dispatch", () => {
     live.workModeSendRefusalMessage.mockResolvedValue(null)
     live.waitForWorktreeBootstrap.mockReset()
     live.waitForWorktreeBootstrap.mockResolvedValue()
+    live.getWorktreeSetupCommands.mockReset()
+    live.getWorktreeSetupCommands.mockResolvedValue([])
+    live.getRootBranch.mockReset()
+    live.getRootBranch.mockResolvedValue("main")
     useProjectsStore.setState({ projects: [{ id: "project", path: "/repo" }], activeProjectId: "project" })
     useGitStore.setState({ directories: new Map([["/repo", { isGitRepo: true } as never]]) })
     useSupervisionStore.setState({ quickDispatchOpen: true, recentSessionIds: [] })
@@ -325,6 +352,7 @@ describe("QuickDispatchDialog new-session dispatch", () => {
       .mockImplementation(async () => ({ id: `ses_new_${++created}`, title: "" }) as never)
     activate = vi.spyOn(useConfigStore.getState(), "activateDirectory")
     openDraft = vi.spyOn(useSessionUIStore.getState(), "openNewSessionDraft")
+    listAgents = vi.spyOn(axCodeClient, "listAgents").mockResolvedValue([])
     errorToast = vi.spyOn(toast, "error").mockImplementation(() => "toast")
   })
 
@@ -401,9 +429,14 @@ describe("QuickDispatchDialog new-session dispatch", () => {
       modelID: "m1",
       agent: "build",
       variant: undefined,
-      workModeAdmitted: true,
+      // Routing judges the work mode against the same catalog the pre-check used.
+      workModeProviders: CATALOG,
     })
-    expect(useSessionUIStore.getState().getWorktreeMetadata("ses_new_1")?.path).toBe(WORKTREE)
+    expect(useSessionUIStore.getState().getWorktreeMetadata("ses_new_1")).toMatchObject({
+      path: WORKTREE,
+      createdFromBranch: "main",
+      kind: "standard",
+    })
     expect(live.seedSessionAutoAccept).toHaveBeenCalledWith("ses_new_1", null)
     // Opening the session later shows the selection its first prompt used.
     expect(useSelectionStore.getState().getSessionModelSelection("ses_new_1")).toMatchObject({
@@ -414,6 +447,18 @@ describe("QuickDispatchDialog new-session dispatch", () => {
     expect(openSupervisedSession).not.toHaveBeenCalled()
     expect(errorToast).not.toHaveBeenCalled()
     expect(useSupervisionStore.getState().quickDispatchOpen).toBe(false)
+  })
+
+  test("runs the project's worktree setup commands in the new worktree", async () => {
+    live.getWorktreeSetupCommands.mockResolvedValue(["pnpm install", "cp .env.example .env"])
+
+    await dispatch()
+
+    expect(live.createWorktreeWithDefaults).toHaveBeenCalledWith(
+      { id: "project", path: "/repo" },
+      expect.objectContaining({ setupCommands: ["pnpm install", "cp .env.example .env"] }),
+    )
+    expect(live.waitForWorktreeBootstrap).toHaveBeenCalledWith(WORKTREE)
   })
 
   test("runs in the shared directory when isolation is off", async () => {
@@ -443,14 +488,18 @@ describe("QuickDispatchDialog new-session dispatch", () => {
           currentModelId: "m2",
           currentVariant: "high",
           currentAgentName: "plan",
+          // Picked by hand, so activating the project would keep it over every default.
+          selectionSource: "manual",
         },
       },
     } as never)
+    listAgents.mockResolvedValue([{ name: "build", mode: "primary" }, { name: "plan", mode: "primary" }])
     const loadProviders = vi.spyOn(useConfigStore.getState(), "loadProviders")
 
     await dispatch()
 
     expect(loadProviders).not.toHaveBeenCalled()
+    expect(listAgents).toHaveBeenCalledWith("/repo")
     expect(live.workModeSendRefusalMessage).toHaveBeenCalledWith(
       expect.objectContaining({ providerID: "p1", modelID: "m2", providers: CATALOG }),
     )
@@ -458,6 +507,26 @@ describe("QuickDispatchDialog new-session dispatch", () => {
       expect.objectContaining({ providerID: "p1", modelID: "m2", agent: "plan", variant: "high" }),
     )
     expect(useConfigStore.getState()).toMatchObject({ activeDirectoryKey: "/elsewhere", currentModelId: "m1" })
+  })
+
+  test("a project not opened yet gets the default agent and the model pinned to it, as activating it would", async () => {
+    useConfigStore.setState({
+      activeDirectoryKey: "/elsewhere",
+      settingsDefaultAgent: "plan",
+      directoryScoped: { "/repo": { providers: CATALOG } },
+    } as never)
+    listAgents.mockResolvedValue([
+      { name: "build", mode: "primary" },
+      { name: "plan", mode: "primary", model: { providerID: "p1", modelID: "m2" } },
+    ])
+
+    await dispatch()
+
+    expect(live.routeMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ providerID: "p1", modelID: "m2", agent: "plan" }),
+    )
+    expect(useSelectionStore.getState().getSessionAgentSelection("ses_new_1")).toBe("plan")
+    useConfigStore.setState({ settingsDefaultAgent: undefined } as never)
   })
 
   test("loads the providers of a project not opened yet without switching the composer to it", async () => {
@@ -586,7 +655,6 @@ describe("QuickDispatchDialog new-session dispatch", () => {
       projectId: "project",
       directory: WORKTREE,
     })
-    useSessionUIStore.setState({ currentSessionId: "ses_viewing" })
   })
 
   test("a dispatch that finishes after the dialog was dismissed does not take the view", async () => {
@@ -603,6 +671,53 @@ describe("QuickDispatchDialog new-session dispatch", () => {
     expect(live.routeMessage).toHaveBeenCalledOnce()
     expect(openSupervisedSession).not.toHaveBeenCalled()
   })
+
+  test("unchecking Open the session while the dispatch runs is honoured", async () => {
+    let finishSend: () => void = () => {}
+    live.routeMessage.mockImplementation(() => new Promise<void>((resolve) => (finishSend = resolve)))
+    await render()
+    await toggleOpenAfter()
+    await typePrompt("Changed my mind")
+    await clickStart()
+    await toggleOpenAfter()
+
+    await act(async () => finishSend())
+
+    expect(openSupervisedSession).not.toHaveBeenCalled()
+    expect(useSupervisionStore.getState().quickDispatchOpen).toBe(false)
+  })
+
+  test.each(["sent", "send failed"] as const)(
+    "a dispatch that finishes (%s) after the dialog was dismissed and opened again leaves the new dialog alone",
+    async (outcome) => {
+      let finishSend: () => void = () => {}
+      live.routeMessage.mockImplementation(
+        () =>
+          new Promise<void>((resolve, reject) => {
+            finishSend = outcome === "sent" ? resolve : () => reject(new Error("send failed"))
+          }),
+      )
+      await render()
+      await toggleOpenAfter()
+      await typePrompt("First task")
+      await clickStart()
+      await act(async () => {
+        useSupervisionStore.setState({ quickDispatchOpen: false })
+      })
+      await act(async () => {
+        useSupervisionStore.setState({ quickDispatchOpen: true })
+      })
+      await typePrompt("Second task, still typing")
+
+      await act(async () => finishSend())
+
+      expect(useSupervisionStore.getState().quickDispatchOpen).toBe(true)
+      expect(document.querySelector("textarea")?.value).toBe("Second task, still typing")
+      expect(openSupervisedSession).not.toHaveBeenCalled()
+      // A failed send still says so, with its link to the session it made.
+      expect(errorToast).toHaveBeenCalledTimes(outcome === "sent" ? 0 : 1)
+    },
+  )
 
   test("probes a project with no loaded Git state instead of dispatching into its shared tree", async () => {
     useGitStore.setState({ directories: new Map(), repoSummaries: new Map() })

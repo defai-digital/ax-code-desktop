@@ -1714,13 +1714,17 @@ class AxCodeService {
     return result
   }
 
-  async getProviders(): Promise<{
+  /**
+   * The provider catalog of `directory`, or of the current directory when none is given. An explicit directory goes
+   * through its scoped client, so a background read never moves the shared current directory.
+   */
+  async getProviders(directory?: string | null): Promise<{
     providers: Provider[]
     default: { [key: string]: string }
   }> {
-    const response = await this.client.config.providers(
-      this.currentDirectory ? { directory: this.currentDirectory } : undefined,
-    )
+    const target = directory || this.currentDirectory
+    const client = directory ? this.getScopedApiClient(directory) : this.client
+    const response = await client.config.providers(target ? { directory: target } : undefined)
     if (!response.data) {
       const errorDetail = response.error ? `: ${JSON.stringify(response.error)}` : ""
       throw new Error(`Failed to get providers${errorDetail}`)
@@ -1753,10 +1757,10 @@ class AxCodeService {
    * useAgentsStore) can observe failure and retry; silently returning an
    * empty list would defeat retries and clear the cached agent list.
    */
-  async listAgents(): Promise<Agent[]> {
-    const response = await this.client.app.agents(
-      this.currentDirectory ? { directory: this.currentDirectory } : undefined,
-    )
+  async listAgents(directory?: string | null): Promise<Agent[]> {
+    const target = directory || this.currentDirectory
+    const client = directory ? this.getScopedApiClient(directory) : this.client
+    const response = await client.app.agents(target ? { directory: target } : undefined)
     if (response.error) {
       throw new Error(`app.agents failed: ${formatSdkError(response.error)}`)
     }

@@ -6,7 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Fixed
 
-- Start Quick Dispatch sessions in the background without switching the current view or touching the composer draft. Check the model and work mode against the target project before creating a worktree, keep the worktree when the session request fails, and open the session only when asked and the dialog was not dismissed.
+- Start Quick Dispatch sessions in the background without switching the current view or touching the composer draft. Pick the agent and model the target project would get when opened, check the work mode against that project before creating a worktree, run the project's worktree setup commands, keep the worktree when the session request fails, and open the session only when asked and the same dialog is still open.
+- Load the command catalog before a slash-command send takes the directory lock, instead of waiting on that lock until it times out, and read another project's providers without moving the shared directory.
 - Stop a new-session send whose draft was retargeted while it waited for the command catalog, and say that the target changed.
 - Return mobile Settings history to the Skills pane and skill a detail showed, including after the catalog's Back button, a rename, or reopening Settings. Show the Skills list when a restored skill is gone once the list loads, and open a page reached by Back at its first stage.
 

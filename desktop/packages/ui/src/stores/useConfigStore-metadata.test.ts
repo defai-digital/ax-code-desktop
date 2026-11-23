@@ -89,3 +89,40 @@ describe("config model metadata request ownership", () => {
     expect(useConfigStore.getState().getModelMetadata("provider", "model")?.name).toBe("Fresh")
   })
 })
+
+describe("loading another directory's providers", () => {
+  it("reads them for that directory without moving the shared directory or the composer", async () => {
+    const previous = useConfigStore.getState()
+    useConfigStore.setState({
+      activeDirectoryKey: "/active",
+      currentProviderId: "live",
+      currentModelId: "live-model",
+      directoryScoped: {},
+    } as never)
+    const withDirectory = vi.spyOn(axCodeClient, "withDirectory")
+    vi.mocked(axCodeClient.getProviders).mockResolvedValue({
+      providers: [{ id: "cold", name: "Cold", models: { model: { id: "model", name: "model" } } }] as never,
+      default: {},
+    })
+    try {
+      await useConfigStore.getState().loadProviders({ directory: "/cold" })
+
+      expect(axCodeClient.getProviders).toHaveBeenCalledWith("/cold")
+      // A background read must not retarget unscoped calls made while it is in flight.
+      expect(withDirectory).not.toHaveBeenCalled()
+      expect(useConfigStore.getState().directoryScoped["/cold"]?.providers.map((p) => p.id)).toEqual(["cold"])
+      expect(useConfigStore.getState()).toMatchObject({
+        activeDirectoryKey: "/active",
+        currentProviderId: "live",
+        currentModelId: "live-model",
+      })
+    } finally {
+      useConfigStore.setState({
+        activeDirectoryKey: previous.activeDirectoryKey,
+        currentProviderId: previous.currentProviderId,
+        currentModelId: previous.currentModelId,
+        directoryScoped: previous.directoryScoped,
+      })
+    }
+  })
+})

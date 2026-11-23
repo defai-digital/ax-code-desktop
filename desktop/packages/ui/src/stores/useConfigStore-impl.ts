@@ -295,6 +295,112 @@ export const resolveFirstSelectableSelection = (
   return null
 }
 
+/** The fields of a runtime agent the default selection reads. */
+export interface ActivationAgent {
+  name: string
+  mode?: string | null
+  model?: { providerID?: string; modelID?: string } | null
+}
+
+/**
+ * The agent and model activating a project picks when nothing it already holds is kept. Agent: the Settings default
+ * agent when this project has it, then `build`, then the first primary agent, then the first agent. Model: the
+ * Settings default model (with its variant when the model offers it), then the agent's own model, then the hardcoded
+ * fallback, then the first selectable model; the last two are last-resort picks that never replace a still-selectable
+ * selection. Also reports Settings values that are malformed rather than merely missing from this project.
+ */
+export const resolveActivationDefaults = (input: {
+  agents: readonly ActivationAgent[]
+  providers: ProviderWithModelList[]
+  settingsDefaultAgent: string | undefined
+  settingsDefaultModel: string | undefined
+  settingsDefaultVariant: string | undefined
+}): {
+  agentName: string | undefined
+  providerId?: string
+  modelId?: string
+  variant?: string
+  isLastResort: boolean
+  invalidDefaultModel: boolean
+  invalidDefaultVariant: boolean
+} => {
+  const { agents, providers } = input
+  const findModel = (providerId: string, modelId: string): ProviderModel | undefined =>
+    providers.find((p) => p.id === providerId)?.models.find((m) => m.id === modelId)
+  const modelIsSelectable = (providerId: string, modelId: string): boolean => {
+    const model = findModel(providerId, modelId)
+    return Boolean(model && isProviderModelSelectable(model, providerId))
+  }
+
+  const primaryAgents = agents.filter((agent) => isPrimaryMode(agent.mode ?? undefined))
+  const fallbackAgent = primaryAgents.find((agent) => agent.name === "build") || primaryAgents[0] || agents[0]
+  // A saved default missing from THIS project's agent list is not invalid: the default is a global setting while
+  // agents are project-scoped, so it must not be erased from another project's catalogue.
+  const resolvedAgent =
+    (input.settingsDefaultAgent && agents.find((agent) => agent.name === input.settingsDefaultAgent)) || fallbackAgent
+
+  let providerId: string | undefined
+  let modelId: string | undefined
+  let variant: string | undefined
+  let invalidDefaultModel = false
+  let invalidDefaultVariant = false
+
+  if (input.settingsDefaultModel) {
+    const parsed = parseModelString(input.settingsDefaultModel)
+    const defaultModel = parsed ? findModel(parsed.providerId, parsed.modelId) : undefined
+    if (parsed && defaultModel && isProviderModelSelectable(defaultModel, parsed.providerId)) {
+      providerId = parsed.providerId
+      modelId = parsed.modelId
+      if (input.settingsDefaultVariant) {
+        const variants = (defaultModel as { variants?: Record<string, unknown> }).variants
+        if (variants && Object.prototype.hasOwnProperty.call(variants, input.settingsDefaultVariant)) {
+          variant = input.settingsDefaultVariant
+        } else {
+          invalidDefaultVariant = true
+        }
+      }
+    } else if (!parsed) {
+      // Only a malformed value is invalid. A missing model is not proof of removal: providers are project-scoped
+      // (and can expose no models while loading), and a memory-blocked local model may be valid on another machine.
+      invalidDefaultModel = true
+    }
+  }
+
+  const agentModel = resolvedAgent?.model
+  if (!providerId && agentModel?.providerID && agentModel?.modelID) {
+    if (modelIsSelectable(agentModel.providerID, agentModel.modelID)) {
+      providerId = agentModel.providerID
+      modelId = agentModel.modelID
+    }
+  }
+
+  let isLastResort = false
+  if (!providerId) {
+    if (modelIsSelectable(FALLBACK_PROVIDER_ID, FALLBACK_MODEL_ID)) {
+      providerId = FALLBACK_PROVIDER_ID
+      modelId = FALLBACK_MODEL_ID
+      isLastResort = true
+    } else {
+      const fallback = resolveFirstSelectableSelection(providers, FALLBACK_PROVIDER_ID)
+      if (fallback) {
+        providerId = fallback.currentProviderId
+        modelId = fallback.currentModelId
+        isLastResort = true
+      }
+    }
+  }
+
+  return {
+    agentName: resolvedAgent?.name,
+    providerId,
+    modelId,
+    variant,
+    isLastResort,
+    invalidDefaultModel,
+    invalidDefaultVariant,
+  }
+}
+
 /** The model, agent and variant a send in a directory uses, with the catalog they were chosen from. */
 export interface DirectorySendSelection {
   providerID: string
@@ -304,11 +410,26 @@ export interface DirectorySendSelection {
   providers: ProviderWithModelList[]
 }
 
+/** The provider catalog known for `directory`: the live one when it is active, else its snapshot's (maybe empty). */
+export const directoryProviderCatalog = (
+  state: Pick<ConfigStore, "activeDirectoryKey" | "providers" | "directoryScoped">,
+  directory: string,
+): ProviderWithModelList[] => {
+  const key = toDirectoryKey(directory)
+  if (state.activeDirectoryKey === key) return state.providers
+  return state.directoryScoped[key]?.providers ?? []
+}
+
+/** Whether `directory` is the one the composer has activated. */
+export const isActiveConfigDirectory = (state: Pick<ConfigStore, "activeDirectoryKey">, directory: string): boolean =>
+  state.activeDirectoryKey === toDirectoryKey(directory)
+
 /**
  * The selection a new session in `directory` would get, worked out without activating that directory. The active
- * directory answers with the composer's live selection; another one with its saved snapshot while that selection is
- * still offered, otherwise with the same defaults activation applies to a fresh provider list (the Settings default,
- * then the first selectable model). Null until that directory's providers are known.
+ * directory answers with the composer's live selection. Another directory answers the way activating it would: given
+ * its agent list, its saved snapshot merged with the activation defaults under the same keep rules as `loadAgents`
+ * (a manual pick survives, a last-resort default never replaces a selectable one); without it, its saved selection
+ * while still offered, else the Settings default or the first selectable model. Null until its providers are known.
  */
 export const resolveDirectorySendSelection = (
   state: Pick<
@@ -320,45 +441,72 @@ export const resolveDirectorySendSelection = (
     | "currentVariant"
     | "currentAgentName"
     | "directoryScoped"
+    | "settingsDefaultAgent"
     | "settingsDefaultModel"
     | "settingsDefaultVariant"
   >,
   directory: string,
+  agents?: readonly ActivationAgent[] | null,
 ): DirectorySendSelection | null => {
   const key = toDirectoryKey(directory)
-  const source =
-    state.activeDirectoryKey === key
-      ? {
-          providers: state.providers,
-          currentProviderId: state.currentProviderId,
-          currentModelId: state.currentModelId,
-          currentVariant: state.currentVariant,
-          currentAgentName: state.currentAgentName,
-        }
-      : state.directoryScoped[key]
-  if (!source || source.providers.length === 0) return null
-  if (
-    source.currentProviderId &&
-    source.currentModelId &&
-    hasProviderModel(source.providers, source.currentProviderId, source.currentModelId)
-  ) {
-    return {
-      providerID: source.currentProviderId,
-      modelID: source.currentModelId,
-      agent: source.currentAgentName?.trim() || undefined,
-      variant: source.currentVariant,
-      providers: source.providers,
-    }
+  const trimAgent = (name: string | undefined) => name?.trim() || undefined
+  const active = state.activeDirectoryKey === key
+  const snapshot = active
+    ? {
+        providers: state.providers,
+        currentProviderId: state.currentProviderId,
+        currentModelId: state.currentModelId,
+        currentVariant: state.currentVariant,
+        currentAgentName: state.currentAgentName,
+        selectionSource: "manual" as const,
+      }
+    : state.directoryScoped[key]
+  if (!snapshot || snapshot.providers.length === 0) return null
+  const providers = snapshot.providers
+  const saved =
+    snapshot.currentProviderId &&
+    snapshot.currentModelId &&
+    hasProviderModel(providers, snapshot.currentProviderId, snapshot.currentModelId)
+      ? { providerID: snapshot.currentProviderId, modelID: snapshot.currentModelId, variant: snapshot.currentVariant }
+      : null
+
+  // The active directory's selection is the composer's, already resolved by its own activation.
+  if (!active && agents && agents.length > 0) {
+    const defaults = resolveActivationDefaults({
+      agents,
+      providers,
+      settingsDefaultAgent: state.settingsDefaultAgent,
+      settingsDefaultModel: state.settingsDefaultModel,
+      settingsDefaultVariant: state.settingsDefaultVariant,
+    })
+    const keepAgent = snapshot.selectionSource === "manual" && !!snapshot.currentAgentName
+    const keepSelection =
+      keepAgent ||
+      keepsManualSelection(snapshot.selectionSource, providers, snapshot.currentProviderId, snapshot.currentModelId) ||
+      shouldKeepCurrentSelection(defaults.isLastResort, providers, snapshot.currentProviderId, snapshot.currentModelId)
+    const agent = trimAgent(keepAgent ? snapshot.currentAgentName : defaults.agentName)
+    // A kept pick the catalog no longer offers cannot be sent; activation would leave it for the user to replace.
+    const model =
+      keepSelection && saved
+        ? saved
+        : defaults.providerId && defaults.modelId
+          ? { providerID: defaults.providerId, modelID: defaults.modelId, variant: defaults.variant }
+          : saved
+    if (!model) return null
+    return { ...model, agent, providers }
   }
+
+  if (saved) return { ...saved, agent: trimAgent(snapshot.currentAgentName), providers }
   const fallback =
-    resolveSettingsDefaultSelection(source.providers, state.settingsDefaultModel, state.settingsDefaultVariant) ??
-    resolveFirstSelectableSelection(source.providers, source.currentProviderId)
+    resolveSettingsDefaultSelection(providers, state.settingsDefaultModel, state.settingsDefaultVariant) ??
+    resolveFirstSelectableSelection(providers, snapshot.currentProviderId)
   if (!fallback) return null
   return {
     providerID: fallback.currentProviderId,
     modelID: fallback.currentModelId,
     variant: fallback.currentVariant,
-    providers: source.providers,
+    agent: trimAgent(snapshot.currentAgentName),
+    providers,
   }
 }
 
@@ -564,7 +712,9 @@ export const useConfigStore = create<ConfigStore>()(
               try {
                 ensureModelMetadata()
                 const apiResult = await withTimeout(
-                  axCodeClient.withDirectory(fromDirectoryKey(directoryKey), () => axCodeClient.getProviders()),
+                  // Scoped by argument, not by moving the shared current directory: a background load for another
+                  // project (Quick Dispatch's preview) must not retarget unscoped calls made meanwhile.
+                  axCodeClient.getProviders(fromDirectoryKey(directoryKey)),
                   PROVIDER_FETCH_TIMEOUT_MS,
                   (): never => {
                     throw new Error(`Provider request timed out after ${PROVIDER_FETCH_TIMEOUT_MS / 1000}s`)
@@ -1151,106 +1301,22 @@ export const useConfigStore = create<ConfigStore>()(
                   return true
                 }
 
-                const findModel = (providerId: string, modelId: string): ProviderModel | undefined => {
-                  const provider = providers.find((p) => p.id === providerId)
-                  return provider?.models.find((m) => m.id === modelId)
-                }
-
-                const modelIsSelectable = (providerId: string, modelId: string): boolean => {
-                  const model = findModel(providerId, modelId)
-                  return Boolean(model && isProviderModelSelectable(model, providerId))
-                }
-
-                // --- Agent Selection ---
-                // Priority: settings.defaultAgent → build → first primary → first agent
-                const primaryAgents = safeAgents.filter((agent) => isPrimaryMode(agent.mode))
-                const buildAgent = primaryAgents.find((agent) => agent.name === "build")
-                const fallbackAgent = buildAgent || primaryAgents[0] || safeAgents[0]
-
-                let resolvedAgent = fallbackAgent
-
+                const defaults = resolveActivationDefaults({
+                  agents: safeAgents,
+                  providers,
+                  settingsDefaultAgent: openChamberDefaults.defaultAgent,
+                  settingsDefaultModel: openChamberDefaults.defaultModel,
+                  settingsDefaultVariant: openChamberDefaults.defaultVariant,
+                })
+                const resolvedAgent = { name: defaults.agentName }
+                const resolvedProviderId = defaults.providerId
+                const resolvedModelId = defaults.modelId
+                const resolvedVariant = defaults.variant
+                const resolvedIsLastResort = defaults.isLastResort
                 // Track invalid settings to clear
                 const invalidSettings: { defaultModel?: string; defaultVariant?: string; defaultAgent?: string } = {}
-
-                // 1. Check OpenChamber settings for default agent
-                if (openChamberDefaults.defaultAgent) {
-                  const settingsAgent = safeAgents.find((agent) => agent.name === openChamberDefaults.defaultAgent)
-                  if (settingsAgent) {
-                    resolvedAgent = settingsAgent
-                  }
-                  // A saved default missing from THIS project's agent list is not
-                  // invalid: the default is a global setting while agents are
-                  // project-scoped, so erasing it here wiped the default the user
-                  // configured from another project's catalogue. The fallback
-                  // chain above already covers projects where it does not exist.
-                }
-
-                // --- Model Selection ---
-                // Priority: settings.defaultModel → agent's preferred model → ax-code/big-pickle
-                let resolvedProviderId: string | undefined
-                let resolvedModelId: string | undefined
-                let resolvedVariant: string | undefined
-
-                // 1. Check OpenChamber settings for default model
-                if (openChamberDefaults.defaultModel) {
-                  const parsed = parseModelString(openChamberDefaults.defaultModel)
-                  const defaultModel = parsed ? findModel(parsed.providerId, parsed.modelId) : undefined
-                  if (parsed && defaultModel && isProviderModelSelectable(defaultModel, parsed.providerId)) {
-                    resolvedProviderId = parsed.providerId
-                    resolvedModelId = parsed.modelId
-
-                    if (openChamberDefaults.defaultVariant) {
-                      const model = defaultModel as { variants?: Record<string, unknown> } | undefined
-                      const variants = model?.variants
-                      if (
-                        variants &&
-                        Object.prototype.hasOwnProperty.call(variants, openChamberDefaults.defaultVariant)
-                      ) {
-                        resolvedVariant = openChamberDefaults.defaultVariant
-                      } else {
-                        invalidSettings.defaultVariant = ""
-                      }
-                    }
-                  } else {
-                    // Only clear settings for malformed models. A missing model is
-                    // not proof of removal: providers are project-scoped (and a
-                    // provider can expose no models while it is still loading), so
-                    // a valid global default from another project's catalogue must
-                    // not be erased here — the fallback chain covers projects
-                    // where it does not resolve. A memory-blocked local model may
-                    // still be a valid user default on another machine either.
-                    if (!parsed) {
-                      invalidSettings.defaultModel = ""
-                    }
-                  }
-                }
-
-                // 2. Fall back to agent's preferred model
-                if (!resolvedProviderId && resolvedAgent?.model?.providerID && resolvedAgent?.model?.modelID) {
-                  const { providerID, modelID } = resolvedAgent.model
-                  if (modelIsSelectable(providerID, modelID)) {
-                    resolvedProviderId = providerID
-                    resolvedModelId = modelID
-                  }
-                }
-
-                // 3. Fall back to ax-code/big-pickle
-                let resolvedIsLastResort = false
-                if (!resolvedProviderId) {
-                  if (modelIsSelectable(FALLBACK_PROVIDER_ID, FALLBACK_MODEL_ID)) {
-                    resolvedProviderId = FALLBACK_PROVIDER_ID
-                    resolvedModelId = FALLBACK_MODEL_ID
-                    resolvedIsLastResort = true
-                  } else {
-                    // Last resort: first selectable provider model.
-                    const fallback = resolveFirstSelectableSelection(providers, FALLBACK_PROVIDER_ID)
-                    if (fallback) {
-                      resolvedProviderId = fallback.currentProviderId
-                      resolvedModelId = fallback.currentModelId
-                      resolvedIsLastResort = true
-                    }
-                  }
-                }
+                if (defaults.invalidDefaultModel) invalidSettings.defaultModel = ""
+                if (defaults.invalidDefaultVariant) invalidSettings.defaultVariant = ""
 
                 set((state) => {
                   const baseSnapshot: DirectoryScopedConfig = state.directoryScoped[directoryKey] ?? {
