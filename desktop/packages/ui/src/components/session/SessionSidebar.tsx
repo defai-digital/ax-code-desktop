@@ -46,6 +46,7 @@ import { SessionNodeItem } from "./sidebar/SessionNodeItem"
 import { useUpdateStore } from "@/stores/useUpdateStore"
 import { useShallow } from "zustand/react/shallow"
 import { listProjectWorktrees } from "@/lib/worktrees/worktreeManager"
+import { discoverProjectWorktrees } from "@/lib/worktrees/discoverProjectWorktrees"
 import type { WorktreeMetadata } from "@/types/worktree"
 import type { SortableDragHandleProps } from "./sidebar/sortableItems"
 import {
@@ -418,32 +419,16 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
       const projectEntries = useProjectsStore.getState().projects
       if (projectEntries.length === 0) return
 
-      const worktreesByProject = new Map<string, WorktreeMetadata[]>()
-      const allWorktrees: WorktreeMetadata[] = []
-      const readyProjectIds = new Set<string>()
-
-      await Promise.all(
-        projectEntries.map(async (project) => {
-          const projectPath = normalizePath(project.path)
-          if (!projectPath) return
-          try {
-            // Use store-cached isGitRepo when available; fall back to direct check for initial worktree discovery
-            const cachedIsGitRepo = useGitStore.getState().directories.get(projectPath)?.isGitRepo
-            const isGitRepo =
-              cachedIsGitRepo ?? (await import("@/lib/gitApi").then((m) => m.checkIsGitRepository(projectPath)))
-            if (!isGitRepo) {
-              readyProjectIds.add(project.id)
-              return
-            }
-            const worktrees = await listProjectWorktrees({ id: project.id, path: projectPath })
-            readyProjectIds.add(project.id)
-            if (cancelled || worktrees.length === 0) return
-            worktreesByProject.set(projectPath, worktrees)
-            allWorktrees.push(...worktrees)
-          } catch {
-            // ignore discovery errors
-          }
-        }),
+      const { worktreesByProject, allWorktrees, readyProjectIds, readyProjectPaths } = await discoverProjectWorktrees(
+        projectEntries.map((project) => ({ id: project.id, path: normalizePath(project.path) })),
+        {
+          // Use store-cached isGitRepo when available; fall back to direct check for initial worktree discovery
+          isGitRepo: async (projectPath) =>
+            useGitStore.getState().directories.get(projectPath)?.isGitRepo ??
+            (await import("@/lib/gitApi").then((m) => m.checkIsGitRepository(projectPath))),
+          listWorktrees: listProjectWorktrees,
+          isCancelled: () => cancelled,
+        },
       )
 
       if (cancelled) return
@@ -451,6 +436,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
       useSessionUIStore.setState({
         availableWorktrees: allWorktrees,
         availableWorktreesByProject: worktreesByProject,
+        worktreeListingReadyPaths: readyProjectPaths,
       })
       setArchiveWorktreeDiscovery({ key: projectWorktreeDiscoveryKey, readyProjectIds })
     }

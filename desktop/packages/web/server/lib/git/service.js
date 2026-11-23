@@ -3884,8 +3884,10 @@ export async function getWorktrees(directory) {
         path: entry.worktree,
       }))
   } catch (error) {
-    console.warn("Failed to list worktrees, returning empty list:", error?.message || error)
-    return []
+    // Report the failure instead of an empty list: callers tell "no worktrees" from "could not list" by it, and
+    // the composer treats a worktree missing from a successful listing as gone (C UX-03).
+    console.warn("Failed to list worktrees:", error?.message || error)
+    throw error
   }
 }
 

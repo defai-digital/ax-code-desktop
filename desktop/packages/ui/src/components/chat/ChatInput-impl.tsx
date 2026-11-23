@@ -68,7 +68,7 @@ import { useGlobalSessionStatus, useSessionPermissions } from "@/sync/sync-conte
 import { useChatSurfaceMode } from "./useChatSurfaceMode"
 import { useCurrentSessionActivity } from "@/hooks/useSessionActivity"
 import { isQueuedAutoSendHeld, markQueuedEntryInFlight } from "@/hooks/useQueuedMessageAutoSend"
-import { draftSendNeedsModel, draftSetup } from "@/lib/draftSetup"
+import { draftSendNeedsModel, draftSetup, draftTargetState } from "@/lib/draftSetup"
 import { toast } from "@/components/ui"
 import { Button } from "@/components/ui/button"
 import { isDesktopShell } from "@/lib/desktop"
@@ -161,6 +161,9 @@ import {
 import type { Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
 import { normalizePathSeparators } from "@/lib/pathValues"
 import { normalizeProjectPath } from "@/lib/projectResolution"
+
+/** Select value of a draft target that is gone; never a real directory (C UX-03). */
+const LOST_DRAFT_TARGET_PREFIX = "lost-target:"
 
 /** The mode the chip shows. A send carries it as request data; the send path never reads the chip. */
 const composerWorkModeForSend = (): WorkModeId =>
@@ -1448,6 +1451,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     ? t("chat.chatInput.sendNeedsModel")
     : null
   const canSend = !workSendDisabled && !draftSendBlockedReason && (hasContent || hasQueuedMessages)
+  // Set where the draft target is derived, further down; Submit reads it because Enter does not go through Send.
+  const draftTargetBlockedReasonRef = React.useRef<string | null>(null)
 
   const canAbort = sessionPhase !== "idle"
 
@@ -1677,6 +1682,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   const handleSubmit = async (options?: SubmitOptions) => {
     if (workSendDisabled) {
       toast.error(WORK_SESSION_SEND_DISABLED)
+      return
+    }
+    // Enter and modified Enter reach here without the disabled Send button; nothing is consumed (C UX-03).
+    if (!currentSessionId && draftTargetBlockedReasonRef.current) {
+      toast.error(draftTargetBlockedReasonRef.current)
       return
     }
     if (pendingPastedAttachmentReadsRef.current.size > 0) {
@@ -3997,6 +4007,40 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     selectedDraftDirectory,
   ])
 
+  const worktreeListingReadyPaths = useSessionUIStore((state) => state.worktreeListingReadyPaths)
+  const draftTargetStatus = draftTargetState({
+    draftOpen: newSessionDraftOpen,
+    currentSessionId,
+    selectedDirectory: selectedDraftDirectory,
+    projectRoot: selectedDraftProjectPath,
+    listed:
+      projectRootBranchOption?.value === selectedDraftDirectory ||
+      worktreeBranchOptions.some((option) => option.value === selectedDraftDirectory),
+    keepUnlisted: shouldKeepMissingSelectedDraftDirectory,
+    discoveringBranches: isDiscoveringDraftBranches,
+    worktreeListingReady: selectedDraftProjectPath ? worktreeListingReadyPaths.has(selectedDraftProjectPath) : false,
+    lost: Boolean(
+      selectedDraftDirectory && normalizePath(newSessionDraft?.lostTargetDirectory ?? null) === selectedDraftDirectory,
+    ),
+  })
+  // Confirmed loss is recorded on the draft, so a later failed or stale listing cannot make the target sendable
+  // again; only choosing a target clears it.
+  React.useEffect(() => {
+    if (draftTargetStatus === "missing" && selectedDraftDirectory) {
+      useSessionUIStore.getState().markDraftTargetLost(selectedDraftDirectory)
+    }
+  }, [draftTargetStatus, selectedDraftDirectory])
+  // The lost entry gets its own value, so picking the same worktree again (once it is listed) is a change.
+  const draftSelectValueForLost =
+    draftTargetStatus === "missing" && selectedDraftDirectory ? `${LOST_DRAFT_TARGET_PREFIX}${selectedDraftDirectory}` : null
+  const draftTargetBlockedReason =
+    draftTargetStatus === "missing" && selectedDraftDirectory
+      ? t("chat.chatInput.sendNeedsTarget", { name: formatDirectoryName(selectedDraftDirectory) })
+      : null
+  draftTargetBlockedReasonRef.current = draftTargetBlockedReason
+  const sendBlockedReason = draftSendBlockedReason ?? draftTargetBlockedReason
+  const canSendComposer = canSend && !draftTargetBlockedReason
+
   const draftBranchItems = React.useMemo(() => {
     const baseItems: Array<{ value: string; label: string }> = []
     if (projectRootBranchOption) {
@@ -4010,19 +4054,24 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     if (baseItems.some((option) => option.value === selectedDraftDirectory)) {
       return baseItems
     }
-    if (!shouldKeepMissingSelectedDraftDirectory) {
-      return baseItems
-    }
-    return [...baseItems, { value: selectedDraftDirectory, label: formatDirectoryName(selectedDraftDirectory) }]
-  }, [projectRootBranchOption, selectedDraftDirectory, shouldKeepMissingSelectedDraftDirectory, worktreeBranchOptions])
+    // The chosen target stays in the list while it is unlisted, so the person can see where the prompt would go.
+    const name = formatDirectoryName(selectedDraftDirectory)
+    const label =
+      draftTargetStatus === "missing" ? t("chat.chatInput.target.notFound", { name }) : name
+    return [...baseItems, { value: selectedDraftDirectory, label }]
+  }, [draftTargetStatus, projectRootBranchOption, selectedDraftDirectory, t, worktreeBranchOptions])
 
   const selectedDraftBranchLabel = React.useMemo(() => {
     const selectedValue = selectedDraftDirectory ?? draftBranchItems[0]?.value ?? null
     if (!selectedValue) {
       return null
     }
+    if (draftTargetStatus === "missing") {
+      // Also when a stale listing still shows it: the draft recorded it as gone.
+      return t("chat.chatInput.target.notFound", { name: formatDirectoryName(selectedValue) })
+    }
     return draftBranchItems.find((item) => item.value === selectedValue)?.label ?? formatDirectoryName(selectedValue)
-  }, [draftBranchItems, selectedDraftDirectory])
+  }, [draftBranchItems, draftTargetStatus, selectedDraftDirectory, t])
 
   const chatSurfaceMode = useChatSurfaceMode()
   const isMiniChatSurface = chatSurfaceMode === "mini-chat"
@@ -4063,6 +4112,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   ])
 
   const shouldShowDraftBranchSelector = React.useMemo(() => {
+    // A chosen worktree stays visible while branches load or after it is gone, so it can be seen and replaced (C UX-03).
+    if (draftTargetStatus !== "ok") {
+      return true
+    }
     if (selectedDraftProjectIsGitRepo !== true) {
       return false
     }
@@ -4073,7 +4126,13 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       return true
     }
     return worktreeBranchOptions.length > 0
-  }, [isDiscoveringDraftBranches, projectRootBranchOption, selectedDraftProjectIsGitRepo, worktreeBranchOptions.length])
+  }, [
+    draftTargetStatus,
+    isDiscoveringDraftBranches,
+    projectRootBranchOption,
+    selectedDraftProjectIsGitRepo,
+    worktreeBranchOptions.length,
+  ])
 
   const handleDraftProjectChange = React.useCallback(
     (projectId: string) => {
@@ -4101,6 +4160,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
 
   const handleDraftDirectoryChange = React.useCallback(
     (directory: string) => {
+      if (directory.startsWith(LOST_DRAFT_TARGET_PREFIX)) {
+        return
+      }
       const draft = useSessionUIStore.getState().newSessionDraft
       if (draft?.pendingWorktreeRequestId || draft?.bootstrapPendingDirectory || draft?.preserveDirectoryOverride) {
         return
@@ -4193,42 +4255,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     void openProjectFolder({ t })
   }, [t])
 
-  React.useEffect(() => {
-    if (!showDraftTargetSelectors || !selectedDraftProject || !selectedDraftDirectory) {
-      return
-    }
-    if (
-      newSessionDraft?.pendingWorktreeRequestId ||
-      newSessionDraft?.bootstrapPendingDirectory ||
-      newSessionDraft?.preserveDirectoryOverride
-    ) {
-      return
-    }
-    const valid = draftBranchItems.some((option) => option.value === selectedDraftDirectory)
-    if (valid) {
-      return
-    }
-    // A target the branch list no longer offers is re-pointed at the project root. That is a
-    // correction of a stale target, not the user switching project, so it does not reset the chip.
-    // The mode is stored per directory, so a correction that changes directory shows the corrected
-    // directory's own saved mode; a correction that stays in it keeps the mode the user set.
-    setNewSessionDraftTarget(
-      {
-        projectId: selectedDraftProject.id,
-        directoryOverride: selectedDraftProject.path,
-      },
-      { preserveWorkMode: true },
-    )
-  }, [
-    draftBranchItems,
-    newSessionDraft?.bootstrapPendingDirectory,
-    newSessionDraft?.pendingWorktreeRequestId,
-    newSessionDraft?.preserveDirectoryOverride,
-    selectedDraftDirectory,
-    selectedDraftProject,
-    setNewSessionDraftTarget,
-    showDraftTargetSelectors,
-  ])
+  // A target missing from the options is no longer re-pointed at the project root here (C UX-03): the draft keeps
+  // the target the person chose, shows it, and Send waits for an explicit choice once the target is confirmed gone.
 
   const footerPaddingClass = isMobile ? "px-1.5 py-1.5" : "px-2.5 py-1.5"
   const buttonSizeClass = isMobile ? "h-8 w-8" : "h-7 w-7"
@@ -4304,13 +4332,13 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
             {WORK_SESSION_SEND_DISABLED}
           </div>
         ) : null}
-        {draftSendBlockedReason ? (
+        {sendBlockedReason ? (
           <p
             id="composer-send-blocked-reason"
             data-send-blocked-reason
             className="chat-input-column mb-2 text-right typography-meta text-muted-foreground"
           >
-            {draftSendBlockedReason}
+            {sendBlockedReason}
           </p>
         ) : null}
         {newSessionDraftOpen && !isDesktopExpanded && !isMobile && !isMiniChatSurface ? (
@@ -4581,6 +4609,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
               {shouldShowDraftBranchSelector ? (
                 <Select
                   value={
+                    draftSelectValueForLost ??
                     selectedDraftDirectory ??
                     draftBranchItems[0]?.value ??
                     normalizePath(selectedDraftProject.path) ??
@@ -4633,8 +4662,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                         </SelectItem>
                       ))}
                     </SelectGroup>
-                    {selectedDraftDirectory && !selectedDraftBranchIsKnown ? (
-                      <SelectItem value={selectedDraftDirectory} className="max-w-[24rem] truncate">
+                    {selectedDraftDirectory && (!selectedDraftBranchIsKnown || draftSelectValueForLost) ? (
+                      <SelectItem
+                        value={draftSelectValueForLost ?? selectedDraftDirectory}
+                        className="max-w-[24rem] truncate"
+                      >
                         {selectedDraftBranchLabel}
                       </SelectItem>
                     ) : null}
@@ -4898,8 +4930,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                           footerIconButtonClass={footerIconButtonClass}
                           sendIconSizeClass={sendIconSizeClass}
                           stopIconSizeClass={stopIconSizeClass}
-                          canSend={canSend}
-                          blockedReason={draftSendBlockedReason}
+                          canSend={canSendComposer}
+                          blockedReason={sendBlockedReason}
                           canAbort={canAbort}
                           hasContent={!!hasContent}
                           currentSessionId={currentSessionId}
@@ -4957,8 +4989,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                       footerIconButtonClass={footerIconButtonClass}
                       sendIconSizeClass={sendIconSizeClass}
                       stopIconSizeClass={stopIconSizeClass}
-                      canSend={canSend}
-                      blockedReason={draftSendBlockedReason}
+                      canSend={canSendComposer}
+                      blockedReason={sendBlockedReason}
                       canAbort={canAbort}
                       hasContent={!!hasContent}
                       currentSessionId={currentSessionId}

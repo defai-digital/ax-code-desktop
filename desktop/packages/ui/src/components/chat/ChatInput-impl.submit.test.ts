@@ -105,6 +105,7 @@ function createHarness(command: string, options: HarnessOptions = {}) {
   }
   const dependencies = {
     workSendDisabled: false,
+    draftTargetBlockedReasonRef: { current: null as string | null },
     toast: { error: toastError },
     t: (key: string) => key,
     getCurrentInputSnapshot: () => ({
@@ -393,6 +394,28 @@ describe("magic-command submit races", () => {
     )
     expect(h.sent).not.toHaveBeenCalled()
     expect(h.messageRef.current).toBe("hello from project A")
+  })
+})
+
+describe("a draft whose worktree is confirmed gone (C UX-03)", () => {
+  test("Enter refuses with the reason and keeps the prompt and attachments", async () => {
+    const h = createHarness("", { message: "fix the flaky test" })
+    h.dependencies.draftTargetBlockedReasonRef.current = "Worktree feature is no longer available."
+    const submit = await loadSubmit(h.dependencies)
+    await submit()
+
+    expect(h.toastError).toHaveBeenCalledWith("Worktree feature is no longer available.")
+    expect(h.sent).not.toHaveBeenCalled()
+    expect(h.messageRef.current).toBe("fix the flaky test")
+    expect(h.state.attachedFiles).toEqual(h.files)
+  })
+
+  test("an existing session is not held by a draft's target", async () => {
+    const h = createHarness("", { message: "continue", sessionId: "session-1", draftOpen: false, attachments: [] })
+    h.dependencies.draftTargetBlockedReasonRef.current = "Worktree feature is no longer available."
+    const submit = await loadSubmit(h.dependencies)
+    await submit()
+    await vi.waitFor(() => expect(h.sent).toHaveBeenCalledOnce())
   })
 })
 

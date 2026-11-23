@@ -333,6 +333,9 @@ export async function removeProjectWorktree(
   }
 
   clearWorktreeBootstrapState(worktree.path)
+  // Right after the local removal, before any remote-branch wait: a draft aimed at this worktree must not send
+  // there meanwhile, and keeps it as its target until the person chooses another (C UX-03).
+  useSessionUIStore.getState().markDraftTargetLost(worktree.path)
 
   // The removed directory may still own terminal tabs and project-action runs;
   // dropping them closes their PTYs instead of leaving orphaned processes

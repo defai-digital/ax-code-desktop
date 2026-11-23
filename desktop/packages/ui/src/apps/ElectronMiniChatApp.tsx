@@ -28,7 +28,7 @@ import { useAppFontEffects } from "./useAppFontEffects"
 import { useMiniChatSessionUnavailable } from "./useMiniChatSessionUnavailable"
 import { useMiniChatKeyboardShortcuts } from "@/hooks/useMiniChatKeyboardShortcuts"
 import { listProjectWorktrees } from "@/lib/worktrees/worktreeManager"
-import type { WorktreeMetadata } from "@/types/worktree"
+import { discoverProjectWorktrees } from "@/lib/worktrees/discoverProjectWorktrees"
 import type { MiniChatMode } from "@/components/mini-chat/types"
 
 type MiniChatConfig = {
@@ -174,32 +174,26 @@ const MiniChatBootstrap: React.FC<{ config: MiniChatConfig }> = ({ config }) => 
     let cancelled = false
 
     const discoverWorktrees = async () => {
-      const worktreesByProject = new Map<string, WorktreeMetadata[]>()
-      const allWorktrees: WorktreeMetadata[] = []
-
-      await Promise.all(
-        projects.map(async (project) => {
-          const projectPath = normalizePathSeparators(project.path).replace(/\/+$/, "")
-          if (!projectPath) return
-          try {
-            const cachedIsGitRepo = useGitStore.getState().directories.get(projectPath)?.isGitRepo
-            const isGitRepo =
-              cachedIsGitRepo ?? (await import("@/lib/gitApi").then((m) => m.checkIsGitRepository(projectPath)))
-            if (!isGitRepo) return
-            const worktrees = await listProjectWorktrees({ id: project.id, path: projectPath })
-            if (cancelled || worktrees.length === 0) return
-            worktreesByProject.set(projectPath, worktrees)
-            allWorktrees.push(...worktrees)
-          } catch {
-            // Worktree discovery is best-effort; draft selector falls back to the project root.
-          }
-        }),
+      const { worktreesByProject, allWorktrees, readyProjectPaths } = await discoverProjectWorktrees(
+        projects.map((project) => ({
+          id: project.id,
+          path: normalizePathSeparators(project.path).replace(/\/+$/, "") || null,
+        })),
+        {
+          isGitRepo: async (projectPath) =>
+            useGitStore.getState().directories.get(projectPath)?.isGitRepo ??
+            (await import("@/lib/gitApi").then((m) => m.checkIsGitRepository(projectPath))),
+          listWorktrees: listProjectWorktrees,
+          isCancelled: () => cancelled,
+        },
       )
 
       if (cancelled) return
+      // Readiness too, so a draft here can tell a worktree that is gone from one not listed yet (C UX-03).
       useSessionUIStore.setState({
         availableWorktrees: allWorktrees,
         availableWorktreesByProject: worktreesByProject,
+        worktreeListingReadyPaths: readyProjectPaths,
       })
     }
 

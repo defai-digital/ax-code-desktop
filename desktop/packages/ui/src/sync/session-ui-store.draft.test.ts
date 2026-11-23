@@ -271,6 +271,19 @@ describe("createSession draft rollback", () => {
     expect(createSessionAction).toHaveBeenCalledOnce()
   })
 
+  test("a worktree confirmed gone while the send waited is refused before the create (C UX-03)", async () => {
+    useSessionUIStore.setState({
+      newSessionDraft: { ...draft(), bootstrapPendingDirectory: null, directoryOverride: "/proj-b/.wt/feature" } as never,
+    })
+
+    await expect(
+      sendWhileCatalogLoads(() => useSessionUIStore.getState().markDraftTargetLost("/proj-b/.wt/feature")),
+    ).rejects.toThrow("Worktree feature is no longer available. Choose where to send.")
+    expect(createSessionAction).not.toHaveBeenCalled()
+    // Still the same target: the draft was not moved to the root.
+    expect(useSessionUIStore.getState().newSessionDraft?.directoryOverride).toBe("/proj-b/.wt/feature")
+  })
+
   test("a draft closed while the send waited for the command catalog is refused as having no target", async () => {
     await expect(
       sendWhileCatalogLoads(() => useSessionUIStore.getState().closeNewSessionDraft()),
@@ -289,5 +302,44 @@ describe("createSession draft rollback", () => {
     } finally {
       fetchSpy.mockRestore()
     }
+  })
+})
+
+describe("a draft's lost target (C UX-03)", () => {
+  const worktree = "/proj-b/.wt/feature"
+  beforeEach(() => {
+    useSessionUIStore.setState({
+      newSessionDraft: { ...draft(), bootstrapPendingDirectory: null, directoryOverride: worktree } as never,
+    })
+  })
+  const lost = () => useSessionUIStore.getState().newSessionDraft?.lostTargetDirectory ?? null
+
+  test("is recorded only for the directory the open draft points at", () => {
+    useSessionUIStore.getState().markDraftTargetLost("/proj-b/.wt/other")
+    expect(lost()).toBeNull()
+    useSessionUIStore.getState().markDraftTargetLost(`${worktree}/`)
+    expect(lost()).toBe(worktree)
+  })
+
+  test("stays through automatic updates that keep the directory, and clears on an explicit choice", () => {
+    const { markDraftTargetLost, setNewSessionDraftTarget } = useSessionUIStore.getState()
+    markDraftTargetLost(worktree)
+    setNewSessionDraftTarget({ projectId: "proj-b" }, { preserveWorkMode: true })
+    expect(lost()).toBe(worktree)
+    // Choosing the same worktree again, once it is back, is a person's explicit choice.
+    setNewSessionDraftTarget({ directoryOverride: worktree }, { force: true, preserveWorkMode: true })
+    expect(lost()).toBeNull()
+  })
+
+  test("clears when the draft moves to another directory", () => {
+    useSessionUIStore.getState().markDraftTargetLost(worktree)
+    useSessionUIStore.getState().setNewSessionDraftTarget({ directoryOverride: "/proj-b" }, { preserveWorkMode: true })
+    expect(lost()).toBeNull()
+  })
+
+  test("a closed draft records nothing", () => {
+    useSessionUIStore.setState({ newSessionDraft: { ...draft(), open: false, directoryOverride: worktree } as never })
+    useSessionUIStore.getState().markDraftTargetLost(worktree)
+    expect(lost()).toBeNull()
   })
 })

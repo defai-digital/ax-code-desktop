@@ -1060,11 +1060,11 @@ export function registerGitRoutes(app, options = {}) {
       const worktrees = await getWorktrees(directory)
       res.json(worktrees)
     } catch (error) {
-      // Worktrees are an optional feature. Avoid repeated 500s (and repeated client retries)
-      // when the directory isn't a git repo or uses shell shorthand like "~/".
-      console.warn("Failed to get worktrees, returning empty list:", error?.message || error)
-      res.setHeader("X-OpenChamber-Warning", "git worktrees unavailable")
-      res.json([])
+      // A failed listing is an error, not an empty list: an empty answer reads as "every worktree is gone", which
+      // blocks a draft aimed at one (C UX-03). Clients list only git repositories and already treat a failure
+      // as unknown; their list cache keeps no failure, so this does not turn into repeated retries.
+      console.warn("Failed to get worktrees:", error?.message || error)
+      return res.status(500).json({ error: "Failed to list git worktrees" })
     }
   })
 

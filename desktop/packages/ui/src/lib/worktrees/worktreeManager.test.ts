@@ -81,6 +81,33 @@ describe("removeProjectWorktree", () => {
     expect(useSessionWorktreeStore.getState().getAttachment("ses_feature")).toBeUndefined()
   })
 
+  test("a draft aimed at the removed worktree is marked lost before the remote branch is deleted (C UX-03)", async () => {
+    useSessionUIStore.setState({
+      newSessionDraft: {
+        open: true,
+        parentID: null,
+        selectedProjectId: "repo",
+        directoryOverride: metadata.path,
+        bootstrapPendingDirectory: metadata.path,
+        preserveDirectoryOverride: true,
+      },
+    })
+    let draftWhileRemoteDeletes: unknown = null
+    deleteRemoteBranchMock.mockImplementationOnce(async () => {
+      draftWhileRemoteDeletes = { ...useSessionUIStore.getState().newSessionDraft }
+    })
+
+    await removeProjectWorktree(project, metadata, { deleteRemoteBranch: true })
+
+    // Kept as the target, not moved to the root, and the picker's locks are released for a new choice.
+    expect(draftWhileRemoteDeletes).toMatchObject({
+      directoryOverride: metadata.path,
+      lostTargetDirectory: metadata.path,
+      bootstrapPendingDirectory: null,
+      preserveDirectoryOverride: false,
+    })
+  })
+
   test("closes the removed worktree's terminals and runs", async () => {
     const terminalState = useTerminalStore.getState()
     terminalState.ensureDirectory(metadata.path)

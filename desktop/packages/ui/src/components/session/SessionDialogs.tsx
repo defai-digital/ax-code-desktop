@@ -65,9 +65,6 @@ export const SessionDialogs: React.FC = () => {
   const [dirtyWorktreePaths, setDirtyWorktreePaths] = React.useState<Set<string>>(new Set())
 
   const getWorktreeMetadata = useSessionUIStore((s) => s.getWorktreeMetadata)
-  const newSessionDraft = useSessionUIStore((s) => s.newSessionDraft)
-  const setNewSessionDraftTarget = useSessionUIStore((s) => s.setNewSessionDraftTarget)
-  const setDraftBootstrapPendingDirectory = useSessionUIStore((s) => s.setDraftBootstrapPendingDirectory)
   const deleteSession = sessionActions.deleteSession
   const archiveSession = sessionActions.archiveSession
   const deleteSessions = useSessionUIStore((s) => s.deleteSessions)
@@ -371,23 +368,7 @@ export const SessionDialogs: React.FC = () => {
           deleteLocalBranch,
         })
 
-        const draftDirectory = normalizeProjectDirectory(newSessionDraft?.directoryOverride)
-        if (
-          newSessionDraft?.open &&
-          normalizedWorktreePath &&
-          draftDirectory === normalizedWorktreePath &&
-          normalizedProjectPath
-        ) {
-          setDraftBootstrapPendingDirectory(null)
-          setNewSessionDraftTarget(
-            {
-              projectId: projectRef.id,
-              directoryOverride: normalizedProjectPath,
-            },
-            { force: true },
-          )
-        }
-
+        // A draft aimed at the removed worktree was marked lost by the removal itself (C UX-03).
         if (normalizeProjectDirectory(currentDirectory) === normalizedWorktreePath && normalizedProjectPath) {
           useDirectoryStore.getState().setDirectory(normalizedProjectPath)
         }
@@ -407,10 +388,6 @@ export const SessionDialogs: React.FC = () => {
       currentDirectory,
       deleteDialogShouldRemoveRemote,
       getProjectRefForWorktree,
-      newSessionDraft?.directoryOverride,
-      newSessionDraft?.open,
-      setDraftBootstrapPendingDirectory,
-      setNewSessionDraftTarget,
       t,
     ],
   )

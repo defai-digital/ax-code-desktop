@@ -37,3 +37,32 @@ export function draftSendNeedsModel(input: {
 }): boolean {
   return !input.currentSessionId && input.draftOpen && input.modelStep !== null
 }
+
+/**
+ * Where a new-session draft's chosen target stands (C UX-03). The composer used to re-point a worktree target that
+ * dropped out of the option list at the project root, so a prompt meant for an isolated worktree could go to the
+ * root. Now the choice is kept: "checking" while branches or the worktree listing are not known (Send stays open,
+ * since some surfaces never list worktrees), and "missing" once a successful listing confirms it is gone, which
+ * blocks Send until another target is picked.
+ */
+export function draftTargetState(input: {
+  draftOpen: boolean
+  currentSessionId: string | null
+  selectedDirectory: string | null
+  projectRoot: string | null
+  /** The target is one of the options (the project root or a listed worktree). */
+  listed: boolean
+  /** A target that is being created or set up, or an explicit directory outside the list. */
+  keepUnlisted: boolean
+  discoveringBranches: boolean
+  /** The project's worktree listing succeeded at least once, an empty result included. */
+  worktreeListingReady: boolean
+  /** The draft recorded this target as gone; it stays so until the person chooses a target. */
+  lost?: boolean
+}): "ok" | "checking" | "missing" {
+  if (!input.draftOpen || input.currentSessionId || !input.selectedDirectory) return "ok"
+  if (input.lost) return "missing"
+  if (input.listed || input.keepUnlisted || input.selectedDirectory === input.projectRoot) return "ok"
+  if (input.discoveringBranches || !input.worktreeListingReady) return "checking"
+  return "missing"
+}

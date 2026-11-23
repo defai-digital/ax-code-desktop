@@ -584,6 +584,12 @@ type NewSessionDraftState = {
   pendingWorktreeRequestId?: string | null
   bootstrapPendingDirectory?: string | null
   preserveDirectoryOverride?: boolean
+  /**
+   * A worktree this draft pointed at that is confirmed gone: deleted, or absent from a successful listing. The draft
+   * keeps it as its target, so a prompt meant for it never moves to the root unasked, and refuses to send there until
+   * the person chooses a target again; only that choice clears it (C UX-03).
+   */
+  lostTargetDirectory?: string | null
   parentID: string | null
   title?: string
   initialPrompt?: string
@@ -618,6 +624,11 @@ type SessionUIState = {
   worktreeMetadata: Map<string, WorktreeMetadata>
   availableWorktrees: WorktreeMetadata[]
   availableWorktreesByProject: Map<string, WorktreeMetadata[]>
+  /**
+   * Project paths whose worktree listing succeeded (an empty one included) in the latest discovery. A project that
+   * is absent was not listed yet or its listing failed, so a worktree missing from it is unknown, not gone.
+   */
+  worktreeListingReadyPaths: ReadonlySet<string>
   sessionAbortFlags: Map<string, { timestamp: number; acknowledged: boolean }>
   abortControllers: Map<string, AbortController>
   /** Fan-out cleanup for a hard-deleted session: per-session maps and the worktree attachment. */
@@ -652,6 +663,11 @@ type SessionUIState = {
     },
   ) => void
   setDraftPreserveDirectoryOverride: (value: boolean) => void
+  /**
+   * Mark the open draft's target as gone, when it still points at `directory`; the picker accepts a new choice
+   * afterwards.
+   */
+  markDraftTargetLost: (directory: string) => void
   acknowledgeSessionAbort: (sessionId: string) => void
   markSessionAborted: (sessionId: string) => void
   clearSessionAbort: (sessionId: string) => void
@@ -949,6 +965,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
   worktreeMetadata: new Map(),
   availableWorktrees: [],
   availableWorktreesByProject: new Map(),
+  worktreeListingReadyPaths: new Set(),
   sessionAbortFlags: new Map(),
   abortControllers: new Map(),
   isLoading: false,
@@ -1139,11 +1156,14 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     let nextDirectory: string | null = null
     set((s) => {
       nextDirectory = normalizePath(target.directoryOverride ?? s.newSessionDraft.directoryOverride)
+      const lost = normalizePath(s.newSessionDraft.lostTargetDirectory ?? null)
       return {
         newSessionDraft: {
           ...s.newSessionDraft,
           selectedProjectId: target.projectId ?? target.selectedProjectId ?? s.newSessionDraft.selectedProjectId,
           directoryOverride: target.directoryOverride ?? s.newSessionDraft.directoryOverride,
+          // A person's explicit choice (force), or any move to another directory, ends the lost state.
+          lostTargetDirectory: options?.force || lost !== nextDirectory ? null : s.newSessionDraft.lostTargetDirectory,
         },
       }
     })
@@ -1152,6 +1172,26 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     if (!options?.preserveWorkMode) useWorkModeStore.getState().resetToAgent(nextDirectory)
     void activateConfigForDirectory(nextDirectory)
   },
+
+  markDraftTargetLost: (directory) =>
+    set((s) => {
+      const draft = s.newSessionDraft
+      const lost = normalizePath(directory)
+      if (!draft?.open || !lost) return s
+      const target = normalizePath(draft.bootstrapPendingDirectory ?? draft.directoryOverride ?? null)
+      if (target !== lost || normalizePath(draft.lostTargetDirectory ?? null) === lost) return s
+      // The target stays where it was, and the locks that make the picker ignore a choice (a pending bootstrap of
+      // this directory, a preserved override) go, so the person can choose another target.
+      return {
+        newSessionDraft: {
+          ...draft,
+          directoryOverride: lost,
+          bootstrapPendingDirectory: null,
+          preserveDirectoryOverride: false,
+          lostTargetDirectory: lost,
+        },
+      }
+    }),
 
   setDraftPreserveDirectoryOverride: (value) =>
     set((s) => {
@@ -1487,6 +1527,15 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       }
       if (draftTargetKey(draftAfterCheck) !== admittedTarget) {
         refuseDraftSend(draftRetargetedMessage())
+      }
+      // The target can be confirmed gone while the send waited (C UX-03); never create a session there.
+      const lostTarget = normalizePath(draftAfterCheck.lostTargetDirectory ?? null)
+      if (lostTarget && lostTarget === normalizePath(draftDirectoryOverride)) {
+        refuseDraftSend(
+          formatMessage(useI18nStore.getState().dictionary, "chat.chatInput.sendNeedsTarget", {
+            name: lostTarget.split("/").pop() || lostTarget,
+          }),
+        )
       }
       throwWorkModeRefusal(workModeRefusal)
 

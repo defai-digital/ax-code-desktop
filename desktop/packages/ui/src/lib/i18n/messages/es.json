@@ -3651,6 +3651,8 @@
   "chat.chatInput.toast.undoFailed": "No se pudo deshacer el \u00faltimo paso",
   "chat.chatInput.toast.redoFailed": "No se pudo rehacer el \u00faltimo paso",
   "chat.chatInput.sendNeedsModel": "Para enviar hace falta un modelo.",
+  "chat.chatInput.sendNeedsTarget": "El worktree {name} ya no est\u00e1 disponible. Elige d\u00f3nde enviar.",
+  "chat.chatInput.target.notFound": "{name} (no encontrado)",
   "chat.chatInput.toast.noModelSelected": "Selecciona un modelo antes de enviar",
   "chat.chatInput.toast.noModelSelectedAction": "Seleccionar modelo",
   "chat.chatInput.toast.summaryFailed": "No se pudo generar el resumen",

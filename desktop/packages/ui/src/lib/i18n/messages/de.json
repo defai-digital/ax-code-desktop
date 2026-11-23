@@ -3657,6 +3657,8 @@
   "chat.chatInput.toast.undoFailed": "R\u00fcckg\u00e4ngig machen fehlgeschlagen",
   "chat.chatInput.toast.redoFailed": "Wiederholen fehlgeschlagen",
   "chat.chatInput.sendNeedsModel": "Zum Senden wird ein Modell ben\u00f6tigt.",
+  "chat.chatInput.sendNeedsTarget": "Worktree {name} ist nicht mehr verf\u00fcgbar. W\u00e4hle aus, wohin gesendet wird.",
+  "chat.chatInput.target.notFound": "{name} (nicht gefunden)",
   "chat.chatInput.toast.noModelSelected": "Vor dem Senden ein Modell ausw\u00e4hlen",
   "chat.chatInput.toast.noModelSelectedAction": "Modell ausw\u00e4hlen",
   "chat.chatInput.toast.summaryFailed": "Zusammenfassung konnte nicht erstellt werden",

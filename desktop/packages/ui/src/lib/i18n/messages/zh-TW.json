@@ -3651,6 +3651,8 @@
   "chat.chatInput.toast.undoFailed": "\u7121\u6cd5\u5fa9\u539f\u4e0a\u4e00\u6b65",
   "chat.chatInput.toast.redoFailed": "\u7121\u6cd5\u91cd\u505a\u4e0a\u4e00\u6b65",
   "chat.chatInput.sendNeedsModel": "\u50b3\u9001\u9700\u8981\u5148\u6709\u6a21\u578b\u3002",
+  "chat.chatInput.sendNeedsTarget": "\u5de5\u4f5c\u6a39 {name} \u5df2\u7121\u6cd5\u4f7f\u7528\u3002\u8acb\u9078\u64c7\u50b3\u9001\u4f4d\u7f6e\u3002",
+  "chat.chatInput.target.notFound": "{name}\uff08\u627e\u4e0d\u5230\uff09",
   "chat.chatInput.toast.noModelSelected": "\u50b3\u9001\u524d\u8acb\u5148\u9078\u53d6\u6a21\u578b",
   "chat.chatInput.toast.noModelSelectedAction": "\u9078\u53d6\u6a21\u578b",
   "chat.chatInput.toast.summaryFailed": "\u7522\u751f\u6458\u8981\u5931\u6557",

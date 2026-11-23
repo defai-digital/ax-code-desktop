@@ -3657,6 +3657,8 @@
   "chat.chatInput.toast.undoFailed": "Kh\u00f4ng th\u1ec3 ho\u00e0n t\u00e1c b\u01b0\u1edbc cu\u1ed1i",
   "chat.chatInput.toast.redoFailed": "Kh\u00f4ng th\u1ec3 l\u00e0m l\u1ea1i b\u01b0\u1edbc cu\u1ed1i",
   "chat.chatInput.sendNeedsModel": "C\u1ea7n c\u00f3 m\u00f4 h\u00ecnh \u0111\u1ec3 g\u1eedi.",
+  "chat.chatInput.sendNeedsTarget": "Worktree {name} kh\u00f4ng c\u00f2n kh\u1ea3 d\u1ee5ng. H\u00e3y ch\u1ecdn n\u01a1i g\u1eedi.",
+  "chat.chatInput.target.notFound": "{name} (kh\u00f4ng t\u00ecm th\u1ea5y)",
   "chat.chatInput.toast.noModelSelected": "H\u00e3y ch\u1ecdn m\u00f4 h\u00ecnh tr\u01b0\u1edbc khi g\u1eedi",
   "chat.chatInput.toast.noModelSelectedAction": "Ch\u1ecdn m\u00f4 h\u00ecnh",
   "chat.chatInput.toast.summaryFailed": "Kh\u00f4ng t\u1ea1o \u0111\u01b0\u1ee3c b\u1ea3n t\u00f3m t\u1eaft",

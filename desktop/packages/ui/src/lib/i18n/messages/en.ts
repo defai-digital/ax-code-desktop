@@ -2324,6 +2324,8 @@ export const dict = {
   "chat.chatInput.toast.redoFailed": "Failed to redo the last step",
   "chat.chatInput.draftRetargeted": "The draft's target changed before the message was sent",
   "chat.chatInput.sendNeedsModel": "Send needs a model.",
+  "chat.chatInput.sendNeedsTarget": "Worktree {name} is no longer available. Choose where to send.",
+  "chat.chatInput.target.notFound": "{name} (not found)",
   "chat.chatInput.toast.noModelSelected": "Select a model before sending",
   "chat.chatInput.toast.noModelSelectedAction": "Select model",
   "chat.chatInput.toast.summaryFailed": "Failed to generate summary",

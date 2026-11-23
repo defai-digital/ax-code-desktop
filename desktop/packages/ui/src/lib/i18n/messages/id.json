@@ -3651,6 +3651,8 @@
   "chat.chatInput.toast.undoFailed": "Gagal membatalkan langkah terakhir",
   "chat.chatInput.toast.redoFailed": "Gagal mengulangi langkah terakhir",
   "chat.chatInput.sendNeedsModel": "Perlu model untuk mengirim.",
+  "chat.chatInput.sendNeedsTarget": "Worktree {name} sudah tidak tersedia. Pilih tujuan pengiriman.",
+  "chat.chatInput.target.notFound": "{name} (tidak ditemukan)",
   "chat.chatInput.toast.noModelSelected": "Pilih model sebelum mengirim",
   "chat.chatInput.toast.noModelSelectedAction": "Pilih model",
   "chat.chatInput.toast.summaryFailed": "Gagal membuat ringkasan",
