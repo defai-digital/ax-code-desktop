@@ -4450,6 +4450,8 @@
   "desktop.native.startup.couldNotStart": "Aplikasi tidak dapat dimulai.",
   "desktop.native.startup.checkLogs": "Periksa log aplikasi untuk mengetahui detailnya.",
   "desktop.native.role.hideOthers": "Sembunyikan aplikasi lain",
+  "projects.all.title": "Semua proyek",
+  "projects.all.description": "Semua proyek yang Anda tambahkan dan apa yang sedang dikerjakan. Sesi yang tadi Anda buka tetap terbuka di belakang daftar ini.",
   "projects.home.actions.openFolder": "Buka folder",
   "projects.home.actions.clone": "Klon repositori",
   "projects.home.actions.browsePath": "Telusuri atau ketik jalur",

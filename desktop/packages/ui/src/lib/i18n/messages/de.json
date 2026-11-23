@@ -4450,6 +4450,8 @@
   "desktop.native.startup.couldNotStart": "Die Anwendung konnte nicht gestartet werden.",
   "desktop.native.startup.checkLogs": "Weitere Details finden Sie in den Anwendungsprotokollen.",
   "desktop.native.role.hideOthers": "Andere ausblenden",
+  "projects.all.title": "Alle Projekte",
+  "projects.all.description": "Alle Projekte, die du hinzugef\u00fcgt hast, und was gerade darin passiert. Die Sitzung, in der du warst, bleibt dahinter ge\u00f6ffnet.",
   "projects.home.actions.openFolder": "Ordner \u00f6ffnen",
   "projects.home.actions.clone": "Repository klonen",
   "projects.home.actions.browsePath": "Durchsuchen oder Pfad eingeben",

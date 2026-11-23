@@ -4450,6 +4450,8 @@
   "desktop.native.startup.couldNotStart": "Impossibile avviare l\u2019applicazione.",
   "desktop.native.startup.checkLogs": "Consulta i registri dell\u2019applicazione per maggiori dettagli.",
   "desktop.native.role.hideOthers": "Nascondi altre applicazioni",
+  "projects.all.title": "Tutti i progetti",
+  "projects.all.description": "Tutti i progetti che hai aggiunto e cosa sta succedendo in ciascuno. La sessione in cui eri resta aperta dietro questo elenco.",
   "projects.home.actions.openFolder": "Apri una cartella",
   "projects.home.actions.clone": "Clona repository",
   "projects.home.actions.browsePath": "Sfoglia o digita un percorso",

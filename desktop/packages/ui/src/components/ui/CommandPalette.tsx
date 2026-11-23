@@ -342,6 +342,15 @@ export const CommandPalette: React.FC = () => {
         }),
       },
       {
+        id: "all-projects",
+        title: t("projects.all.title"),
+        icon: <Icon name="folder-6" className="mr-2 h-4 w-4" />,
+        searchText: `${t("projects.all.title")} projects home list registry`,
+        onSelect: run(() => {
+          useUIStore.getState().setAllProjectsOpen(true)
+        }),
+      },
+      {
         id: "open-project-browser",
         title: t("commandPalette.item.openProjectBrowser"),
         icon: <Icon name="global" className="mr-2 h-4 w-4" />,

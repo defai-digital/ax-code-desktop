@@ -476,6 +476,8 @@ export const dict = {
     "Add a local folder, clone a repository, or import workspaces you already use. Sessions start in the project you pick.",
   "projects.home.actions.addProject": "Add project",
   "projects.home.actions.import": "Import",
+  "projects.all.title": "All projects",
+  "projects.all.description": "Every project you added and what it is doing. The session you were in stays open behind this list.",
   "projects.home.actions.openFolder": "Open a folder",
   "projects.home.actions.clone": "Clone repository",
   "projects.home.actions.browsePath": "Browse or type a path",

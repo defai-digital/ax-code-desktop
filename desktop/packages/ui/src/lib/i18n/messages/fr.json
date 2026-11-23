@@ -4450,6 +4450,8 @@
   "desktop.native.startup.couldNotStart": "L\u2019application n\u2019a pas pu d\u00e9marrer.",
   "desktop.native.startup.checkLogs": "Consultez les journaux de l\u2019application pour plus de d\u00e9tails.",
   "desktop.native.role.hideOthers": "Masquer les autres applications",
+  "projects.all.title": "Tous les projets",
+  "projects.all.description": "Tous les projets que vous avez ajout\u00e9s et ce qui s'y passe. La session o\u00f9 vous \u00e9tiez reste ouverte derri\u00e8re cette liste.",
   "projects.home.actions.openFolder": "Ouvrir un dossier",
   "projects.home.actions.clone": "Cloner un d\u00e9p\u00f4t",
   "projects.home.actions.browsePath": "Parcourir ou saisir un chemin",

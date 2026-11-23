@@ -103,6 +103,19 @@ export function SidebarHeader(props: Props): React.ReactNode {
             <kbd className="flex-shrink-0 font-sans typography-micro text-muted-foreground">{newSessionShortcut}</kbd>
           ) : null}
         </button>
+        {/* The full project list from any session, without starting a task (C UX-09). */}
+        <button
+          type="button"
+          onClick={() => useUIStore.getState().setAllProjectsOpen(true)}
+          data-sidebar-all-projects
+          className={cn(
+            "flex h-6 items-center gap-1 self-start rounded-md px-1 typography-meta font-medium text-primary transition-colors",
+            "hover:bg-[var(--interactive-hover)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]",
+          )}
+        >
+          {t("projects.all.title")}
+          <Icon name="arrow-right" className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
         <div className="flex h-8 items-center justify-between gap-2">
           <div className="flex items-center gap-1.5">
             <Tooltip>

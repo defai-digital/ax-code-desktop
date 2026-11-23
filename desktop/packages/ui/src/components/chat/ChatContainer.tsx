@@ -123,6 +123,7 @@ const shouldIgnoreChatNavigationForFocus = (
 const hasBlockingChatOverlay = (): boolean => {
   const {
     isAboutDialogOpen,
+    isAllProjectsOpen,
     isCommandPaletteOpen,
     isHelpDialogOpen,
     isImagePreviewOpen,
@@ -133,6 +134,7 @@ const hasBlockingChatOverlay = (): boolean => {
 
   return (
     isAboutDialogOpen ||
+    isAllProjectsOpen ||
     isCommandPaletteOpen ||
     isHelpDialogOpen ||
     isImagePreviewOpen ||

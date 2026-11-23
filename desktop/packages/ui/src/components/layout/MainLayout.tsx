@@ -15,6 +15,7 @@ import { ErrorBoundary } from "../ui/ErrorBoundary"
 import { CommandPalette } from "../ui/CommandPalette"
 import { CrossSessionSearchDialog } from "@/components/chat/CrossSessionSearchDialog"
 import { HelpDialog } from "../ui/HelpDialog"
+import { AllProjectsDialog } from "../projects/AllProjectsDialog"
 import { AxCodeStatusDialog } from "../ui/AxCodeStatusDialog"
 import { SessionSidebar } from "@/components/session/SessionSidebar"
 import { SessionDialogs } from "@/components/session/SessionDialogs"
@@ -291,6 +292,7 @@ export const MainLayout: React.FC = () => {
         <CommandPalette />
         <CrossSessionSearchDialog />
         <HelpDialog />
+        <AllProjectsDialog />
         <AxCodeStatusDialog />
         <SessionDialogs />
         <QuickDispatchDialog />

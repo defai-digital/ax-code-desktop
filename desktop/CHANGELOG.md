@@ -20,6 +20,7 @@ All notable changes to this project will be documented in this file.
 
 ### Changed
 
+- Add **All projects** to the session sidebar and the command palette. It opens the project list over the current session, which stays where it was; before, the list showed only on an empty chat or a new-session draft.
 - Remove the Mission Control "More than 4 sessions need close attention" chip. It counted working sessions as needing attention; the summary already counts the sessions that need you. At most 4 decision toasts still show at once.
 
 ### Security

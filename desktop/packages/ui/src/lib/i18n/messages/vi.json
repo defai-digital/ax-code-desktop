@@ -4450,6 +4450,8 @@
   "desktop.native.startup.couldNotStart": "Kh\u00f4ng th\u1ec3 kh\u1edfi \u0111\u1ed9ng \u1ee9ng d\u1ee5ng.",
   "desktop.native.startup.checkLogs": "Ki\u1ec3m tra nh\u1eadt k\u00fd \u1ee9ng d\u1ee5ng \u0111\u1ec3 bi\u1ebft chi ti\u1ebft.",
   "desktop.native.role.hideOthers": "\u1ea8n \u1ee9ng d\u1ee5ng kh\u00e1c",
+  "projects.all.title": "T\u1ea5t c\u1ea3 d\u1ef1 \u00e1n",
+  "projects.all.description": "T\u1ea5t c\u1ea3 d\u1ef1 \u00e1n b\u1ea1n \u0111\u00e3 th\u00eam v\u00e0 vi\u1ec7c \u0111ang di\u1ec5n ra trong t\u1eebng d\u1ef1 \u00e1n. Phi\u00ean b\u1ea1n \u0111ang m\u1edf v\u1eabn m\u1edf ph\u00eda sau danh s\u00e1ch n\u00e0y.",
   "projects.home.actions.openFolder": "M\u1edf th\u01b0 m\u1ee5c",
   "projects.home.actions.clone": "Sao ch\u00e9p kho m\u00e3",
   "projects.home.actions.browsePath": "Duy\u1ec7t ho\u1eb7c nh\u1eadp \u0111\u01b0\u1eddng d\u1eabn",
