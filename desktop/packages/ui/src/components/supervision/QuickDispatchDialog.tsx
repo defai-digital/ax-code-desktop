@@ -449,10 +449,7 @@ export const QuickDispatchDialog: React.FC = () => {
     const stillWaiting = () =>
       useSupervisionStore.getState().quickDispatchOpen && openGenerationRef.current === generation
     const content = prompt.trim()
-    if (!content) {
-      jumpTo(item)
-      return
-    }
+    if (!content) return
 
     const choice = useSessionUIStore.getState().getLastUserChoice(item.sessionId)
     const config = useConfigStore.getState()
@@ -663,24 +660,33 @@ export const QuickDispatchDialog: React.FC = () => {
           <div className="flex flex-col gap-1 border-t border-border/40 pt-3">
             <span className="typography-micro text-muted-foreground">{t("supervision.dispatch.recent")}</span>
             <p className="typography-micro text-muted-foreground">{t("supervision.dispatch.recentHint")}</p>
+            {/* A row only opens its session. Sending is its own button, so a click meant to check on a session never
+                starts or queues the prompt still typed above (G UX-06). */}
             {recent.map((item) => (
-              <button
-                key={item.sessionId}
-                type="button"
-                className="flex min-w-0 flex-col items-start rounded-lg px-2 py-1.5 text-left hover:bg-interactive-hover"
-                disabled={starting}
-                onClick={() => void sendToRecent(item)}
-              >
-                <span className="truncate typography-ui-label text-foreground">{item.title}</span>
-                {prompt.trim() ? (
-                  <span className="typography-micro text-muted-foreground">
-                    {t("supervision.dispatch.sendToRecent")}
-                  </span>
-                ) : null}
-                {item.projectLabel ? (
-                  <span className="truncate typography-micro text-muted-foreground">{item.projectLabel}</span>
-                ) : null}
-              </button>
+              <div key={item.sessionId} className="flex min-w-0 items-center gap-2" data-dispatch-recent={item.sessionId}>
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 flex-col items-start rounded-lg px-2 py-1.5 text-left hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
+                  onClick={() => jumpTo(item)}
+                >
+                  <span className="max-w-full truncate typography-ui-label text-foreground">{item.title}</span>
+                  {item.projectLabel ? (
+                    <span className="max-w-full truncate typography-micro text-muted-foreground">{item.projectLabel}</span>
+                  ) : null}
+                </button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0"
+                  disabled={starting || !prompt.trim()}
+                  aria-label={`${t("supervision.dispatch.sendToRecent")} · ${item.title}`}
+                  onClick={() => void sendToRecent(item)}
+                  data-dispatch-send-recent
+                >
+                  {t("supervision.dispatch.sendToRecent")}
+                </Button>
+              </div>
             ))}
           </div>
         ) : null}

@@ -5,10 +5,14 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 const mocks = vi.hoisted(() => ({
   messages: [] as Array<{ id: string }>,
   inFlight: new Set<string>(),
+  viewed: [] as string[],
 }))
 
 vi.mock("@/lib/i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }))
-vi.mock("@/sync/notification-store", () => ({ useSessionHasError: () => false }))
+vi.mock("@/sync/notification-store", () => ({
+  useSessionHasError: () => false,
+  markSessionViewed: (sessionId: string) => mocks.viewed.push(sessionId),
+}))
 vi.mock("@/sync/sync-context", () => ({ useSessionMessages: () => mocks.messages }))
 vi.mock("@/hooks/useQueuedMessageAutoSend", () => ({
   isQueuedEntryInFlight: (id: string) => mocks.inFlight.has(id),
@@ -41,6 +45,7 @@ describe("queued message chips", () => {
     onSend = vi.fn<(id: string) => void>()
     mocks.messages = []
     mocks.inFlight.clear()
+    mocks.viewed = []
     useSessionUIStore.setState({ currentSessionId: "ses_a" })
     useMessageQueueStore.setState({ queuedMessages: { ses_a: [SENT] } })
   })
@@ -48,7 +53,26 @@ describe("queued message chips", () => {
   afterEach(() => {
     act(() => root.unmount())
     container.remove()
-    useMessageQueueStore.setState({ queuedMessages: {} })
+    useMessageQueueStore.setState({ queuedMessages: {}, heldQueues: {} })
+  })
+
+  test("a held queue says so and offers Resume queue, which releases it", async () => {
+    useMessageQueueStore.setState({ heldQueues: { ses_a: true } })
+    await render()
+    expect(container.textContent).toContain("chat.queuedMessage.heldTitle")
+    expect(container.textContent).toContain("chat.queuedMessage.heldSubtitle")
+    const resume = container.querySelector<HTMLButtonElement>("[data-queue-resume]")!
+    expect(resume.textContent).toBe("chat.queuedMessage.resume")
+    await act(async () => resume.click())
+    expect(useMessageQueueStore.getState().heldQueues).toEqual({})
+    expect(mocks.viewed).toEqual(["ses_a"])
+    expect(container.querySelector("[data-queue-resume]")).toBeNull()
+    expect(container.textContent).toContain("chat.queuedMessage.title")
+  })
+
+  test("a queue that is not held offers no Resume queue", async () => {
+    await render()
+    expect(container.querySelector("[data-queue-resume]")).toBeNull()
   })
 
   test("an entry this window is sending offers nothing that could send it twice", async () => {

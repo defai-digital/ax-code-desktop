@@ -163,6 +163,12 @@ describe("QuickDispatchDialog recent sessions", () => {
       button.click()
     })
   }
+  const sendButton = () => document.querySelector<HTMLButtonElement>("[data-dispatch-send-recent]")!
+  const sendRecent = async () => {
+    await act(async () => {
+      sendButton().click()
+    })
+  }
 
   test("previews the model the project's new session would get, without changing configuration", async () => {
     useConfigStore.setState({
@@ -201,7 +207,7 @@ describe("QuickDispatchDialog recent sessions", () => {
       const toggle = document.querySelector<HTMLElement>('[role="button"][aria-pressed]')!
       toggle.click()
     })
-    await clickRecent()
+    await sendRecent()
     expect(send).toHaveBeenCalledOnce()
 
     await act(async () => {
@@ -217,9 +223,10 @@ describe("QuickDispatchDialog recent sessions", () => {
     expect(openSupervisedSession).not.toHaveBeenCalled()
   })
 
-  test("an empty prompt opens the recent session without sending", async () => {
+  test("a recent row opens its session and sends nothing, even with a prompt typed", async () => {
+    // Checking on a session must not start or queue the prompt still in the field (G UX-06).
     await render()
-    await typePrompt("   ")
+    await typePrompt("Continue the task")
     await clickRecent()
     expect(openSupervisedSession).toHaveBeenCalledWith({
       sessionId: "ses_recent",
@@ -228,6 +235,16 @@ describe("QuickDispatchDialog recent sessions", () => {
     })
     expect(send).not.toHaveBeenCalled()
     expect(useSupervisionStore.getState().quickDispatchOpen).toBe(false)
+  })
+
+  test("Send to this session is its own button, available only with a prompt", async () => {
+    await render()
+    expect(sendButton().disabled).toBe(true)
+    expect(sendButton().getAttribute("aria-label")).toBe(`${dict["supervision.dispatch.sendToRecent"]} · Recent task`)
+    await typePrompt("   ")
+    expect(sendButton().disabled).toBe(true)
+    await typePrompt("Continue the task")
+    expect(sendButton().disabled).toBe(false)
   })
 
   test("sends with session choices, fills gaps from config, and honors openAfter", async () => {
@@ -248,7 +265,7 @@ describe("QuickDispatchDialog recent sessions", () => {
       toggle.click()
     })
     expect(document.body.textContent).toContain(dict["supervision.dispatch.sendToRecent"])
-    await clickRecent()
+    await sendRecent()
     expect(send).toHaveBeenCalledWith({
       id: "ses_recent",
       text: "Continue the task",
@@ -293,7 +310,7 @@ describe("QuickDispatchDialog recent sessions", () => {
     live.rows[0].state = "running"
     await render()
     await typePrompt("Continue")
-    await clickRecent()
+    await sendRecent()
     expect(useMessageQueueStore.getState().getQueueForSession("ses_recent")[0]).toMatchObject({
       content: "Continue",
       sendConfig: {
@@ -320,7 +337,7 @@ describe("QuickDispatchDialog recent sessions", () => {
     }
     await render()
     await typePrompt("Keep this prompt")
-    await clickRecent()
+    await sendRecent()
     expect(errorToast).toHaveBeenCalledOnce()
     expect(document.querySelector("textarea")?.value).toBe("Keep this prompt")
     expect(useSupervisionStore.getState().quickDispatchOpen).toBe(true)

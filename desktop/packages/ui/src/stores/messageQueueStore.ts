@@ -45,6 +45,11 @@ export interface QueuedMessage {
 interface MessageQueueState {
   queuedMessages: Record<string, QueuedMessage[]> // sessionId → queue
   queueModeEnabled: boolean // global toggle
+  /**
+   * Queues stopped by an error in their session. Only Resume queue releases one: opening the session to read the
+   * error does not, so a look never sends work (C UX-04). A hold lasts as long as its queue has entries.
+   */
+  heldQueues: Record<string, true>
 }
 
 interface MessageQueueActions {
@@ -62,6 +67,10 @@ interface MessageQueueActions {
   clearAllQueues: () => void
   setQueueMode: (enabled: boolean) => void
   getQueueForSession: (sessionId: string) => QueuedMessage[]
+  /** Stop auto-send for a session's queue; does nothing when the session has nothing queued. */
+  holdQueue: (sessionId: string) => void
+  /** Release a held queue, so it sends on the session's next idle. */
+  resumeQueue: (sessionId: string) => void
 }
 
 type MessageQueueStore = MessageQueueState & MessageQueueActions
@@ -206,6 +215,28 @@ export const releaseQueuedDispatchClaim = (messageId: string): void => {
   }
 }
 
+// A hold belongs to the queue it stopped: once that queue is empty, a later queue starts unheld.
+const holdsWithQueues = (
+  heldQueues: Record<string, true>,
+  queuedMessages: Record<string, QueuedMessage[]>,
+): Record<string, true> => {
+  const kept = Object.keys(heldQueues).filter((sessionId) => (queuedMessages[sessionId]?.length ?? 0) > 0)
+  if (kept.length === Object.keys(heldQueues).length) return heldQueues
+  return Object.fromEntries(kept.map((sessionId) => [sessionId, true as const]))
+}
+
+const sanitizePersistedHolds = (
+  value: unknown,
+  queuedMessages: Record<string, QueuedMessage[]>,
+): Record<string, true> => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {}
+  const held: Record<string, true> = {}
+  for (const [sessionId, flag] of Object.entries(value as Record<string, unknown>)) {
+    if (flag === true) held[sessionId] = true
+  }
+  return holdsWithQueues(held, queuedMessages)
+}
+
 /** Entries a send may take: an entry being sent, or whose send is unconfirmed, is not offered again. */
 export const isQueuedMessageSendable = (message: QueuedMessage): boolean => message.delivery !== "sending"
 
@@ -215,6 +246,7 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
       (set, get) => ({
         queuedMessages: {},
         queueModeEnabled: true,
+        heldQueues: {},
 
         addToQueue: (sessionId, message) => {
           const currentQueue = get().queuedMessages[sessionId] ?? []
@@ -279,7 +311,7 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
             if (newQueue.length === 0) {
               const { [sessionId]: _removed, ...rest } = state.queuedMessages
               void _removed
-              return { queuedMessages: rest }
+              return { queuedMessages: rest, heldQueues: holdsWithQueues(state.heldQueues, rest) }
             }
 
             return {
@@ -308,7 +340,7 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
             if (newQueue.length === 0) {
               const { [sessionId]: _removed, ...rest } = prevState.queuedMessages
               void _removed
-              return { queuedMessages: rest }
+              return { queuedMessages: rest, heldQueues: holdsWithQueues(prevState.heldQueues, rest) }
             }
 
             return {
@@ -326,7 +358,7 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
           set((state) => {
             const { [sessionId]: _removed, ...rest } = state.queuedMessages
             void _removed
-            return { queuedMessages: rest }
+            return { queuedMessages: rest, heldQueues: holdsWithQueues(state.heldQueues, rest) }
           })
         },
 
@@ -342,12 +374,12 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
                 changed = true
               }
             }
-            return changed ? { queuedMessages } : state
+            return changed ? { queuedMessages, heldQueues: holdsWithQueues(state.heldQueues, queuedMessages) } : state
           })
         },
 
         clearAllQueues: () => {
-          set({ queuedMessages: {} })
+          set({ queuedMessages: {}, heldQueues: {} })
         },
 
         setQueueMode: (enabled) => {
@@ -359,6 +391,22 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
         getQueueForSession: (sessionId) => {
           return get().queuedMessages[sessionId] ?? []
         },
+
+        holdQueue: (sessionId) => {
+          set((state) => {
+            if ((state.queuedMessages[sessionId]?.length ?? 0) === 0 || state.heldQueues[sessionId]) return state
+            return { heldQueues: { ...state.heldQueues, [sessionId]: true } }
+          })
+        },
+
+        resumeQueue: (sessionId) => {
+          set((state) => {
+            if (!state.heldQueues[sessionId]) return state
+            const { [sessionId]: _released, ...rest } = state.heldQueues
+            void _released
+            return { heldQueues: rest }
+          })
+        },
       }),
       {
         name: "message-queue-store",
@@ -366,15 +414,19 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
         partialize: (state) => ({
           queuedMessages: state.queuedMessages,
           queueModeEnabled: state.queueModeEnabled,
+          heldQueues: state.heldQueues,
         }),
         merge: (persistedState, currentState) => {
           if (!hasPersistedFields(persistedState, ["queuedMessages", "queueModeEnabled"])) return currentState
           const persisted = persistedState as Partial<MessageQueueState> | undefined
+          const queuedMessages = sanitizePersistedQueues(persisted?.queuedMessages)
           return {
             ...currentState,
             // Storage is untrusted data: restore only validated fields so stale or malformed
             // action-name properties cannot replace the live queue methods.
-            queuedMessages: sanitizePersistedQueues(persisted?.queuedMessages),
+            queuedMessages,
+            // A hold survives a restart, so a relaunch never sends a queue its session's error stopped.
+            heldQueues: sanitizePersistedHolds(persisted?.heldQueues, queuedMessages),
             queueModeEnabled:
               typeof persisted?.queueModeEnabled === "boolean"
                 ? persisted.queueModeEnabled

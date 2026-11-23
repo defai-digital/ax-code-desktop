@@ -38,13 +38,13 @@ const hasRecentAbort = (sessionId: string): boolean => {
   return Date.now() - abortRecord.timestamp < RECENT_ABORT_WINDOW_MS
 }
 
-// QueuedMessageChips renders exactly this state as a red "Held" label: an
-// unseen error notification means the queue is being withheld until the user
-// looks at what went wrong. Auto-send must honor the same state — otherwise
-// the next busy→idle edge fires the "held" message into the errored session
-// while the UI claims it is parked. Manual send from the chip stays
-// available, and viewing the session clears the flag (markSessionViewed).
+// QueuedMessageChips renders exactly this state as a red "Held" label. An error in the session holds its queue
+// (heldQueues, set from the session.error event) until the user presses Resume queue; opening the session to read the
+// error releases nothing (C UX-04). An unseen error notification holds as well, for a queue added after the error.
+// Auto-send must honor the same state, or the next busy -> idle edge fires the "held" message into the errored
+// session while the UI claims it is parked. Manual send from the chip stays available.
 export const isQueuedAutoSendHeld = (sessionId: string): boolean =>
+  useMessageQueueStore.getState().heldQueues[sessionId] === true ||
   useSyncNotificationStore.getState().sessionHasError(sessionId)
 
 // Entries this window is sending now. An entry marked sending that is not listed here is unconfirmed: another window
@@ -294,6 +294,8 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
   // index here. Viewing a session clears only the notification store: without this subscription the
   // effect never runs again to spend the busy -> idle edge kept armed while the hold was up.
   const unseenErrorBySession = useSyncNotificationStore((state) => state.index.session.unseenHasError)
+  // Likewise for Resume queue: releasing a hold must re-run the pass that spends the armed edge.
+  const heldQueues = useMessageQueueStore((state) => state.heldQueues)
 
   const inFlightSessionsRef = React.useRef<Set<string>>(new Set())
   const previousStatusRef = React.useRef<Map<string, SessionStatusType>>(new Map())
@@ -554,5 +556,5 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
         abortWakeupTimerRef.current = null
       }
     }
-  }, [enabled, queuedMessages, sessionStatusRecord, unseenErrorBySession, abortWakeupTick])
+  }, [enabled, queuedMessages, sessionStatusRecord, unseenErrorBySession, heldQueues, abortWakeupTick])
 }

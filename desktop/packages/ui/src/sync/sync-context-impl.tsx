@@ -92,6 +92,7 @@ import { toast } from "@/components/ui"
 import { appendNotification, clearSessionErrorsBefore } from "./notification-store"
 import { HIGH_TOUCH_SOFT_LIMIT } from "@/lib/supervision/sessionState"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
+import { useMessageQueueStore } from "@/stores/messageQueueStore"
 import { noteSessionRunStatus, takeSessionRunStartedAt } from "./run-start-tracker"
 import { markSessionRunEnded } from "./run-state-store"
 import type { State } from "./types"
@@ -1367,6 +1368,10 @@ export function handleEvent(
         // state. An error raised inside this run is newer than its start and stays.
         const startedAt = takeSessionRunStartedAt(sessionID)
         if (startedAt !== null) clearSessionErrorsBefore(sessionID, startedAt)
+      } else {
+        // Stop the session's queue here, not from the notification: an error in the session being watched is stored
+        // as already viewed, and the queue then fired into the failed session on its next idle (C UX-04).
+        useMessageQueueStore.getState().holdQueue(sessionID)
       }
       appendNotification({
         directory: resolvedDirectory,

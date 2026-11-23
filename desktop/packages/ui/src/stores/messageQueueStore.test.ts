@@ -329,4 +329,56 @@ describe("messageQueueStore", () => {
       resource,
     ])
   })
+
+  describe("held queues (C UX-04)", () => {
+    it("holds only a session with something queued, and only Resume queue releases it", () => {
+      const store = useMessageQueueStore.getState()
+      store.holdQueue("ses_empty")
+      expect(useMessageQueueStore.getState().heldQueues).toEqual({})
+
+      store.addToQueue("ses_a", { content: "next" })
+      store.holdQueue("ses_a")
+      expect(useMessageQueueStore.getState().heldQueues).toEqual({ ses_a: true })
+      store.addToQueue("ses_a", { content: "after" })
+      expect(useMessageQueueStore.getState().heldQueues).toEqual({ ses_a: true })
+
+      store.resumeQueue("ses_a")
+      expect(useMessageQueueStore.getState().heldQueues).toEqual({})
+    })
+
+    it("a hold ends with its queue, so a later queue starts unheld", () => {
+      const store = useMessageQueueStore.getState()
+      store.addToQueue("ses_a", { content: "only" })
+      store.addToQueue("ses_b", { content: "other" })
+      store.holdQueue("ses_a")
+      store.holdQueue("ses_b")
+      const [entry] = store.getQueueForSession("ses_a")
+      store.removeFromQueue("ses_a", entry.id)
+      expect(useMessageQueueStore.getState().heldQueues).toEqual({ ses_b: true })
+      store.clearSessions(["ses_b"])
+      expect(useMessageQueueStore.getState().heldQueues).toEqual({})
+
+      store.addToQueue("ses_a", { content: "new" })
+      expect(useMessageQueueStore.getState().heldQueues).toEqual({})
+    })
+
+    it("a hold survives a restart; a malformed or queue-less one does not", async () => {
+      window.localStorage.setItem(
+        "message-queue-store",
+        JSON.stringify({
+          state: {
+            queuedMessages: {
+              ses_a: [{ id: "q1", content: "kept", createdAt: 1 }],
+              ses_b: [{ id: "q2", content: "kept", createdAt: 2 }],
+            },
+            queueModeEnabled: true,
+            heldQueues: { ses_a: true, ses_b: "yes", ses_gone: true },
+          },
+          version: 0,
+        }),
+      )
+      await useMessageQueueStore.persist.rehydrate()
+      expect(useMessageQueueStore.getState().heldQueues).toEqual({ ses_a: true })
+    })
+  })
 })

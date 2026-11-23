@@ -245,6 +245,16 @@ describe("isQueuedAutoSendHeld", () => {
     useSyncNotificationStore.getState().markSessionViewed("session-err")
     expect(isQueuedAutoSendHeld("session-err")).toBe(false)
   })
+
+  test("a queue its session's error held stays held when the session is opened, until Resume queue", () => {
+    useMessageQueueStore.getState().addToQueue("session-err", { content: "next" })
+    useMessageQueueStore.getState().holdQueue("session-err")
+    useSyncNotificationStore.getState().markSessionViewed("session-err")
+    expect(isQueuedAutoSendHeld("session-err")).toBe(true)
+    useMessageQueueStore.getState().resumeQueue("session-err")
+    expect(isQueuedAutoSendHeld("session-err")).toBe(false)
+    useMessageQueueStore.getState().clearQueue("session-err")
+  })
 })
 
 describe("buildQueuedAutoSendPayload", () => {
@@ -431,7 +441,7 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     mockSessionAbortFlags.clear()
     claimHookRef.current = null
     statusState.current = { "session-a": { type: "busy" } }
-    useMessageQueueStore.setState({ queuedMessages: {} })
+    useMessageQueueStore.setState({ queuedMessages: {}, heldQueues: {} })
     useSyncNotificationStore.setState({
       list: [],
       index: {
@@ -503,6 +513,33 @@ describe("useQueuedMessageAutoSend hold lift", () => {
       useSyncNotificationStore.getState().markSessionViewed("session-a")
     })
 
+    expect(sendMessageCalls).toHaveLength(1)
+    expect(sendMessageCalls[0][0]).toBe("queued message")
+  })
+
+  test("a held queue is not sent when the session is opened, and goes out on Resume queue", async () => {
+    // C UX-04: reading the error is a look; only Resume queue lets the queue go into the failed session.
+    useMessageQueueStore.getState().addToQueue("session-a", {
+      content: "queued message",
+      sendConfig: { providerID: "provider-1", modelID: "model-1" },
+    })
+    useMessageQueueStore.getState().holdQueue("session-a")
+
+    render()
+    statusState.current = { "session-a": { type: "idle" } }
+    render()
+    await React.act(async () => {})
+    expect(sendMessageCalls).toHaveLength(0)
+
+    await React.act(async () => {
+      useSyncNotificationStore.getState().markSessionViewed("session-a")
+    })
+    expect(sendMessageCalls).toHaveLength(0)
+
+    // The edge stayed armed while held: resuming sends without another status change.
+    await React.act(async () => {
+      useMessageQueueStore.getState().resumeQueue("session-a")
+    })
     expect(sendMessageCalls).toHaveLength(1)
     expect(sendMessageCalls[0][0]).toBe("queued message")
   })
@@ -843,7 +880,7 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     expect(sendMessageCalls).toHaveLength(0)
 
     // That window's copy of the queue and its claim go away; a new entry arrives.
-    useMessageQueueStore.setState({ queuedMessages: {} })
+    useMessageQueueStore.setState({ queuedMessages: {}, heldQueues: {} })
     useMessageQueueStore.getState().addToQueue("session-a", {
       content: "later queued message",
       sendConfig: { providerID: "provider-1", modelID: "model-1" },
@@ -889,7 +926,7 @@ describe("useQueuedMessageAutoSend cross-window claim", () => {
     claimHookRef.current = null
     mockSessionAbortFlags.clear()
     statusState.current = { "session-a": { type: "busy" } }
-    useMessageQueueStore.setState({ queuedMessages: {} })
+    useMessageQueueStore.setState({ queuedMessages: {}, heldQueues: {} })
     useSyncNotificationStore.setState({
       list: [],
       index: {

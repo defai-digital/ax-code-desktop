@@ -2130,6 +2130,8 @@ export const dict = {
   "chat.queuedMessage.heldTitle": "Held messages",
   "chat.queuedMessage.subtitle": "will send when turn ends",
   "chat.queuedMessage.held": "held — agent errored",
+  "chat.queuedMessage.heldSubtitle": "stopped after an error; nothing sends until you resume",
+  "chat.queuedMessage.resume": "Resume queue",
   "chat.queuedMessage.sending": "sending…",
   "chat.queuedMessage.unconfirmed": "not confirmed — it may already be in the chat; check before sending again",
   "chat.queuedMessage.sendAgain": "send again",
@@ -3721,7 +3723,7 @@ export const dict = {
   "supervision.dispatch.targetPreview": "New session at {path}. Work mode will be Agent.",
   "supervision.dispatch.targetModel": "Model: {model}",
   "supervision.dispatch.sendToRecent": "Send to this session",
-  "supervision.dispatch.recentHint": "A prompt sends into the session. An empty prompt opens it.",
+  "supervision.dispatch.recentHint": "Pick a session to open it. Send to this session adds the prompt above to it.",
   "supervision.dispatch.noProjects": "Add a project before dispatching.",
   "supervision.settings.quickDispatch.label": "Global quick dispatch shortcut",
   "supervision.settings.quickDispatch.description":

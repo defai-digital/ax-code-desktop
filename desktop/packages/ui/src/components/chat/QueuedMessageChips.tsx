@@ -3,7 +3,7 @@ import { useMessageQueueStore, type QueuedMessage } from "@/stores/messageQueueS
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useInputStore } from "@/sync/input-store"
 import { useI18n } from "@/lib/i18n"
-import { useSessionHasError } from "@/sync/notification-store"
+import { markSessionViewed, useSessionHasError } from "@/sync/notification-store"
 import { useSessionMessages } from "@/sync/sync-context"
 import { isQueuedEntryInFlight } from "@/hooks/useQueuedMessageAutoSend"
 import { Icon } from "@/components/icon/Icon"
@@ -117,6 +117,7 @@ export const QueuedMessageChips = memo(({ onEditMessage, onSendMessage }: Queued
   )
   const popToInput = useMessageQueueStore((state) => state.popToInput)
   const hasError = useSessionHasError(currentSessionId ?? "")
+  const queueHeld = useMessageQueueStore((state) => (currentSessionId ? state.heldQueues[currentSessionId] === true : false))
   const sessionMessages = useSessionMessages(currentSessionId ?? "")
 
   // An unconfirmed entry was sent under its retry id, which the runtime keeps as the user message id. Once that
@@ -161,7 +162,12 @@ export const QueuedMessageChips = memo(({ onEditMessage, onSendMessage }: Queued
     return null
   }
 
-  const held = hasError
+  const held = hasError || queueHeld
+  const resume = () => {
+    // The person decided the queue may go on: release the hold and the unseen error that also holds it.
+    useMessageQueueStore.getState().resumeQueue(currentSessionId)
+    markSessionViewed(currentSessionId)
+  }
 
   return (
     <div className="pb-2 w-full px-1">
@@ -175,7 +181,23 @@ export const QueuedMessageChips = memo(({ onEditMessage, onSendMessage }: Queued
           <span className="typography-ui-label font-medium text-foreground flex-shrink-0">
             {held ? t("chat.queuedMessage.heldTitle") : t("chat.queuedMessage.title")} {queuedMessages.length}
           </span>
-          {!held && (
+          {held ? (
+            <>
+              <span className="typography-ui-label text-muted-foreground ml-1 min-w-0 truncate">
+                {t("chat.queuedMessage.heldSubtitle")}
+              </span>
+              <Button
+                type="button"
+                size="xs"
+                variant="outline"
+                className="ml-auto shrink-0"
+                onClick={resume}
+                data-queue-resume
+              >
+                {t("chat.queuedMessage.resume")}
+              </Button>
+            </>
+          ) : (
             <span className="typography-ui-label text-muted-foreground ml-1 truncate">
               {t("chat.queuedMessage.subtitle")}
             </span>
