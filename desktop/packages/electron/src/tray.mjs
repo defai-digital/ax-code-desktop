@@ -51,7 +51,7 @@ const approvalLabel = (approval, translate) => {
 
 // Text shown next to the icon — reserved for the two states where a precise
 // count is actionable: pending approvals and errors. Busy and unread are
-// conveyed by the icon itself (animated / filled faces), so they add no text.
+// conveyed by the pulsing or steady dot beside the mark, so they add no text.
 // Glyphs come from the Geometric Shapes block so macOS renders them monochrome
 // (not colour emoji) and tints them with the menu bar like the template icon.
 const computeTitle = (counts) => {
@@ -60,9 +60,7 @@ const computeTitle = (counts) => {
   return ""
 }
 
-// Which icon variant to show. Busy work animates a "breathing" fill; unread
-// (with nothing active) holds a static filled cube until the state clears;
-// otherwise the plain outline.
+// Busy work pulses the activity dot. Unread sessions show a steady dot until cleared.
 const computeIconState = (counts) => {
   if (counts.busy > 0) return "busy"
   if (counts.unseen > 0) return "unseen"
@@ -91,9 +89,8 @@ const toTemplateImage = (p) => {
   return image
 }
 
-// idleIconPath: plain outline (calm state). unseenIconPath: statically filled
-// (a finished session left unread). breathIconPaths: eased outline→fill frames
-// the busy state ping-pongs through.
+// The idle mark has no dot. The unread mark has a steady dot, and the busy
+// animation cycles through dot opacities while the brand mark stays fixed.
 export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconPaths, statusIconPaths, onAction, translate = (value) => value }) => {
   let tray = null
   let lastTitle = null
