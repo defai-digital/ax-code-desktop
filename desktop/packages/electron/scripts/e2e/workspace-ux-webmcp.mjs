@@ -126,10 +126,10 @@ const outcome = await runHarness({
         "Files receives a usable editor width",
       )
       await capture("files-dark-1280")
-      await audit.click("Files", { role: "button" })
+      await audit.click("Toggle right sidebar", { role: "button" })
       await audit.wait(
         `!(${visible("[data-split-inspector]")}) && ${visible("[data-split-chat]")}`,
-        "toggling Files closes the inspector and keeps the chat",
+        "header toggle closes the inspector and keeps the chat",
       )
       await checkDraft()
       await capture("sidebar-handoff-dark-1280")
