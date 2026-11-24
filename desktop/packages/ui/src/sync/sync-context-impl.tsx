@@ -509,7 +509,10 @@ export function setExternallyViewedSession(directory: string, sessionId: string,
 
 function isViewedInCurrentSession(directory: string, sessionId?: string): boolean {
   if (!sessionId) return false
-  if (_activeDirectory && _activeSession && directory === _activeDirectory && sessionId === _activeSession) return true
+  if (sessionId === _activeSession && _activeDirectory) {
+    const activeDirectoryKey = getProjectPathIdentityKey(_activeDirectory)
+    if (activeDirectoryKey && getProjectPathIdentityKey(directory) === activeDirectoryKey) return true
+  }
   pruneExternallyViewedSessions()
   return externallyViewedSessions.has(viewedSessionKey(directory, sessionId))
 }

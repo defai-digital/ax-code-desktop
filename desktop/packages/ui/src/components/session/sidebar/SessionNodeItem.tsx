@@ -1,6 +1,7 @@
 import React from "react"
 import type { Session } from "@defai-digital/ax-code-sdk/v2"
 import { ProjectIdentityText } from "@/components/projects/ProjectIdentityText"
+import { StatusMark } from "@/components/supervision/StatusMark"
 import { SUPERVISION_PRESENTATION } from "@/lib/supervision/presentation"
 import {
   DropdownMenu,
@@ -708,10 +709,11 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
       case "done_with_uncommitted":
         return (
           <span
-            className={cn("h-1.5 w-1.5 rounded-full", SUPERVISION_PRESENTATION.review.dot)}
             aria-label={t("sessions.sidebar.session.status.doneWithUncommitted")}
             title={t("sessions.sidebar.session.status.doneWithUncommitted")}
-          />
+          >
+            <StatusMark kind={SUPERVISION_PRESENTATION.review.mark} className="block h-2.5 w-2.5" />
+          </span>
         )
       case "error":
         return (

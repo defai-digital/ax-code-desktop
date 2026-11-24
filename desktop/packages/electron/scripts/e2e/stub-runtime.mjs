@@ -552,6 +552,13 @@ const server = http.createServer((req, res) => {
           json(res, { ok: true, step: step });
           return;
         }
+        if (step === 'session-completions' && portfolio.length) {
+          for (const item of [scenario.session, portfolio[0].session]) {
+            broadcast(item.directory, { type: 'session.idle', properties: { sessionID: item.id } });
+          }
+          json(res, { ok: true, step: step });
+          return;
+        }
         if (step === 'foreign-goal') {
           if (scenario.foreignGoal) {
             foreignGoalEmitted = true;

@@ -370,7 +370,7 @@ describe("updateDesktopSettings", () => {
   })
 })
 
-describe("settings save response application", () => {
+describe("settings snapshot application", () => {
   beforeEach(() => {
     vi.useFakeTimers()
     vi.resetModules()
@@ -380,6 +380,28 @@ describe("settings save response application", () => {
     vi.useRealTimers()
     vi.unstubAllGlobals()
     vi.doUnmock("@/contexts/runtimeAPIRegistry")
+  })
+
+  test("a stalled startup read releases the workspace and a late response does not overwrite its directory", async () => {
+    const previousDirectory = localStorage.getItem("lastDirectory")
+    const settingsRead = Promise.withResolvers<{ settings: { lastDirectory: string }; source: string }>()
+    vi.doMock("@/contexts/runtimeAPIRegistry", () => ({
+      getRegisteredRuntimeAPIs: () => ({ settings: { load: () => settingsRead.promise } }),
+    }))
+    try {
+      const { syncDesktopSettings } = await import("./persistence")
+      const sync = syncDesktopSettings()
+      await vi.advanceTimersByTimeAsync(5000)
+      await sync
+
+      localStorage.setItem("lastDirectory", "/opened-project")
+      settingsRead.resolve({ settings: { lastDirectory: "/old-project" }, source: "web" })
+      await vi.advanceTimersByTimeAsync(0)
+      expect(localStorage.getItem("lastDirectory")).toBe("/opened-project")
+    } finally {
+      if (previousDirectory === null) localStorage.removeItem("lastDirectory")
+      else localStorage.setItem("lastDirectory", previousDirectory)
+    }
   })
 
   test("invalidates a cached snapshot when an older save succeeds after a newer save fails", async () => {

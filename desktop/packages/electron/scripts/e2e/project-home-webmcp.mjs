@@ -51,18 +51,19 @@ const outcome = await runHarness({
           row.controls.some(control => !control.name || control.scrollWidth > control.width + 1)) throw new Error("Project card context or controls overflow")
       }
     }
-    const targetControl = async (prefix, directory) => {
+    const clickTarget = (prefix, directory) => waitForCondition(async () => {
       const controls = (await audit.all()).controls.filter(control => control.role === "button" &&
         control.name.startsWith(prefix) && mentionsPath(control.name, directory))
-      if (controls.length !== 1) throw new Error(`Expected one ${prefix} target, found ${controls.length}`)
-      return controls[0]
-    }
+      if (controls.length > 1) throw new Error(`Expected one ${prefix} target, found ${controls.length}`)
+      // The project card's accessible name includes its asynchronous activity status.
+      return controls[0] ? audit.click(controls[0].name, { role: "button", optional: true }) : false
+    }, { timeoutMs: 10_000, label: `${prefix} for ${directory}` })
     verify(await capture("home-wide"))
     // A native card click scrolls the portfolio into view through the normal
     // tool behavior. Inventory alone can include controls below the viewport.
-    await audit.click((await targetControl("Shared project · ", targets[1].directory)).name)
+    await clickTarget("Shared project · ", targets[1].directory)
     await capture("home-wide-visible")
-    await audit.click((await targetControl("Shared project · ", targets[0].directory)).name)
+    await clickTarget("Shared project · ", targets[0].directory)
     const pinReceipts = []
     const readProfile = async () => {
       const settings = JSON.parse(await fs.readFile(e2e.settingsPath, "utf8"))
@@ -71,7 +72,7 @@ const outcome = await runHarness({
       })) }
     }
     const pinTarget = targets[1]
-    await audit.click((await targetControl("Pin project · Shared project", pinTarget.directory)).name)
+    await clickTarget("Pin project · Shared project", pinTarget.directory)
     await audit.wait(`${JSON.stringify(pathForms(pinTarget.directory))}.includes(Array.from(document.querySelectorAll('[data-project-row]'))[0]?.dataset.projectDirectory)`, "pinned card moves first")
     await audit.wait(`${JSON.stringify(pathForms(targets[0].directory))}.includes(document.querySelector('[data-project-row][aria-current="true"]')?.dataset.projectDirectory)`, "pin does not select its parent card")
     await waitForCondition(async () => {
@@ -83,19 +84,17 @@ const outcome = await runHarness({
     await journeyBoot({ session })
     await audit.client.enable()
     await audit.wait(`${JSON.stringify(pathForms(pinTarget.directory))}.includes(Array.from(document.querySelectorAll('[data-project-row]'))[0]?.dataset.projectDirectory)`, "pinned card survives reload")
-    await audit.click((await targetControl("Unpin project · Shared project", pinTarget.directory)).name)
+    await clickTarget("Unpin project · Shared project", pinTarget.directory)
     await waitForCondition(async () => !(await readProfile()).projects.find(project => project.path === pinTarget.directory)?.pinned,
       { timeoutMs: 10_000, label: "unpin persisted" })
     pinReceipts.push(await readProfile())
     for (const target of targets.slice().reverse()) {
-      await audit.click((await targetControl("Shared project · ", target.directory)).name)
+      await clickTarget("Shared project · ", target.directory)
       await audit.wait(`${JSON.stringify(pathForms(target.directory))}.includes(document.querySelector('[data-project-row][aria-current="true"]')?.dataset.projectDirectory)`, "selected card is current")
       await capture(`selected-${target.id}`)
-      await audit.click((await targetControl("New session · Shared project", target.directory)).name)
+      await clickTarget("New session · Shared project", target.directory)
       await audit.wait(`document.querySelector('[data-draft-home]') && ${JSON.stringify(pathForms(target.directory))}.includes(document.querySelector('[data-project-row][aria-current="true"]')?.dataset.projectDirectory)`, "draft in selected project")
-      await audit.wait(`Boolean(Array.from(document.querySelectorAll('[data-project-row]')).find(row => ${JSON.stringify(pathForms(target.directory))}.includes(row.dataset.projectDirectory))?.querySelector('button[aria-label^="1 need you"]'))`, "attention control loaded")
-      const attention = await targetControl("1 need you · Shared project", target.directory)
-      await audit.click(attention.name)
+      await clickTarget("1 needs you · Shared project", target.directory)
       const marker = target.id === e2e.scenario.session.id ? "Fixture conversation for project A" : "Fixture conversation for project B"
       await audit.wait(`document.body.innerText.includes(${JSON.stringify(marker)})`, "correct attention conversation")
       await capture(`attention-${target.id}`)
@@ -106,7 +105,7 @@ const outcome = await runHarness({
     for (const width of [800, 600]) {
       await setDesktopViewport(session, { width, height: 1000 })
       await waitForCollapsedDesktopSidebar(session)
-      await audit.click((await targetControl("Shared project · ", targets[0].directory)).name)
+      await clickTarget("Shared project · ", targets[0].directory)
       verify(await capture(`home-${width}`))
     }
     await setDesktopViewport(session, { width: 1280, height: 1000 })
@@ -118,7 +117,7 @@ const outcome = await runHarness({
     await audit.wait('document.documentElement.classList.contains("light")', "light theme")
     await audit.click("Close settings")
     await audit.wait('!Array.from(document.querySelectorAll("[data-settings-view]")).some(e => e.checkVisibility({ opacityProperty: true }) && !e.closest("[data-ending-style]"))', "settings closed")
-    await audit.click((await targetControl("Shared project · ", targets[0].directory)).name)
+    await clickTarget("Shared project · ", targets[0].directory)
     verify(await capture("home-light"))
     const finalProfile = await readProfile()
     if (finalProfile.projects.some(project => project.pinned)) throw new Error("Temporary pin was not restored")
