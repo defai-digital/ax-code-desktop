@@ -120,7 +120,7 @@ describe("SessionAuthGate", () => {
     syncSettings.mockImplementationOnce(
       () => new Promise<void>((resolve) => { finishSettings = resolve }),
     )
-    await render()
+    await render(<div data-workspace />)
     expect(discoverHome).not.toHaveBeenCalled()
     expect(restoreDirectory).not.toHaveBeenCalled()
 
@@ -128,11 +128,13 @@ describe("SessionAuthGate", () => {
     await clickUnlock()
     expect(syncSettings).toHaveBeenCalledOnce()
     expect(restoreDirectory).not.toHaveBeenCalled()
+    expect(container.querySelector("[data-workspace]")).toBeNull()
 
     await act(async () => finishSettings())
     expect(restoreDirectory).toHaveBeenCalledExactlyOnceWith("/fixture/project")
     expect(discoverHome).toHaveBeenCalledOnce()
     expect(restoreDirectory.mock.invocationCallOrder[0]).toBeLessThan(discoverHome.mock.invocationCallOrder[0])
+    expect(container.querySelector("[data-workspace]")).not.toBeNull()
   })
 
   test("waits for a directory before mounting the authenticated workspace", async () => {

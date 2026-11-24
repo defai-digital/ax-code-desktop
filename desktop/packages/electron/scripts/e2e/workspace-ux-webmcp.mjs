@@ -64,6 +64,10 @@ const outcome = await runHarness({
             const r=e.getBoundingClientRect();return {kind:e.hasAttribute('data-split-inspector')?'inspector':e.hasAttribute('data-split-chat')?'chat':e.tagName.toLowerCase(),width:r.width,left:r.left,right:r.right}
           }),
           projects:Array.from(document.querySelectorAll('[data-project-row]')).map(e=>({name:e.getAttribute('aria-label'),text:e.innerText})),
+          sessionMarkers:Array.from(document.querySelectorAll('[data-session-row]')).filter(visible).map(row=>({
+            id:row.dataset.sessionRow, review:row.querySelector('[data-status-mark="review"]')?.parentElement?.getAttribute('aria-label'),
+            unread:Boolean(row.querySelector('[aria-label="Unread updates"]'))
+          })),
           liveContext:Array.from(document.querySelectorAll('[data-session-project-context]')).filter(visible).map(e=>e.innerText),
           starters:Array.from(document.querySelectorAll('[data-starter-layout]')).filter(visible).map(e=>e.innerText)
         }
@@ -137,6 +141,7 @@ const outcome = await runHarness({
       await viewport(1600)
       await audit.click("Review changes", { role: "button" })
       await audit.wait(visible("[data-split-inspector]"), "review inspector")
+      await audit.wait(`document.querySelector('[data-review-directory]')?.title === ${JSON.stringify(directory)}`, "restored project directory in Review")
       await audit.click("Focus panel")
       await audit.wait(
         'document.querySelector("[data-panel-focused=true]") && getComputedStyle(document.querySelector("[data-split-chat]")).display === "none"',
@@ -187,11 +192,41 @@ const outcome = await runHarness({
       await audit.wait('document.activeElement === window.__uxDraftNode', "keyboard focus returns to the preserved composer")
       await checkDraft()
       await capture("draft-return-light-800")
+
+      await viewport(1280)
+      const selectSession = async ({ id, title }) => {
+        const row = `document.querySelector('[data-session-row="${id}"]')`
+        await audit.wait(`Boolean(${row}?.checkVisibility())`, `visible session row ${id}`)
+        await session.evaluate(
+          `Array.from(${row}.querySelectorAll('button')).find(button => button.textContent.trim().startsWith(${JSON.stringify(title)})).click()`,
+        )
+        await audit.wait(`Boolean(document.querySelector('[aria-label="Copy session ID ${id}"]'))`, `open session ${id}`)
+        return row
+      }
+      const currentRow = await selectSession(e2e.scenario.session)
+      const backgroundSession = e2e.scenario.portfolio[0].session
+      const backgroundRow = `document.querySelector('[data-session-row="${backgroundSession.id}"]')`
+      const completed = await fetch(`${origin}/__e2e__/step`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ step: "session-completions" }),
+      })
+      if (!completed.ok) throw new Error("Could not deliver the fixture session completions")
+      const unread = '[aria-label="Unread updates"]'
+      await audit.wait(`Boolean(${backgroundRow}?.querySelector(${JSON.stringify(unread)}))`, "unread background session")
+      await audit.wait(
+        `Boolean(${currentRow}.querySelector('[aria-label="Finished with uncommitted changes"] [data-status-mark="review"]')) && !${currentRow}.querySelector(${JSON.stringify(unread)})`,
+        "active session has a review mark and no unread dot",
+      )
+      await capture("sidebar-review-and-unread")
+      await selectSession(backgroundSession)
+      await audit.wait(`!${backgroundRow}.querySelector(${JSON.stringify(unread)})`, "opened session is read")
+      await capture("sidebar-read-after-opening")
       return {
         name: "workspace-ux",
         ok: true,
         detail:
-          "Projects precede bounded suggestions; panel handoffs, focus, views and themes preserve the same unsent draft",
+          "Panel handoffs preserve the draft, and session rows distinguish review from unread activity",
       }
     },
   ],

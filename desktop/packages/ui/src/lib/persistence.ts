@@ -9,6 +9,7 @@ import { loadAppearancePreferences, applyAppearancePreferences } from "@/lib/app
 import { getRegisteredRuntimeAPIs } from "@/contexts/runtimeAPIRegistry"
 import { sanitizeStarterRefs } from "@/lib/draftStarters"
 import { normalizeProjectIconBackground } from "@/lib/projectMeta"
+import { withTimeout } from "@/lib/asyncTimeout"
 import { API_ENDPOINTS, HTTP_DEFAULTS } from "./http"
 import { normalizeProjectPath, readLiteralPath } from "../../../../shared/path-values.mjs"
 
@@ -1007,6 +1008,7 @@ const sanitizeWebSettings = (payload: unknown): DesktopSettings | null => {
 let _settingsCache: { value: DesktopSettings | null; at: number } | null = null
 let _settingsInflight: Promise<DesktopSettings | null> | null = null
 const SETTINGS_CACHE_TTL = 2_000 // 2 seconds — covers the startup burst
+const STARTUP_SETTINGS_TIMEOUT_MS = 5_000
 
 const fetchWebSettings = async (): Promise<DesktopSettings | null> => {
   // Return cached if fresh
@@ -1106,7 +1108,7 @@ export const syncDesktopSettings = async (): Promise<void> => {
   }
 
   try {
-    const webSettings = await fetchWebSettings()
+    const webSettings = await withTimeout(fetchWebSettings(), STARTUP_SETTINGS_TIMEOUT_MS, () => null)
     if (webSettings) {
       await applySettings(webSettings)
     }

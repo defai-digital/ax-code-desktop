@@ -139,6 +139,7 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
   const { t } = useI18n()
   const currentDirectory = useDirectoryStore((state) => state.currentDirectory)
   const [state, setState] = React.useState<GateState>("pending")
+  const [directoryPreferencesReady, setDirectoryPreferencesReady] = React.useState(false)
   const [password, setPassword] = React.useState("")
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [errorMessage, setErrorMessage] = React.useState("")
@@ -149,7 +150,6 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
   const [trustDevice, setTrustDevice] = React.useState<boolean>(() => readStoredTrustDevice())
   const [activePasskeyAction, setActivePasskeyAction] = React.useState<"auth" | "register" | null>(null)
   const passwordInputRef = React.useRef<HTMLInputElement | null>(null)
-  const hasResyncedRef = React.useRef(false)
 
   React.useEffect(() => {
     if (typeof window === "undefined") {
@@ -243,12 +243,6 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
   }, [checkStatus])
 
   React.useEffect(() => {
-    if (state === "locked") {
-      hasResyncedRef.current = false
-    }
-  }, [state])
-
-  React.useEffect(() => {
     if (state === "locked" && passwordInputRef.current) {
       passwordInputRef.current.focus()
       passwordInputRef.current.select()
@@ -256,13 +250,23 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
   }, [state])
 
   React.useEffect(() => {
-    if (state === "authenticated" && !hasResyncedRef.current) {
-      hasResyncedRef.current = true
-      void (async () => {
+    if (state !== "authenticated") {
+      setDirectoryPreferencesReady(false)
+      return
+    }
+
+    let active = true
+    void (async () => {
+      try {
         await syncDesktopSettings()
-        restoreDirectoryPreferences(useProjectsStore.getState().getActiveProject()?.path)
-        await Promise.all([initializeAppearancePreferences(), refreshDirectoryHome()])
-      })().catch((error) => console.warn("Failed to initialize authenticated preferences:", error))
+        if (active) restoreDirectoryPreferences(useProjectsStore.getState().getActiveProject()?.path)
+      } finally {
+        if (active) setDirectoryPreferencesReady(true)
+      }
+      if (active) await Promise.all([initializeAppearancePreferences(), refreshDirectoryHome()])
+    })().catch((error) => console.warn("Failed to initialize authenticated preferences:", error))
+    return () => {
+      active = false
     }
   }, [state])
 
@@ -451,8 +455,8 @@ export const SessionAuthGate: React.FC<SessionAuthGateProps> = ({ children }) =>
   const canOfferPasskeySetup = supportsPasskeys && passkeyStatus.enabled
   const canUsePasskey = canOfferPasskeySetup && passkeyStatus.hasPasskeys
 
-  // A fresh renderer may have no local directory before authenticated settings arrive.
-  if (state === "pending" || (state === "authenticated" && !currentDirectory)) {
+  // A new draft captures its directory when it opens. Wait for the restored project or directory before mounting it.
+  if (state === "pending" || (state === "authenticated" && (!directoryPreferencesReady || !currentDirectory))) {
     return <LoadingScreen />
   }
 
