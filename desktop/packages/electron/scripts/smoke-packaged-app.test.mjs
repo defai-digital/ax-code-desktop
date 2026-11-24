@@ -1,6 +1,9 @@
+import fs from "node:fs/promises"
+import os from "node:os"
 import path from "node:path"
 import { describe, expect, test } from "vitest"
 import {
+  assertPackagedTrayIcons,
   assertPinnedAxEngineStatus,
   buildSmokeAppArgs,
   buildSmokeBundleIdentifier,
@@ -157,4 +160,39 @@ describe("smoke-packaged-app args", () => {
     expect(parseArgs(["--timeout-ms", "bad"], { AX_CODE_DESKTOP_SMOKE_TIMEOUT_MS: "12000" }).timeoutMs).toBe(12000)
     expect(parseArgs(["--timeout-ms", "12000ms"], { AX_CODE_DESKTOP_SMOKE_TIMEOUT_MS: "9000" }).timeoutMs).toBe(9000)
   })
+})
+
+
+test("checks the packaged macOS tray against the source at both image densities", async () => {
+  const temp = await fs.mkdtemp(path.join(os.tmpdir(), "ax-code-tray-test-"))
+  try {
+    const source = path.join(temp, "source")
+    const app = path.join(temp, "app")
+    const tray = path.join("icons", "tray")
+    const sourceTray = path.join(source, tray)
+    await fs.mkdir(path.join(sourceTray, "status"), { recursive: true })
+    const names = [
+      "trayTemplate-idle", "trayTemplate-unseen",
+      ...Array.from({ length: 16 }, (_, i) => `trayTemplate-breath-${String(i).padStart(2, "0")}`),
+      ...["busy", "retry", "error", "unseen", "blank"].map((status) => `status/${status}`),
+    ]
+    for (const name of names) {
+      for (const suffix of [".png", "@2x.png"]) {
+        const file = `${name}${suffix}`
+        await fs.writeFile(path.join(sourceTray, file), file)
+      }
+    }
+    await fs.cp(source, app, { recursive: true })
+    await expect(assertPackagedTrayIcons(source, app)).resolves.toBeUndefined()
+
+    const retinaIdle = path.join(app, tray, "trayTemplate-idle@2x.png")
+    await fs.writeFile(retinaIdle, "previous release")
+    await expect(assertPackagedTrayIcons(source, app)).rejects.toThrow("trayTemplate-idle@2x.png")
+
+    await fs.writeFile(retinaIdle, "trayTemplate-idle@2x.png")
+    await fs.rm(path.join(app, tray, "status", "unseen@2x.png"))
+    await expect(assertPackagedTrayIcons(source, app)).rejects.toThrow("unseen@2x.png")
+  } finally {
+    await fs.rm(temp, { recursive: true, force: true })
+  }
 })

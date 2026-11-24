@@ -83,8 +83,9 @@ const computeTooltip = (counts, sessionCount, translate) => {
 // rather than a snappy blink.
 const ANIM_INTERVAL_MS = 75
 
-const toTemplateImage = (p) => {
-  const image = nativeImage.createFromPath(p)
+const toTemplateImage = (iconPath) => {
+  const image = nativeImage.createFromPath(iconPath)
+  if (image.isEmpty()) return null
   image.setTemplateImage(true)
   return image
 }
@@ -98,8 +99,9 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
 
   // macOS auto-picks the @2x file next to each path and tints the alpha.
   const idleFrame = toTemplateImage(idleIconPath)
-  const unseenFrame = toTemplateImage(unseenIconPath)
-  const breathFrames = breathIconPaths.map(toTemplateImage)
+  if (!idleFrame) throw new Error(`Unable to load the macOS tray icon: ${idleIconPath}`)
+  const unseenFrame = toTemplateImage(unseenIconPath) ?? idleFrame
+  const breathFrames = breathIconPaths.map(toTemplateImage).filter(Boolean)
   // Per-row status icons (template images, tinted + vertically centred by macOS).
   const statusIcons = {}
   for (const [key, p] of Object.entries(statusIconPaths || {})) {
@@ -120,11 +122,15 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
 
   const startAnim = () => {
     if (animTimer || !tray || tray.isDestroyed?.()) return
+    if (breathFrames.length < 2) {
+      tray.setImage(breathFrames[0] ?? unseenFrame)
+      return
+    }
     animIndex = 0
     animDir = 1
     animTimer = setInterval(() => {
       if (!tray || tray.isDestroyed?.()) return
-      tray.setImage(breathFrames[animIndex] || idleFrame)
+      tray.setImage(breathFrames[animIndex])
       // Ping-pong for a seamless, infinite in-and-out breath.
       animIndex += animDir
       if (animIndex >= breathFrames.length - 1) {
@@ -250,7 +256,7 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
       label: sessionLabel(session, translate),
       // Status icon on the left, centred across both lines; idle uses the blank
       // placeholder so every row keeps the same gutter.
-      icon: statusIcons[statusIconKey(session)] || statusIcons.blank,
+      icon: statusIcons[statusIconKey(session)] ?? statusIcons.blank ?? undefined,
       // Secondary smaller line (macOS): project · branch.
       ...(session.subtitle ? { sublabel: truncate(session.subtitle, 48) } : {}),
       click: () => onAction({ type: "focus-session", sessionId: session.id, directory: session.directory || "" }),
