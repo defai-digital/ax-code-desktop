@@ -9,6 +9,7 @@ import { randomUUID } from "node:crypto"
 import { fileURLToPath } from "node:url"
 import { promisify } from "node:util"
 import { readRuntimePin } from "../../../../script/runtime-pin.mjs"
+import { resolveTrayIconAssets } from "../src/tray-icon-assets.mjs"
 
 // `.pathname` keeps percent-encoding, so a checkout under a path with a space or a non-ASCII
 // character resolved to a directory that does not exist and the default app path was never found.
@@ -78,6 +79,23 @@ export const findMissingStartupEvents = (requiredEvents, events) => {
 /** Launcher of the bundled CLI runtime inside a packaged macOS app. */
 export const bundledAxCodeLauncherPath = (appPath) =>
   path.join(appPath, "Contents", "Resources", "ax-code", "bin", "ax-code")
+
+export const assertPackagedTrayIcons = async (sourceResources, packagedResources) => {
+  const { idleIconPath, unseenIconPath, breathIconPaths, statusIconPaths } = resolveTrayIconAssets(sourceResources)
+  const paths = [idleIconPath, unseenIconPath, ...breathIconPaths, ...Object.values(statusIconPaths)]
+  for (const basePath of paths) {
+    for (const sourcePath of [basePath, basePath.replace(/\.png$/, "@2x.png")]) {
+      const relativePath = path.relative(sourceResources, sourcePath)
+      const [expected, packaged] = await Promise.all([
+        fs.readFile(sourcePath),
+        fs.readFile(path.join(packagedResources, relativePath)),
+      ])
+      if (!expected.equals(packaged)) {
+        throw new Error(`Packaged macOS tray image differs from the release source: ${relativePath}`)
+      }
+    }
+  }
+}
 
 export const desktopMainLogPath = ({ platform = process.platform, home = os.homedir() } = {}) =>
   platform === "darwin"
@@ -465,6 +483,12 @@ const main = async () => {
   if (process.platform !== "darwin") {
     throw new Error("smoke-packaged-app.mjs currently supports macOS .app bundles only")
   }
+
+  await assertPackagedTrayIcons(
+    path.join(desktopRoot, "packages", "electron", "resources"),
+    path.join(appPath, "Contents", "Resources"),
+  )
+  console.log("Packaged macOS tray images match the release source at 1× and 2×")
 
   const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "ax-code-desktop-smoke-"))
   const stdout = []

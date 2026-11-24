@@ -51,7 +51,7 @@ const approvalLabel = (approval, translate) => {
 
 // Text shown next to the icon — reserved for the two states where a precise
 // count is actionable: pending approvals and errors. Busy and unread are
-// conveyed by the icon itself (animated / filled faces), so they add no text.
+// conveyed by the pulsing or steady dot beside the mark, so they add no text.
 // Glyphs come from the Geometric Shapes block so macOS renders them monochrome
 // (not colour emoji) and tints them with the menu bar like the template icon.
 const computeTitle = (counts) => {
@@ -60,9 +60,7 @@ const computeTitle = (counts) => {
   return ""
 }
 
-// Which icon variant to show. Busy work animates a "breathing" fill; unread
-// (with nothing active) holds a static filled cube until the state clears;
-// otherwise the plain outline.
+// Busy work pulses the activity dot. Unread sessions show a steady dot until cleared.
 const computeIconState = (counts) => {
   if (counts.busy > 0) return "busy"
   if (counts.unseen > 0) return "unseen"
@@ -85,15 +83,15 @@ const computeTooltip = (counts, sessionCount, translate) => {
 // rather than a snappy blink.
 const ANIM_INTERVAL_MS = 75
 
-const toTemplateImage = (p) => {
-  const image = nativeImage.createFromPath(p)
+const toTemplateImage = (iconPath) => {
+  const image = nativeImage.createFromPath(iconPath)
+  if (image.isEmpty()) return null
   image.setTemplateImage(true)
   return image
 }
 
-// idleIconPath: plain outline (calm state). unseenIconPath: statically filled
-// (a finished session left unread). breathIconPaths: eased outline→fill frames
-// the busy state ping-pongs through.
+// The idle mark has no dot. The unread mark has a steady dot, and the busy
+// animation cycles through dot opacities while the brand mark stays fixed.
 export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconPaths, statusIconPaths, onAction, translate = (value) => value }) => {
   let tray = null
   let lastTitle = null
@@ -101,8 +99,9 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
 
   // macOS auto-picks the @2x file next to each path and tints the alpha.
   const idleFrame = toTemplateImage(idleIconPath)
-  const unseenFrame = toTemplateImage(unseenIconPath)
-  const breathFrames = breathIconPaths.map(toTemplateImage)
+  if (!idleFrame) throw new Error(`Unable to load the macOS tray icon: ${idleIconPath}`)
+  const unseenFrame = toTemplateImage(unseenIconPath) ?? idleFrame
+  const breathFrames = breathIconPaths.map(toTemplateImage).filter(Boolean)
   // Per-row status icons (template images, tinted + vertically centred by macOS).
   const statusIcons = {}
   for (const [key, p] of Object.entries(statusIconPaths || {})) {
@@ -123,11 +122,15 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
 
   const startAnim = () => {
     if (animTimer || !tray || tray.isDestroyed?.()) return
+    if (breathFrames.length < 2) {
+      tray.setImage(breathFrames[0] ?? unseenFrame)
+      return
+    }
     animIndex = 0
     animDir = 1
     animTimer = setInterval(() => {
       if (!tray || tray.isDestroyed?.()) return
-      tray.setImage(breathFrames[animIndex] || idleFrame)
+      tray.setImage(breathFrames[animIndex])
       // Ping-pong for a seamless, infinite in-and-out breath.
       animIndex += animDir
       if (animIndex >= breathFrames.length - 1) {
@@ -253,7 +256,7 @@ export const createTrayController = ({ idleIconPath, unseenIconPath, breathIconP
       label: sessionLabel(session, translate),
       // Status icon on the left, centred across both lines; idle uses the blank
       // placeholder so every row keeps the same gutter.
-      icon: statusIcons[statusIconKey(session)] || statusIcons.blank,
+      icon: statusIcons[statusIconKey(session)] ?? statusIcons.blank ?? undefined,
       // Secondary smaller line (macOS): project · branch.
       ...(session.subtitle ? { sublabel: truncate(session.subtitle, 48) } : {}),
       click: () => onAction({ type: "focus-session", sessionId: session.id, directory: session.directory || "" }),

@@ -38,10 +38,10 @@ export function selectLabeledWorkMode(choice: WorkModeId): WorkModeId {
 export const PRIMARY_EXECUTION_MODES = ["manual", "autonomous"] as const
 
 /**
- * Status the main window header owns. The composer does not repeat it, so the input row stays
- * about writing and sending.
+ * Status the main window header owns. Context usage sits beside the composer, so the header
+ * keeps the browser control and the input row stays about writing and sending.
  */
-export const HEADER_OWNED_SESSION_STATUS = ["context-usage", "webmcp"] as const
+export const HEADER_OWNED_SESSION_STATUS = ["webmcp"] as const
 
 /**
  * Modes where the agent proceeds without asking. Their controls show an "on" state (status color

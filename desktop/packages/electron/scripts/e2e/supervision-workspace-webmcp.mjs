@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { openInspectorChanges } from "./workspace-controls.mjs"
 import fs from "node:fs/promises"
 import { mentionsPath, pathForms } from "./paths.mjs"
 import path from "node:path"
@@ -464,7 +465,7 @@ const outcome = await runHarness({
     await audit.click(newSessionName)
     await audit.wait('Boolean(document.querySelector("[data-draft-home]"))', "new session draft")
     // Review works in the draft without creating a runtime session.
-    await audit.click("Review changes", { role: "button" })
+    await openInspectorChanges(audit)
     await reviewDirectory(targets[0])
     await checkDiff(0)
     await capture("draft-review")
@@ -498,7 +499,7 @@ const outcome = await runHarness({
       const index = targets.indexOf(target)
       await audit.wait(`document.body.innerText.includes(${JSON.stringify(`Fixture conversation for project ${index === 0 ? "A" : "B"}`)})`, "correct conversation")
       await audit.wait(`${JSON.stringify(pathForms(target.directory))}.includes(document.querySelector('[data-workspace-directory]')?.getAttribute('data-workspace-directory'))`, "workspace context")
-      await audit.click("Review changes", { role: "button" })
+      await openInspectorChanges(audit)
       await reviewDirectory(target)
       await checkDiff(index)
       await capture(`review-${target.id}`)
@@ -532,7 +533,7 @@ const outcome = await runHarness({
       const composerName = await session.evaluate(`(() => { const e=document.querySelector('[data-chat-input]'); return e.getAttribute('aria-label') || e.getAttribute('placeholder') })()`)
       await audit.fill(composerName, "Preserve this unsent review draft")
       await audit.wait(`document.querySelector('[data-chat-input]')?.value === 'Preserve this unsent review draft'`, "draft entered")
-      await audit.click("Review changes", { role: "button" })
+      await openInspectorChanges(audit)
       await reviewDirectory(targets[0])
       await checkDiff(0)
       await session.evaluate("window.__reviewChatNode = document.querySelector('[data-split-chat]'); true")

@@ -92,18 +92,20 @@ describe("composer and navigation controls", () => {
   })
 
   test("the composer does not repeat status the main window header shows", () => {
-    expect(HEADER_OWNED_SESSION_STATUS).toEqual(["context-usage", "webmcp"])
+    expect(HEADER_OWNED_SESSION_STATUS).toEqual(["webmcp"])
 
     const chatInput = readFileSync(sourcePath("../components/chat/ChatInput-impl.tsx"), "utf8")
     expect(chatInput).not.toMatch(/WebMcp/)
 
     const header = readFileSync(sourcePath("../components/layout/Header.tsx"), "utf8")
     expect(header).toContain("<WebMcpHeaderButton")
-    expect(header).toContain("<ContextUsageDisplay")
+    expect(header).not.toContain("<ContextUsageDisplay")
+    expect(header).not.toContain("<SessionIdChip")
 
-    // The composer's context usage only renders where no header shows it.
+    // Context usage sits beside the composer. Mini chat keeps its title-bar percentage.
     const usage = readFileSync(sourcePath("../components/chat/UsageIndicator.tsx"), "utf8")
-    expect(usage).toContain('surfaceMode !== "default"')
+    expect(usage).toContain('surfaceMode === "mini-chat"')
+    expect(usage).not.toContain('surfaceMode !== "default"')
     const app = readFileSync(sourcePath("../App.tsx"), "utf8")
     expect(app).toMatch(/<ChatSurfaceProvider mode="main-window">\s*<MainLayout \/>/)
     const miniChat = readFileSync(sourcePath("../components/mini-chat/MiniChatLayout.tsx"), "utf8")
@@ -133,6 +135,8 @@ describe("composer and navigation controls", () => {
     const menu = readFileSync(sourcePath("../components/session/sidebar/SessionNodeItem.tsx"), "utf8")
     expect(menu).toContain("sessionMenuLayout")
     expect(menu).toContain('data-session-menu-group="more"')
+    expect(menu).toContain('data-session-action="copy-id"')
+    expect(menu).toContain("onContextMenu={handleRowContextMenu}")
   })
 
   test("retired remote-instances slug resolves home and legacy sidebar slugs still open", () => {

@@ -3,6 +3,19 @@
 
 export const CHAT_SCROLLER_SELECTOR = '[data-scrollbar="chat"]'
 
+/** Ignore sub-pixel drift so a held row does not nudge the scroller every frame. */
+export const SCROLL_HOLD_EPSILON_PX = 0.5
+
+/**
+ * Scroll offset that keeps a row at `heldTop` after content above it changes size.
+ * Older messages and tiles that grow use the row's real position, not a height estimate.
+ */
+export const heldScrollTop = (scrollTop: number, nextTop: number, heldTop: number): number => {
+  const delta = nextTop - heldTop
+  if (Math.abs(delta) <= SCROLL_HOLD_EPSILON_PX) return scrollTop
+  return scrollTop + delta
+}
+
 // Not wheel: a trackpad sends wheel events for as long as a scroll and its
 // momentum last, so a wheel-ended hold lasted one frame and the list's later
 // correction threw the reader by the whole batch. The hold is two frames.
@@ -20,8 +33,7 @@ const READER_INPUT_EVENTS = ["touchstart", "pointerdown", "keydown"] as const
 export const holdAnchor = (scroller: Element, element: Element, top: number): (() => void) => {
   const align = () => {
     if (!element.isConnected) return
-    const delta = element.getBoundingClientRect().top - top
-    if (Math.abs(delta) > 0.5) scroller.scrollTop += delta
+    scroller.scrollTop = heldScrollTop(scroller.scrollTop, element.getBoundingClientRect().top, top)
   }
   const resizeObserver = new ResizeObserver(align)
   let frame: number | null = null

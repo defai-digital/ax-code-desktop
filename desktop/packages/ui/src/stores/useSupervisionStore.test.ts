@@ -99,6 +99,14 @@ describe("supervision display preferences", () => {
     expect(useSupervisionStore.getState().boardFocusSessionId).toBe("focused")
     useSupervisionStore.getState().deleteWorkingSet(id)
   })
+  test("collapsing the tools rail leaves the board focus alone", () => {
+    useSupervisionStore.setState({ boardFocusSessionId: "focused", inspectorCollapsed: false })
+    useSupervisionStore.getState().setInspectorCollapsed(true)
+    expect(useSupervisionStore.getState().inspectorCollapsed).toBe(true)
+    expect(useSupervisionStore.getState().boardFocusSessionId).toBe("focused")
+    expect(readPersistedSupervision(localStorage)).toMatchObject({ inspectorCollapsed: true })
+    useSupervisionStore.getState().setInspectorCollapsed(false)
+  })
 })
 
 describe("markSessionUnread", () => {

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // Isolated native layout journeys. No provider execution or real project writes.
+import { openInspectorChanges, waitForChatSession } from "./workspace-controls.mjs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { execFile } from "node:child_process"
@@ -68,8 +69,7 @@ const outcome = await runHarness({
             id:row.dataset.sessionRow, review:row.querySelector('[data-status-mark="review"]')?.parentElement?.getAttribute('aria-label'),
             unread:Boolean(row.querySelector('[aria-label="Unread updates"]'))
           })),
-          liveContext:Array.from(document.querySelectorAll('[data-session-project-context]')).filter(visible).map(e=>e.innerText),
-          starters:Array.from(document.querySelectorAll('[data-starter-layout]')).filter(visible).map(e=>e.innerText)
+          liveContext:Array.from(document.querySelectorAll('[data-session-project-context]')).filter(visible).map(e=>e.innerText)
         }
       })()`)
         if (layout.panes.some((pane) => pane.right > layout.width + 1 || pane.left < -1))
@@ -92,19 +92,23 @@ const outcome = await runHarness({
       await audit.wait('document.querySelectorAll("[data-needs-you-reason]").length === 2', "two decisions")
       await audit.wait(
         `(() => {
-      const projects=document.querySelector('[data-projects-home-header]')
-      const starter=document.querySelector('[data-starter-grid]')
-      return projects && starter && projects.getBoundingClientRect().top < innerHeight &&
-        Boolean(projects.compareDocumentPosition(starter) & Node.DOCUMENT_POSITION_FOLLOWING) &&
-        document.querySelectorAll('[data-starter-layout]').length===3
-    })()`,
-        "projects before three bounded suggestions in the first viewport",
+          const composer = document.querySelector('[data-chat-input]')
+          const projects = document.querySelector('[data-projects-home-header]')
+          return composer && projects && projects.getBoundingClientRect().top < innerHeight &&
+            Boolean(composer.compareDocumentPosition(projects) & Node.DOCUMENT_POSITION_FOLLOWING)
+        })()`,
+        "composer and projects in the first viewport",
       )
+      const agentTeam = `Array.from(document.querySelectorAll('button[aria-controls]')).find(button => button.textContent.trim() === 'Agent team')`
+      await audit.wait(`${agentTeam}?.getAttribute('aria-expanded') === 'false'`, "agent team starts collapsed")
       await capture("home-dark-1280")
-      await audit.click("Show more", { role: "button" })
-      await audit.wait('document.querySelectorAll("[data-starter-layout]").length > 3', "all starter actions")
-      await audit.click("Show less", { role: "button" })
-      await audit.wait('document.querySelectorAll("[data-starter-layout]").length === 3', "collapsed suggestions")
+      await audit.click("Agent team", { role: "button" })
+      await audit.wait(
+        `document.getElementById(${agentTeam}?.getAttribute('aria-controls'))?.checkVisibility()`,
+        "agent team controls are visible",
+      )
+      await audit.click("Agent team", { role: "button" })
+      await audit.wait(`${agentTeam}?.getAttribute('aria-expanded') === 'false'`, "agent team collapsed again")
       await audit.fill("Message input", "Keep this unsent layout-review draft")
       await session.evaluate(
         `window.__uxDraftNode = document.querySelector('textarea[aria-label="Message input"]'); true`,
@@ -122,10 +126,10 @@ const outcome = await runHarness({
         "Files receives a usable editor width",
       )
       await capture("files-dark-1280")
-      await audit.click("Toggle right sidebar")
+      await audit.click("Toggle right sidebar", { role: "button" })
       await audit.wait(
         `!(${visible("[data-split-inspector]")}) && ${visible("[data-split-chat]")}`,
-        "toggle hides the inspector and keeps the chat",
+        "header toggle closes the inspector and keeps the chat",
       )
       await checkDraft()
       await capture("sidebar-handoff-dark-1280")
@@ -139,7 +143,7 @@ const outcome = await runHarness({
       await audit.wait(`!(${visible("[data-split-inspector]")})`, "return from Files")
       await checkDraft()
       await viewport(1600)
-      await audit.click("Review changes", { role: "button" })
+      await openInspectorChanges(audit)
       await audit.wait(visible("[data-split-inspector]"), "review inspector")
       await audit.wait(`document.querySelector('[data-review-directory]')?.title === ${JSON.stringify(directory)}`, "restored project directory in Review")
       await audit.click("Focus panel")
@@ -200,7 +204,7 @@ const outcome = await runHarness({
         await session.evaluate(
           `Array.from(${row}.querySelectorAll('button')).find(button => button.textContent.trim().startsWith(${JSON.stringify(title)})).click()`,
         )
-        await audit.wait(`Boolean(document.querySelector('[aria-label="Copy session ID ${id}"]'))`, `open session ${id}`)
+        await waitForChatSession(audit, id, `open session ${id}`)
         return row
       }
       const currentRow = await selectSession(e2e.scenario.session)

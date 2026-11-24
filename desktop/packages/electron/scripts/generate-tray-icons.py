@@ -19,51 +19,26 @@ STATUS = OUT / "status"
 BREATH_FRAMES = 16
 
 
-def draw_outline(size: int, fill_alpha: float = 0.0) -> Image.Image:
-    """Rounded square + simple cross glyph; optional inner fill for breath animation."""
-    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    d = ImageDraw.Draw(img)
-    m = max(2, size // 7)
-    r = max(3, size // 5)
-    stroke = max(2, int(size * 0.14))
-    black = (0, 0, 0, 255)
+# Monochrome geometry of the brackets and slash in build/icon-source.png, on a 22 pt canvas.
+BRAND_POLYGONS = (
+    ((2, 10.25), (7.15, 6.65), (7.15, 8.95), (4.05, 11.15), (7.15, 13.35), (7.15, 15.65), (2, 12.05)),
+    ((11.95, 5.55), (13.85, 5.55), (10.1, 16.35), (8.2, 16.35)),
+    ((20, 10.25), (14.85, 6.65), (14.85, 8.95), (17.95, 11.15), (14.85, 13.35), (14.85, 15.65), (20, 12.05)),
+)
 
-    for i in range(stroke):
-        inset = m + i
-        d.rounded_rectangle(
-            [inset, inset, size - inset - 1, size - inset - 1],
-            radius=max(1, r - i // 2),
-            outline=black,
-        )
 
-    cx = cy = size // 2
-    bar_w = max(2, size // 10)
-    d.rectangle(
-        [cx - bar_w // 2, m + stroke + size // 12, cx + bar_w // 2, size - m - stroke - size // 12],
-        fill=black,
-    )
-    hw = size // 5
-    d.rectangle([cx - hw, cy - bar_w // 2, cx + hw, cy + bar_w // 2], fill=black)
-
-    if fill_alpha > 0:
-        a = int(255 * max(0.0, min(1.0, fill_alpha)))
-        fill = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-        fd = ImageDraw.Draw(fill)
-        inset = m + stroke
-        fd.rounded_rectangle(
-            [inset, inset, size - inset - 1, size - inset - 1],
-            radius=max(1, r - stroke),
-            fill=(0, 0, 0, a),
-        )
-        img = Image.alpha_composite(img, fill)
-        d = ImageDraw.Draw(img)
-        d.rectangle(
-            [cx - bar_w // 2, m + stroke + size // 12, cx + bar_w // 2, size - m - stroke - size // 12],
-            fill=black,
-        )
-        d.rectangle([cx - hw, cy - bar_w // 2, cx + hw, cy + bar_w // 2], fill=black)
-
-    return img
+def draw_brand_mark(size: int, indicator_alpha: int = 0) -> Image.Image:
+    """Keep the same AX Code mark in every frame, with room for an activity dot."""
+    render_size = size * 4
+    scale = render_size / 22
+    img = Image.new("RGBA", (render_size, render_size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    for vertices in BRAND_POLYGONS:
+        draw.polygon([(round(x * scale), round(y * scale)) for x, y in vertices], fill=(0, 0, 0, 255))
+    if indicator_alpha:
+        bounds = [round(coordinate * scale) for coordinate in (17.4, 15.9, 20, 18.5)]
+        draw.ellipse(bounds, fill=(0, 0, 0, indicator_alpha))
+    return img.resize((size, size), Image.Resampling.LANCZOS)
 
 
 def draw_status(size: int, kind: str) -> Image.Image:
@@ -94,14 +69,14 @@ def main() -> None:
     OUT.mkdir(parents=True, exist_ok=True)
     STATUS.mkdir(parents=True, exist_ok=True)
 
-    save_pair("trayTemplate-idle", lambda s: draw_outline(s, 0.0))
-    save_pair("trayTemplate-unseen", lambda s: draw_outline(s, 0.85))
+    save_pair("trayTemplate-idle", draw_brand_mark)
+    save_pair("trayTemplate-unseen", lambda size: draw_brand_mark(size, 255))
 
     for i in range(BREATH_FRAMES):
         t = i / (BREATH_FRAMES - 1)
         ease = t * t * (3 - 2 * t)
         stem = f"trayTemplate-breath-{i:02d}"
-        save_pair(stem, lambda s, a=ease: draw_outline(s, a))
+        save_pair(stem, lambda size, alpha=round(48 + 168 * ease): draw_brand_mark(size, alpha))
 
     for kind in ("busy", "retry", "error", "unseen", "blank"):
         draw_status(16, kind).save(STATUS / f"{kind}.png")

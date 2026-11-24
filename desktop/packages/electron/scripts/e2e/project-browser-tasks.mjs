@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // Native task suite W3/W4/W6/W8. Fixture preparation and observations are not user actions.
+import { openInspectorChanges, waitForChatSession } from "./workspace-controls.mjs"
 import fs from "node:fs/promises"
 import http from "node:http"
 import path from "node:path"
@@ -56,7 +57,7 @@ try {
       await promisify(execFile)("git", ["init", "--quiet", owner.directory])
       await audit.wait(`Boolean(document.querySelector('[data-session-row="${owner.id}"]'))`, "session row")
       await session.evaluate(`Array.from(document.querySelector('[data-session-row="${owner.id}"]').querySelectorAll('button')).find(b => b.textContent.trim().startsWith(${JSON.stringify(owner.title)})).click()`)
-      await audit.wait(`Boolean(document.querySelector('[aria-label="Copy session ID ${owner.id}"]'))`, "selected session")
+      await waitForChatSession(audit, owner.id, "selected session")
       const ipc = (body) => session.evaluate(`window.__AX_CODE_DESKTOP__.invoke('desktop_webmcp_browser', ${JSON.stringify(body)})`)
       const view = async () => (await ipc({ action: "list" })).views.find((item) => item.sessionID === owner.id)
       const origin = (await fs.readFile(e2e.stubOriginPath, "utf8")).trim()
@@ -194,7 +195,7 @@ try {
         await wait(`Boolean(document.querySelector('[data-tool-part-id="part_w6-failure"][data-attention]'))`, "strip opens exact transcript tool part")
         const transcriptBeforeReview = await session.evaluate(`Array.from(document.querySelectorAll('[data-tool-part-id]'), row => ({
           id: row.getAttribute('data-tool-part-id'), text: row.textContent }))`)
-        await act("W6", () => audit.click("Review changes", { role: "button" }))
+        await act("W6", () => openInspectorChanges(audit))
         await wait(`Boolean(document.querySelector('[data-review-scope]'))`, "review scopes")
         await act("W6", () => audit.click("This session", { role: "radio" }))
         try {
@@ -255,7 +256,7 @@ try {
           const current = (await view()).catalog.find(item => item.invocationID === originalCredentialTools[1].invocationID)
           return current && current.definitionDigest !== originalCredentialTools[1].definitionDigest
         }, { label: "credential schema version changed on the same tool ID" })
-        await audit.click("Review changes", { role: "button" })
+        await openInspectorChanges(audit)
         await wait(`Boolean(document.querySelector('[data-landing-browser-recap] summary'))`, "credential review recap")
         await session.evaluate(`(() => {
           const summary = document.querySelector('[data-landing-browser-recap] summary')

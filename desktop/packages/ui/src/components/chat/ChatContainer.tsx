@@ -11,7 +11,6 @@ import { SinceYouLeftStrip } from "@/components/supervision/SinceYouLeftStrip"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
 import { readSessionRecap } from "@/lib/supervision/sessionRecap"
 import { canRetargetDraftToProject, shouldAutoOpenChatDraft } from "./chatDraftState"
-import { DraftPresetChips } from "./DraftPresetChips"
 import { ActivityBreadcrumb } from "./ActivityBreadcrumb"
 import { HookActivityRows } from "./HookActivityRows"
 import { useInputStore } from "@/sync/input-store"
@@ -993,10 +992,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
               </div>
             )}
             <DraftSetupSteps className="mt-6 w-full max-w-md text-left" />
-            <DraftPresetChips
-              onSubmit={(text) => useInputStore.getState().requestPresetSubmit(text)}
-              className="mt-8 max-w-md"
-            />
           </div>
         ) : null}
         <div
@@ -1010,8 +1005,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
           )}
         >
           {showDraftHome ? (
-            // Order is the reading and Tab order: composer, sessions that need a person, projects,
-            // then bounded starter suggestions. The queue sits below the composer so arriving requests never move it.
+            // Keep requests that need attention below the composer so arriving requests never move it.
             <div data-draft-home className="flex w-full flex-col items-center">
               <DraftSetupSteps className="chat-input-column mb-6" />
               {promptReadOnly ? <ReadOnlyPromptBanner /> : <ChatInput scrollToBottom={resumeToLatestInstant} />}
@@ -1025,11 +1019,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
                   />
                 </div>
               ) : null}
-              <DraftPresetChips
-                layout="grid"
-                onSubmit={(text) => useInputStore.getState().requestPresetSubmit(text)}
-                className="chat-input-column mt-5"
-              />
             </div>
           ) : promptReadOnly ? (
             <ReadOnlyPromptBanner />
@@ -1052,7 +1041,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
 
   if (isSessionHydrating && sessionMessages.length === 0 && !sessionIsWorking) {
     return (
-      <div className="relative flex flex-col h-full bg-background">
+      <div className="relative flex flex-col h-full bg-background" data-chat-session={currentSessionId}>
         {returnToParentButton}
         <div
           className={cn(
@@ -1109,7 +1098,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
 
   if (sessionMessages.length === 0 && !sessionIsWorking) {
     return (
-      <div className="relative flex flex-col h-full bg-background transform-gpu">
+      <div className="relative flex flex-col h-full bg-background transform-gpu" data-chat-session={currentSessionId}>
         {returnToParentButton}
         <div
           className={cn(
@@ -1139,7 +1128,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
   }
 
   return (
-    <div className="relative flex flex-col h-full bg-background">
+    <div className="relative flex flex-col h-full bg-background" data-chat-session={currentSessionId}>
       {returnToParentButton}
       {currentSessionId ? <SinceYouLeftStrip sessionId={currentSessionId} /> : null}
       <ChatViewport

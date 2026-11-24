@@ -3,8 +3,19 @@ import { createRoot, type Root } from "react-dom/client"
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 vi.mock("@/lib/i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock("@/hooks/useSupervisionRows", () => ({ useSupervisionRow: () => ({ evidence: { files: 120 } }) }))
+const sessionWindow = vi.hoisted(() => ({
+  available: false,
+  open: vi.fn<(target: { sessionId: string; directory: string | null }, failureMessage: string) => Promise<boolean>>(async () => true),
+}))
+vi.mock("@/lib/supervision/openSessionWindow", () => ({
+  canOpenSessionWindow: () => sessionWindow.available,
+  openSessionWindow: (target: { sessionId: string; directory: string | null }, failureMessage: string) =>
+    sessionWindow.open(target, failureMessage),
+}))
 import { useUIStore } from "@/stores/useUIStore"
+import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
+import { useSessionUIStore } from "@/sync/session-ui-store"
 import { InspectorRail } from "./InspectorRail"
 
 describe("inspector labeled navigation", () => {
@@ -19,7 +30,9 @@ describe("inspector labeled navigation", () => {
       isBottomTerminalOpen: false,
       mainTabGuard: null,
     })
-    useSupervisionStore.setState({ inspectorLabels: false })
+    useSupervisionStore.setState({ inspectorLabels: false, inspectorCollapsed: false })
+    sessionWindow.available = false
+    sessionWindow.open.mockClear()
     container = document.createElement("div")
     document.body.appendChild(container)
     root = createRoot(container)
@@ -70,5 +83,37 @@ describe("inspector labeled navigation", () => {
   test("does not expose the desktop rail on mobile", () => {
     act(() => useUIStore.setState({ isMobile: true }))
     expect(container.querySelector("nav")).toBeNull()
+  })
+  test("collapses fully and reopens without closing the conversation beside it", () => {
+    act(() => useUIStore.setState({ splitPaneEnabled: true, splitPaneRightTab: "plan" }))
+    const collapse = action("supervision.inspector.tools")
+    expect(collapse.getAttribute("aria-pressed")).toBeNull()
+    act(() => collapse.click())
+    expect(useSupervisionStore.getState().inspectorCollapsed).toBe(true)
+    expect(useUIStore.getState().splitPaneEnabled).toBe(true)
+    expect(useUIStore.getState().splitPaneRightTab).toBe("plan")
+    expect(container.querySelector("[data-inspector-collapsed]")?.getAttribute("data-inspector-collapsed")).toBe("true")
+    expect(container.querySelectorAll("button[aria-pressed]")).toHaveLength(0)
+    const reopen = action("supervision.inspector.tools")
+    expect(reopen.getAttribute("aria-expanded")).toBe("false")
+    act(() => reopen.click())
+    expect(container.querySelectorAll("button[aria-pressed]")).toHaveLength(7)
+    expect(useUIStore.getState().splitPaneRightTab).toBe("plan")
+  })
+  test("opens the current session in its own window from the tools rail", () => {
+    sessionWindow.available = true
+    act(() => {
+      useDirectoryStore.setState({ currentDirectory: "/repo/project" })
+      useSessionUIStore.setState({ currentSessionId: "ses_1" })
+      root.render(<InspectorRail />)
+    })
+    const button = container.querySelector<HTMLButtonElement>("[data-open-session-window]")
+    expect(button?.getAttribute("aria-pressed")).toBeNull()
+    expect(container.querySelectorAll("button[aria-pressed]")).toHaveLength(7)
+    act(() => button?.click())
+    expect(sessionWindow.open).toHaveBeenCalledWith(
+      { sessionId: "ses_1", directory: "/repo/project" },
+      "supervision.navigation.openInWindowFailed",
+    )
   })
 })

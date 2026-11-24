@@ -1,4 +1,5 @@
 // W7 runs within project-browser-webmcp.mjs, including the existing three-platform CI job.
+import { waitForChatSession } from "./workspace-controls.mjs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { CdpSession, listTargets, waitForCondition } from "./cdp.mjs"
@@ -91,10 +92,7 @@ export async function checkBrowserSessions({ session, debuggingPort, e2e, audit,
         }
       }
       await waitForCondition(async () => (await state(id))?.visible, { label: `W7 selected ${id}` })
-      await audit.wait(
-        `Boolean(document.querySelector('[aria-label="Copy session ID ${id}"]'))`,
-        "owning session selected",
-      )
+      await waitForChatSession(audit, id, "owning session selected")
     }
     return counted ? action(run) : run()
   }

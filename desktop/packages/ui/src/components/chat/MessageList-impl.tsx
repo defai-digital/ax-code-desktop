@@ -28,6 +28,7 @@ import {
 } from "./lib/turns/turnMessageWindow"
 import { LiveTurnActivity } from "./components/LiveTurnActivity"
 import { LiveActivityFoldContext } from "./components/liveActivityFoldContext"
+import { heldScrollTop } from "./lib/scroll/holdAnchor"
 
 const MESSAGE_LIST_VIRTUALIZE_THRESHOLD = 5
 // Two frames per attempt. The bound covers the fold-open animation (180ms)
@@ -42,7 +43,9 @@ const nextFrame = (): Promise<void> =>
     }
     requestAnimationFrame(() => resolve())
   })
-const MESSAGE_LIST_OVERSCAN = 6
+// Keep a short runway. Each history row can hold a sticky user tile, and a deep
+// overscan paints those tiles on every scroll frame.
+const MESSAGE_LIST_OVERSCAN = 2
 const EMPTY_STATIC_ENTRY_MESSAGES: ChatMessageEntry[] = []
 const EMPTY_UNGROUPED_MESSAGE_IDS = new Set<string>()
 const EMPTY_VIRTUAL_ROWS: VirtualItem[] = []
@@ -968,6 +971,7 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
 
     const previousHistoryLenRef = React.useRef(historyEntries.length)
     const previousFirstEntryKeyRef = React.useRef(historyEntries[0]?.key)
+    const readerAnchorRef = React.useRef<{ key: string; top: number } | null>(null)
 
     React.useLayoutEffect(() => {
       const previousLen = previousHistoryLenRef.current
@@ -991,19 +995,56 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
       }
 
       // Prepend detected: new entries added at the beginning of the list.
-      // The virtualizer renders based on the current scroll offset which
-      // now maps to different items. Compensate so the user sees the
-      // prepended content (scroll to top) or stays on the same content.
+      // Hold the row the reader was on, using its real position. An estimate
+      // of the new tiles jumps once those tiles measure a different height.
+      const scrollEl = resolveScrollContainer()
+      if (!scrollEl) return
+      const held = readerAnchorRef.current
+      const anchor = held?.key
+        ? scrollEl.querySelector<HTMLElement>(`[data-turn-entry="${CSS.escape(held.key)}"]`)
+        : null
+      if (anchor && held) {
+        scrollEl.scrollTop = heldScrollTop(scrollEl.scrollTop, anchor.getBoundingClientRect().top, held.top)
+        return
+      }
+
       let prependedHeight = 0
       for (let i = 0; i < prependedCount; i++) {
         prependedHeight += estimateHistoryEntryHeight(historyEntries[i])
       }
-
-      const scrollEl = resolveScrollContainer()
-      if (!scrollEl || prependedHeight <= 0) return
-
+      if (prependedHeight <= 0) return
       scrollEl.scrollTop += prependedHeight
     })
+
+    React.useEffect(() => {
+      const scrollEl = resolveScrollContainer()
+      if (!scrollEl) return
+      let frame = 0
+      const remember = () => {
+        if (frame !== 0) return
+        frame = requestAnimationFrame(() => {
+          frame = 0
+          if (!scrollEl.isConnected) return
+          const viewTop = scrollEl.getBoundingClientRect().top
+          const rows = scrollEl.querySelectorAll<HTMLElement>("[data-turn-entry]")
+          for (const row of rows) {
+            const key = row.dataset.turnEntry
+            if (!key) continue
+            const rect = row.getBoundingClientRect()
+            if (rect.bottom > viewTop + 4) {
+              readerAnchorRef.current = { key, top: rect.top }
+              return
+            }
+          }
+        })
+      }
+      remember()
+      scrollEl.addEventListener("scroll", remember, { passive: true })
+      return () => {
+        scrollEl.removeEventListener("scroll", remember)
+        if (frame !== 0) cancelAnimationFrame(frame)
+      }
+    }, [historyEntries.length, resolveScrollContainer])
 
     const historyVirtualizer = useVirtualizer({
       count: historyEntries.length,
@@ -1011,7 +1052,10 @@ const MessageList = React.forwardRef<MessageListHandle, MessageListProps>(
       estimateSize: (index) => estimateHistoryEntryHeight(historyEntries[index]),
       getItemKey: (index) => historyEntries[index]?.key ?? String(index),
       measureElement: measureVirtualElement,
-      useAnimationFrameWithResizeObserver: true,
+      // Measuring on the animation frame re-reads every visible tile while the
+      // reader scrolls, even when nothing resized. ResizeObserver is enough
+      // for a tile that actually changes height.
+      useAnimationFrameWithResizeObserver: false,
       overscan: MESSAGE_LIST_OVERSCAN,
       enabled: shouldVirtualizeHistory,
     })

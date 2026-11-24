@@ -2,12 +2,15 @@ import React from "react"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { useSession } from "@/sync/sync-context"
 import { useConfigStore } from "@/stores/useConfigStore"
+import { useUIStore } from "@/stores/useUIStore"
 import { ContextUsageDisplay } from "@/components/ui/ContextUsageDisplay"
+import { closeBesideChat, openBesideChat } from "@/lib/supervision/openBesideChat"
 import { useChatSurfaceMode } from "./useChatSurfaceMode"
 
 /**
- * Context usage in the composer. Surfaces with their own header show it there (the main window
- * header and the mini chat title bar), so the composer only shows it where no header exists.
+ * Context usage beside the composer. The main window used to show the percentage in the title
+ * bar; the token breakdown stays on this control (tooltip) and opens in the context panel.
+ * Mini chat keeps the percentage in its own title bar.
  */
 export const UsageIndicator: React.FC = React.memo(() => {
   const surfaceMode = useChatSurfaceMode()
@@ -18,9 +21,18 @@ export const UsageIndicator: React.FC = React.memo(() => {
   // re-renders this memoized component even while the session is idle.
   const currentModel = useConfigStore((s) => s.getCurrentModel())
   // getContextUsage reads sync state imperatively; subscribing to the session
-  // is what re-renders this component as turns complete (same pattern as
-  // Header's context usage display).
+  // is what re-renders this component as turns complete.
   const session = useSession(currentSessionId ?? null)
+  const contextOpen = useUIStore(
+    (state) => !state.isMobile && state.splitPaneEnabled && state.splitPaneRightTab === "context",
+  )
+  const openBreakdown = React.useCallback(() => {
+    if (useUIStore.getState().splitPaneEnabled && useUIStore.getState().splitPaneRightTab === "context") {
+      closeBesideChat("context")
+      return
+    }
+    openBesideChat("context")
+  }, [])
 
   const limit =
     currentModel && typeof currentModel.limit === "object" && currentModel.limit !== null
@@ -31,7 +43,7 @@ export const UsageIndicator: React.FC = React.memo(() => {
 
   const usage = currentSessionId && session ? getContextUsage(contextLimit, outputLimit) : null
 
-  if (surfaceMode !== "default" || !usage || !currentSessionId || contextLimit <= 0) return null
+  if (surfaceMode === "mini-chat" || !usage || !currentSessionId || contextLimit <= 0) return null
 
   return (
     <ContextUsageDisplay
@@ -43,6 +55,9 @@ export const UsageIndicator: React.FC = React.memo(() => {
       size="compact"
       hideIcon
       showPercentIcon
+      onClick={openBreakdown}
+      pressed={contextOpen}
+      className="max-w-[6rem] shrink-0"
     />
   )
 })

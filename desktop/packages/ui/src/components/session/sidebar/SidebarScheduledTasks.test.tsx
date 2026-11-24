@@ -167,10 +167,15 @@ describe("SidebarScheduledTasks", () => {
     expect(container.textContent).toMatch(/Next in/)
   })
 
-  test("a loaded empty list guides creation in the registered project", async () => {
+  test("a loaded empty list stays collapsed until the header opens it", async () => {
     useProjectsStore.setState({ projects: [{ id: "p-alpha", path: "/work/alpha", label: "Alpha" }] })
     fetchScheduledTasks.mockResolvedValue([])
     await render()
+    const header = container.querySelector<HTMLButtonElement>("button[aria-expanded]")
+    expect(header?.getAttribute("aria-expanded")).toBe("false")
+    expect(container.textContent).not.toContain("No scheduled tasks yet")
+    await act(async () => header?.click())
+    expect(header?.getAttribute("aria-expanded")).toBe("true")
     expect(container.textContent).toContain("No scheduled tasks yet")
     const create = Array.from(container.querySelectorAll<HTMLButtonElement>("button")).find(button =>
       button.textContent?.includes("New scheduled task"))
@@ -194,6 +199,10 @@ describe("SidebarScheduledTasks", () => {
     useConnectionStore.setState({ phase: "connecting", hasEverConnected: false, lastDisconnectReason: null })
     fetchScheduledTasks.mockResolvedValue([])
     await render()
+    const header = container.querySelector<HTMLButtonElement>("button[aria-expanded]")
+    expect(header?.getAttribute("aria-expanded")).toBe("false")
+    expect(container.textContent).not.toContain("No scheduled tasks yet")
+    await act(async () => header?.click())
     expect(container.textContent).toContain("No scheduled tasks yet")
     let failRefresh: (error: Error) => void = () => { throw new Error("Refresh did not start") }
     fetchScheduledTasks.mockImplementation(() => new Promise((_resolve, reject) => { failRefresh = reject }))
@@ -324,12 +333,15 @@ describe("SidebarScheduledTasks", () => {
     await render()
     expect(container.querySelector("[data-sidebar-scheduled]")).not.toBeNull()
     expect(container.querySelector("[data-sidebar-scheduled] ul")).toBeNull()
-    const header = container.querySelector<HTMLButtonElement>("button[aria-expanded]")
-    const body = container.querySelector("[data-scheduled-empty]")
-    expect(body?.id).toBe(header?.getAttribute("aria-controls"))
-    await act(async () => header?.click())
+    const header = () => container.querySelector<HTMLButtonElement>("button[aria-expanded]")
+    expect(header()?.getAttribute("aria-expanded")).toBe("false")
     expect(container.querySelector("[data-scheduled-empty]")).toBeNull()
-    expect(header?.getAttribute("aria-controls")).toBeNull()
+    await act(async () => header()?.click())
+    const body = container.querySelector("[data-scheduled-empty]")
+    expect(body?.id).toBe(header()?.getAttribute("aria-controls"))
+    await act(async () => header()?.click())
+    expect(container.querySelector("[data-scheduled-empty]")).toBeNull()
+    expect(header()?.getAttribute("aria-controls")).toBeNull()
   })
 
   const rowText = (title: string) =>

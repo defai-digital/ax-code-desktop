@@ -28,7 +28,8 @@ vi.mock("@/sync/session-ui-store", () => ({
     }),
   }),
 }))
-vi.mock("@/components/chat/useChatSurfaceMode", () => ({ useChatSurfaceMode: () => "default" }))
+const surface = vi.hoisted(() => ({ mode: "default" as "default" | "main-window" | "mini-chat" }))
+vi.mock("@/components/chat/useChatSurfaceMode", () => ({ useChatSurfaceMode: () => surface.mode }))
 vi.mock("@/components/ui/tooltip", async () => {
   const React = await import("react")
   const Passthrough = ({ children }: { children?: React.ReactNode }) => React.createElement(React.Fragment, null, children)
@@ -59,6 +60,7 @@ vi.mock("@/stores/useConfigStore", async () => {
 })
 
 import { useConfigStore } from "@/stores/useConfigStore"
+import { useUIStore } from "@/stores/useUIStore"
 
 const { UsageIndicator } = await import("./UsageIndicator")
 
@@ -72,6 +74,7 @@ describe("UsageIndicator model changes", () => {
 
   beforeEach(() => {
     globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    surface.mode = "default"
     useConfigStore.setState({ currentProviderId: "p1", currentModelId: "m1" })
     container = document.createElement("div")
     document.body.appendChild(container)
@@ -94,5 +97,46 @@ describe("UsageIndicator model changes", () => {
     })
 
     expect(container.textContent).toContain("25.0%")
+  })
+
+  test("shows the percentage in the main window and hides the duplicate in mini chat", () => {
+    surface.mode = "main-window"
+    act(() => {
+      root.render(<UsageIndicator />)
+    })
+    expect(container.textContent).toContain("50.0%")
+
+    surface.mode = "mini-chat"
+    act(() => root.unmount())
+    root = createRoot(container)
+    act(() => {
+      root.render(<UsageIndicator />)
+    })
+    expect(container.textContent ?? "").not.toContain("%")
+  })
+
+  test("the percentage button opens and closes the context breakdown", () => {
+    useUIStore.setState({
+      isMobile: false,
+      splitPaneEnabled: false,
+      splitPaneRightTab: "files",
+      activeMainTab: "chat",
+      mainTabGuard: null,
+    })
+    act(() => {
+      root.render(<UsageIndicator />)
+    })
+    const button = container.querySelector("button")
+    expect(button?.getAttribute("aria-pressed")).toBe("false")
+    act(() => {
+      button?.click()
+    })
+    expect(useUIStore.getState().splitPaneEnabled).toBe(true)
+    expect(useUIStore.getState().splitPaneRightTab).toBe("context")
+    expect(container.querySelector("button")?.getAttribute("aria-pressed")).toBe("true")
+    act(() => {
+      container.querySelector("button")?.click()
+    })
+    expect(useUIStore.getState().splitPaneEnabled).toBe(false)
   })
 })
