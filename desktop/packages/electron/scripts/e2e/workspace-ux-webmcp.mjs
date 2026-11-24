@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // Isolated native layout journeys. No provider execution or real project writes.
+import { openInspectorChanges, waitForChatSession } from "./workspace-controls.mjs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { execFile } from "node:child_process"
@@ -122,10 +123,10 @@ const outcome = await runHarness({
         "Files receives a usable editor width",
       )
       await capture("files-dark-1280")
-      await audit.click("Toggle right sidebar")
+      await audit.click("Files", { role: "button" })
       await audit.wait(
         `!(${visible("[data-split-inspector]")}) && ${visible("[data-split-chat]")}`,
-        "toggle hides the inspector and keeps the chat",
+        "toggling Files closes the inspector and keeps the chat",
       )
       await checkDraft()
       await capture("sidebar-handoff-dark-1280")
@@ -139,7 +140,7 @@ const outcome = await runHarness({
       await audit.wait(`!(${visible("[data-split-inspector]")})`, "return from Files")
       await checkDraft()
       await viewport(1600)
-      await audit.click("Review changes", { role: "button" })
+      await openInspectorChanges(audit)
       await audit.wait(visible("[data-split-inspector]"), "review inspector")
       await audit.wait(`document.querySelector('[data-review-directory]')?.title === ${JSON.stringify(directory)}`, "restored project directory in Review")
       await audit.click("Focus panel")
@@ -200,7 +201,7 @@ const outcome = await runHarness({
         await session.evaluate(
           `Array.from(${row}.querySelectorAll('button')).find(button => button.textContent.trim().startsWith(${JSON.stringify(title)})).click()`,
         )
-        await audit.wait(`Boolean(document.querySelector('[aria-label="Copy session ID ${id}"]'))`, `open session ${id}`)
+        await waitForChatSession(audit, id, `open session ${id}`)
         return row
       }
       const currentRow = await selectSession(e2e.scenario.session)

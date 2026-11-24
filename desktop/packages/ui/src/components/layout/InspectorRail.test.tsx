@@ -5,7 +5,7 @@ vi.mock("@/lib/i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock("@/hooks/useSupervisionRows", () => ({ useSupervisionRow: () => ({ evidence: { files: 120 } }) }))
 const sessionWindow = vi.hoisted(() => ({
   available: false,
-  open: vi.fn(async (_target: { sessionId: string; directory: string | null }, _failureMessage: string) => true),
+  open: vi.fn<(target: { sessionId: string; directory: string | null }, failureMessage: string) => Promise<boolean>>(async () => true),
 }))
 vi.mock("@/lib/supervision/openSessionWindow", () => ({
   canOpenSessionWindow: () => sessionWindow.available,
@@ -86,7 +86,7 @@ describe("inspector labeled navigation", () => {
   })
   test("collapses fully and reopens without closing the conversation beside it", () => {
     act(() => useUIStore.setState({ splitPaneEnabled: true, splitPaneRightTab: "plan" }))
-    const collapse = action("header.actions.toggleRightSidebarAria")
+    const collapse = action("supervision.inspector.tools")
     expect(collapse.getAttribute("aria-pressed")).toBeNull()
     act(() => collapse.click())
     expect(useSupervisionStore.getState().inspectorCollapsed).toBe(true)
@@ -94,7 +94,7 @@ describe("inspector labeled navigation", () => {
     expect(useUIStore.getState().splitPaneRightTab).toBe("plan")
     expect(container.querySelector("[data-inspector-collapsed]")?.getAttribute("data-inspector-collapsed")).toBe("true")
     expect(container.querySelectorAll("button[aria-pressed]")).toHaveLength(0)
-    const reopen = action("header.actions.toggleRightSidebarAria")
+    const reopen = action("supervision.inspector.tools")
     expect(reopen.getAttribute("aria-expanded")).toBe("false")
     act(() => reopen.click())
     expect(container.querySelectorAll("button[aria-pressed]")).toHaveLength(7)

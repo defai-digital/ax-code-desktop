@@ -1,3 +1,4 @@
+import { waitForChatSession } from "./workspace-controls.mjs"
 import fs from "node:fs/promises"
 import path from "node:path"
 import { CdpSession, isAppPageTarget, listTargets, waitForCondition, waitForTarget } from "./cdp.mjs"
@@ -16,10 +17,7 @@ export async function checkBrowserSecondWindow({ session, debuggingPort, primary
     await audit.wait(`Boolean(document.querySelector(${JSON.stringify(row)}))`, "second-window session row")
     await second.evaluate(`Array.from(document.querySelector(${JSON.stringify(row)}).querySelectorAll('button'))
       .find(button => button.textContent.trim().startsWith(${JSON.stringify(primary.title)})).click()`)
-    await audit.wait(
-      `Boolean(document.querySelector('[aria-label="Copy session ID ${primary.id}"]'))`,
-      "second-window session selected",
-    )
+    await waitForChatSession(audit, primary.id, "second-window session selected")
     const header = (await audit.all()).controls.find((control) => control.name.startsWith("Project browser (WebMCP):"))
     if (!header) throw new Error("Second window is missing its project browser control")
     await audit.client.call("ax_desktop_click", { ref: header.ref })

@@ -1042,7 +1042,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
 
   if (isSessionHydrating && sessionMessages.length === 0 && !sessionIsWorking) {
     return (
-      <div className="relative flex flex-col h-full bg-background">
+      <div className="relative flex flex-col h-full bg-background" data-chat-session={currentSessionId}>
         {returnToParentButton}
         <div
           className={cn(
@@ -1099,7 +1099,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
 
   if (sessionMessages.length === 0 && !sessionIsWorking) {
     return (
-      <div className="relative flex flex-col h-full bg-background transform-gpu">
+      <div className="relative flex flex-col h-full bg-background transform-gpu" data-chat-session={currentSessionId}>
         {returnToParentButton}
         <div
           className={cn(
@@ -1129,7 +1129,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
   }
 
   return (
-    <div className="relative flex flex-col h-full bg-background">
+    <div className="relative flex flex-col h-full bg-background" data-chat-session={currentSessionId}>
       {returnToParentButton}
       {currentSessionId ? <SinceYouLeftStrip sessionId={currentSessionId} /> : null}
       <ChatViewport

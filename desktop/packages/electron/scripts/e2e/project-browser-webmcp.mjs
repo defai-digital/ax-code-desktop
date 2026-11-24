@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 // WebMCP task suite W1 (discover) and W2 (try a tool by hand) against the public quickstart page, served on loopback.
 // The page runs in the native project browser; no agent or model is involved.
+import { waitForChatSession } from "./workspace-controls.mjs"
 import { checkBrowserSecondWindow } from "./project-browser-second-window.mjs"
 import { checkBrowserSessions } from "./project-browser-sessions.mjs"
 import fs from "node:fs/promises"
@@ -47,10 +48,7 @@ try {
         await session.evaluate(
           `Array.from(document.querySelector(${JSON.stringify(sessionRow)}).querySelectorAll('button')).find(button => button.textContent.trim().startsWith(${JSON.stringify(scenario.session.title)})).click()`,
         )
-        await audit.wait(
-          `Boolean(document.querySelector('[aria-label="Copy session ID ${scenario.session.id}"]'))`,
-          "scripted session selected",
-        )
+        await waitForChatSession(audit, scenario.session.id, "scripted session selected")
         let actions = 0
         const act = async (step) => {
           actions += 1

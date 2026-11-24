@@ -75,7 +75,7 @@ export const InspectorRail: React.FC = () => {
         <button
           type="button"
           aria-expanded={false}
-          aria-label={t("header.actions.toggleRightSidebarAria")}
+          aria-label={t("supervision.inspector.tools")}
           title={t("supervision.inspector.tools")}
           onClick={() => setCollapsed(false)}
           className="flex min-h-10 w-full items-center justify-center rounded-md text-muted-foreground hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
@@ -160,8 +160,8 @@ export const InspectorRail: React.FC = () => {
       <button
         type="button"
         aria-expanded={true}
-        aria-label={t("header.actions.toggleRightSidebarAria")}
-        title={t("header.actions.toggleRightSidebarAria")}
+        aria-label={t("supervision.inspector.tools")}
+        title={t("supervision.inspector.tools")}
         onClick={() => setCollapsed(true)}
         className="flex min-h-8 w-full items-center justify-center rounded-md text-muted-foreground hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
