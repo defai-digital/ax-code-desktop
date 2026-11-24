@@ -486,7 +486,7 @@ const outcome = await runHarness({
     await audit.wait('document.body.innerText.includes("No sessions match these filters")', "no-match state")
     await audit.click("2 need you outside this view")
     await audit.wait('document.querySelectorAll(".mission-control-row").length === 2', "hidden attention recovery")
-    await audit.click("Running (0)")
+    await audit.click("Working (0)")
     await audit.wait('document.querySelectorAll(".mission-control-row").length === 0', "status filter")
     await audit.click("2 need you outside this view")
     for (const target of targets) {
