@@ -11,7 +11,6 @@ import { SinceYouLeftStrip } from "@/components/supervision/SinceYouLeftStrip"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
 import { readSessionRecap } from "@/lib/supervision/sessionRecap"
 import { canRetargetDraftToProject, shouldAutoOpenChatDraft } from "./chatDraftState"
-import { DraftPresetChips } from "./DraftPresetChips"
 import { ActivityBreadcrumb } from "./ActivityBreadcrumb"
 import { HookActivityRows } from "./HookActivityRows"
 import { useInputStore } from "@/sync/input-store"
@@ -993,10 +992,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
               </div>
             )}
             <DraftSetupSteps className="mt-6 w-full max-w-md text-left" />
-            <DraftPresetChips
-              onSubmit={(text) => useInputStore.getState().requestPresetSubmit(text)}
-              className="mt-8 max-w-md"
-            />
           </div>
         ) : null}
         <div
@@ -1025,11 +1020,6 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
                   />
                 </div>
               ) : null}
-              <DraftPresetChips
-                layout="grid"
-                onSubmit={(text) => useInputStore.getState().requestPresetSubmit(text)}
-                className="chat-input-column mt-5"
-              />
             </div>
           ) : promptReadOnly ? (
             <ReadOnlyPromptBanner />

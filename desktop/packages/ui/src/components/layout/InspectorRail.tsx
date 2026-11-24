@@ -7,7 +7,9 @@ import { useSupervisionRow } from "@/hooks/useSupervisionRows"
 import { useI18n } from "@/lib/i18n"
 import { formatShortcutForDisplay, getEffectiveShortcutCombo } from "@/lib/shortcuts"
 import { closeBesideChat, openBesideChat, type BesideChatView } from "@/lib/supervision/openBesideChat"
+import { canOpenSessionWindow, openSessionWindow } from "@/lib/supervision/openSessionWindow"
 import { cn } from "@/lib/utils"
+import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useUIStore } from "@/stores/useUIStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
@@ -49,15 +51,40 @@ export const InspectorRail: React.FC = () => {
   const toggleRef = React.useRef<HTMLButtonElement>(null)
   const expanded = useSupervisionStore((s) => s.inspectorLabels)
   const setExpanded = useSupervisionStore((s) => s.setInspectorLabels)
+  const collapsed = useSupervisionStore((s) => s.inspectorCollapsed)
+  const setCollapsed = useSupervisionStore((s) => s.setInspectorCollapsed)
   const isMobile = useUIStore((state) => state.isMobile)
   const splitPaneEnabled = useUIStore((state) => state.splitPaneEnabled)
   const splitPaneRightTab = useUIStore((state) => state.splitPaneRightTab)
   const isBottomTerminalOpen = useUIStore((state) => state.isBottomTerminalOpen)
   const shortcutOverrides = useUIStore((state) => state.shortcutOverrides)
   const currentSessionId = useSessionUIStore((state) => state.currentSessionId)
+  const directory = useDirectoryStore((state) => state.currentDirectory)
   const changedFiles = useSupervisionRow(currentSessionId)?.evidence?.files ?? 0
 
   if (isMobile) return null
+
+  if (collapsed) {
+    return (
+      <nav
+        aria-label={t("supervision.inspector.tools")}
+        data-inspector-rail="true"
+        data-inspector-collapsed="true"
+        className="inspector-rail flex w-8 flex-shrink-0 flex-col items-center border-l border-border/40 bg-background p-1"
+      >
+        <button
+          type="button"
+          aria-expanded={false}
+          aria-label={t("header.actions.toggleRightSidebarAria")}
+          title={t("supervision.inspector.tools")}
+          onClick={() => setCollapsed(false)}
+          className="flex min-h-10 w-full items-center justify-center rounded-md text-muted-foreground hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+        >
+          <Icon name="arrow-left-s" className="h-4 w-4" aria-hidden="true" />
+        </button>
+      </nav>
+    )
+  }
 
   const isActive = (view: BesideChatView): boolean =>
     view === "terminal" ? isBottomTerminalOpen : splitPaneEnabled && splitPaneRightTab === view
@@ -131,6 +158,16 @@ export const InspectorRail: React.FC = () => {
       data-inspector-rail="true"
     >
       <button
+        type="button"
+        aria-expanded={true}
+        aria-label={t("header.actions.toggleRightSidebarAria")}
+        title={t("header.actions.toggleRightSidebarAria")}
+        onClick={() => setCollapsed(true)}
+        className="flex min-h-8 w-full items-center justify-center rounded-md text-muted-foreground hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <Icon name="arrow-right-s" className="h-4 w-4 shrink-0" aria-hidden="true" />
+      </button>
+      <button
         ref={toggleRef}
         type="button"
         onClick={() => setExpanded(!expanded)}
@@ -148,6 +185,23 @@ export const InspectorRail: React.FC = () => {
       {ENTRIES.map(renderEntry)}
       <div className="my-1 h-px w-5 bg-border/60" aria-hidden="true" />
       {renderEntry(TERMINAL_ENTRY)}
+      {currentSessionId && canOpenSessionWindow() ? (
+        <button
+          type="button"
+          aria-label={t("supervision.navigation.openInWindow")}
+          title={t("supervision.navigation.openInWindow")}
+          onClick={() =>
+            void openSessionWindow(
+              { sessionId: currentSessionId, directory: directory || null },
+              t("supervision.navigation.openInWindowFailed"),
+            )
+          }
+          className="mt-auto inline-flex min-h-8 w-full items-center justify-center rounded-md text-muted-foreground hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          data-open-session-window
+        >
+          <Icon name="window" className="h-4 w-4" aria-hidden="true" />
+        </button>
+      ) : null}
     </nav>
   )
 }

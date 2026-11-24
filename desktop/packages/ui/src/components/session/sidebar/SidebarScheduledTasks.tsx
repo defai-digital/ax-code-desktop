@@ -94,6 +94,9 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
   const streamHasConnected = useConnectionStore((state) => state.hasEverConnected)
   const actions = useScheduledTaskActions()
   const [menuOpenKey, setMenuOpenKey] = React.useState<string | null>(null)
+  // An empty schedule stays collapsed even when a previous visit left it open.
+  // Opening it this mount does not rewrite that preference for lists that have tasks.
+  const [emptyHoldOpen, setEmptyHoldOpen] = React.useState(false)
   const headerRef = React.useRef<HTMLButtonElement | null>(null)
   const sectionId = React.useId()
   const listId = `${sectionId}-list`
@@ -150,7 +153,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
   })
   const showProjectLabels = projectGroups.length > 1
   const hasBody = pendingGroups.length > 0 || entries.length > 0 || failedGroups.length > 0
-  const expanded = !collapsed
+  const expanded = hasBody ? !collapsed : emptyHoldOpen
   const showEmpty = !hasBody && expanded && !searchActive
 
   // The sidebar's calendar button reveals the section: move focus to it.
@@ -160,6 +163,7 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
       return
     }
     handledRevealRef.current = revealRequest
+    setEmptyHoldOpen(true)
     const header = headerRef.current
     if (header) {
       header.scrollIntoView({ block: "nearest" })
@@ -482,7 +486,13 @@ export function SidebarScheduledTasks({ searchActive }: Props): React.ReactNode 
         <button
           ref={headerRef}
           type="button"
-          onClick={() => setCollapsed(expanded)}
+          onClick={() => {
+            if (!hasBody) {
+              setEmptyHoldOpen((open) => !open)
+              return
+            }
+            setCollapsed(expanded)
+          }}
           aria-expanded={expanded}
           aria-controls={(hasBody || showEmpty) && expanded && !searchActive ? listId : undefined}
           className="group flex min-w-0 flex-1 items-center gap-1 overflow-hidden rounded-md px-0.5 py-0.5 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/50"

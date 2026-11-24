@@ -47,6 +47,9 @@ const USER_BUBBLE_STYLE: React.CSSProperties = {
   backgroundColor: "var(--chat-user-message-bg)",
   borderRadius: "var(--radius-xl)",
   borderBottomRightRadius: "var(--radius-sm)",
+  // Paint the tile on its own layer so a long transcript of them does not
+  // repaint the whole conversation while scrolling.
+  contain: "layout paint",
 }
 
 const EXPANDED_TOOLS_CACHE_MAX = 4000
