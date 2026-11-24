@@ -17,6 +17,7 @@ const gitLibraries = {
   deleteBranch: vi.fn(),
   renameBranch: vi.fn(),
   createWorktree: vi.fn(),
+  getWorktrees: vi.fn(),
   removeWorktree: vi.fn(),
   recordWorktreeRuntimeEvent: vi.fn(),
   stashApply: vi.fn(),
@@ -45,6 +46,7 @@ vi.doMock("./index.js", () => ({
   deleteBranch: gitLibraries.deleteBranch,
   renameBranch: gitLibraries.renameBranch,
   createWorktree: gitLibraries.createWorktree,
+  getWorktrees: gitLibraries.getWorktrees,
   removeWorktree: gitLibraries.removeWorktree,
   recordWorktreeRuntimeEvent: gitLibraries.recordWorktreeRuntimeEvent,
   stashApply: gitLibraries.stashApply,
@@ -440,6 +442,19 @@ describe("git worktree routes", () => {
     gitLibraries.createWorktree.mockReset()
     gitLibraries.removeWorktree.mockReset()
     gitLibraries.recordWorktreeRuntimeEvent.mockReset()
+  })
+
+  it("answers a failed worktree listing with an error, not an empty list", async () => {
+    const { app, getRoute } = createRouteRegistry()
+    registerGitRoutes(app, { getWorktreeClient: vi.fn() })
+    const response = createMockResponse()
+    gitLibraries.getWorktrees.mockRejectedValueOnce(new Error("fatal: not a git repository"))
+    vi.spyOn(console, "warn").mockImplementationOnce(() => {})
+
+    await getRoute("GET", "/api/git/worktrees")({ query: { directory: "/repo" } }, response)
+
+    expect(response.statusCode).toBe(500)
+    expect(response.body).toEqual({ error: "Failed to list git worktrees" })
   })
 
   it("hands worktree creation the runtime client factory", async () => {

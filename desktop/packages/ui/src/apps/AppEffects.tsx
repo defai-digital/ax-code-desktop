@@ -84,7 +84,9 @@ export function SyncRuntimeEffects({
   useActivityFeedRecorder(globalHousekeepingEnabled)
   useSupervisionRowsPublisher()
   useSessionGoalsLoader()
-  useRunTransitionNotifications(embeddedBackgroundWorkEnabled)
+  // Announced by the primary window only: an embedded chat or the mini chat would repeat each announcement, and
+  // its Open would retarget that realm instead of the main window.
+  useRunTransitionNotifications(embeddedBackgroundWorkEnabled && globalHousekeepingEnabled)
 
   return <SyncOptimisticBridge />
 }

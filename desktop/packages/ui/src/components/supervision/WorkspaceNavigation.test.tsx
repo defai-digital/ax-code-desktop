@@ -7,6 +7,21 @@ vi.mock("@/hooks/useEffectiveDirectory", () => ({
 import { useDirectoryStore } from "@/stores/useDirectoryStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 vi.mock("@/lib/i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }))
+// The menu's items are rendered inline: what is tested is which views it offers and what picking one does.
+vi.mock("@/components/ui/dropdown-menu", () => ({
+  DropdownMenu: ({ children }: { children: React.ReactNode }) => <div data-menu>{children}</div>,
+  DropdownMenuTrigger: ({ children }: { children: React.ReactNode }) => <>{children}</>,
+  DropdownMenuContent: ({ children }: { children: React.ReactNode }) => <div role="menu">{children}</div>,
+  DropdownMenuItem: ({
+    children,
+    onSelect,
+    ...rest
+  }: { children: React.ReactNode; onSelect?: () => void } & Record<string, unknown>) => (
+    <button type="button" role="menuitem" onClick={() => onSelect?.()} {...rest}>
+      {children}
+    </button>
+  ),
+}))
 const sessionWindow = vi.hoisted(() => ({ available: false, open: vi.fn(async () => true) }))
 vi.mock("@/lib/supervision/openSessionWindow", () => ({
   canOpenSessionWindow: () => sessionWindow.available,
@@ -132,5 +147,75 @@ describe("workspace navigation", () => {
       "supervision.navigation.openInWindowFailed",
     )
     sessionWindow.available = false
+  })
+})
+
+describe("workspace navigation on mobile", () => {
+  let container: HTMLDivElement
+  let root: Root
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    useDirectoryStore.setState({ currentDirectory: "/repo/project", homeDirectory: "" })
+    useProjectsStore.setState({ projects: [] } as never)
+    useUIStore.setState({
+      isMobile: true,
+      activeMainTab: "chat",
+      splitPaneEnabled: false,
+      splitPaneRightTab: "files",
+      mainTabGuard: null,
+    })
+    useSupervisionStore.setState({ missionControlOpen: false, compareRunGroupKey: null })
+    useSessionUIStore.setState({ currentSessionId: "ses_1" })
+    container = document.createElement("div")
+    document.body.appendChild(container)
+    root = createRoot(container)
+    act(() => root.render(<WorkspaceNavigation />))
+  })
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+    useUIStore.setState({ isMobile: false })
+  })
+  const menuButton = () => container.querySelector<HTMLButtonElement>("[data-workspace-tools-menu]")!
+  const tool = (view: string) => container.querySelector<HTMLButtonElement>(`[data-workspace-tool="${view}"]`)!
+  const pressed = () =>
+    Array.from(container.querySelectorAll('nav button[aria-pressed="true"]')).map((b) => b.textContent ?? "")
+
+  test("Review, Git, Files and Terminal are one menu named after the view it shows", () => {
+    expect(menuButton().textContent).toContain("supervision.navigation.review")
+    expect(Array.from(container.querySelectorAll('[role="menuitem"]')).map((item) => item.getAttribute("data-workspace-tool"))).toEqual(
+      ["diff", "git", "files", "terminal", "chat"],
+    )
+    // No separate Review button beside the menu.
+    expect(container.querySelectorAll('[data-navigation-level="context"]')).toHaveLength(0)
+
+    act(() => tool("git").click())
+
+    expect(useUIStore.getState().activeMainTab).toBe("git")
+    expect(menuButton().textContent).toContain("splitPane.tab.git")
+    expect(tool("git").getAttribute("aria-current")).toBe("page")
+  })
+
+  test("Workspace is not pressed while Review covers the chat", () => {
+    expect(pressed()).toEqual(["supervision.navigation.workspace"])
+
+    act(() => tool("diff").click())
+
+    // The desktop split pane is closed; on mobile Review is the main tab, and that is what the state follows.
+    expect(useUIStore.getState().activeMainTab).toBe("diff")
+    expect(useUIStore.getState().splitPaneEnabled).toBe(false)
+    expect(pressed()).toEqual([])
+    expect(menuButton().className).toContain("text-primary")
+
+    act(() => tool("chat").click())
+    expect(useUIStore.getState().activeMainTab).toBe("chat")
+    expect(pressed()).toEqual(["supervision.navigation.workspace"])
+  })
+
+  test("picking Review from the board leaves the board", () => {
+    act(() => useSupervisionStore.setState({ missionControlOpen: true }))
+    act(() => tool("diff").click())
+    expect(useSupervisionStore.getState().missionControlOpen).toBe(false)
+    expect(useUIStore.getState().activeMainTab).toBe("diff")
   })
 })

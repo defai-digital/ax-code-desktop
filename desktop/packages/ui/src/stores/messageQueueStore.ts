@@ -21,6 +21,13 @@ export interface QueuedMessage {
    */
   messageId?: string
   /**
+   * "sending" from the moment the auto-sender hands the entry to the runtime until that send returns. The entry stays
+   * saved meanwhile, so quitting mid-send cannot lose the prompt (C UX-02). An entry still marked sending that this
+   * window is not sending is unconfirmed: the runtime may already have it, so it is never sent again by itself or
+   * folded into a composer send, and it clears once a message with its `messageId` is loaded. Absent means queued.
+   */
+  delivery?: "sending"
+  /**
    * Send config captured at queue time — used as-is when auto-sending. The model is absent when
    * none was selected yet (the catalog was still loading): the send then uses the session's own,
    * and the entry still keeps the work mode it was queued in.
@@ -38,6 +45,11 @@ export interface QueuedMessage {
 interface MessageQueueState {
   queuedMessages: Record<string, QueuedMessage[]> // sessionId → queue
   queueModeEnabled: boolean // global toggle
+  /**
+   * Queues stopped by an error in their session. Only Resume queue releases one: opening the session to read the
+   * error does not, so a look never sends work (C UX-04). A hold lasts as long as its queue has entries.
+   */
+  heldQueues: Record<string, true>
 }
 
 interface MessageQueueActions {
@@ -45,6 +57,8 @@ interface MessageQueueActions {
   addToQueue: (sessionId: string, message: Omit<QueuedMessage, "id" | "createdAt">) => boolean
   /** Record the retry id minted for an entry at its first dispatch attempt. */
   assignMessageId: (sessionId: string, queuedMessageId: string, messageId: string) => void
+  /** Mark an entry as being sent, or return it to the queue. */
+  setDelivery: (sessionId: string, queuedMessageId: string, delivery: "sending" | undefined) => void
   removeFromQueue: (sessionId: string, messageId: string) => void
   popToInput: (sessionId: string, messageId: string) => QueuedMessage | null
   clearQueue: (sessionId: string) => void
@@ -53,6 +67,10 @@ interface MessageQueueActions {
   clearAllQueues: () => void
   setQueueMode: (enabled: boolean) => void
   getQueueForSession: (sessionId: string) => QueuedMessage[]
+  /** Stop auto-send for a session's queue; does nothing when the session has nothing queued. */
+  holdQueue: (sessionId: string) => void
+  /** Release a held queue, so it sends on the session's next idle. */
+  resumeQueue: (sessionId: string) => void
 }
 
 type MessageQueueStore = MessageQueueState & MessageQueueActions
@@ -103,7 +121,12 @@ const sanitizePersistedQueues = (value: unknown): Record<string, QueuedMessage[]
             typeof (entry as QueuedMessage).createdAt === "number",
         ),
       )
-      .map((entry) => {
+      .map((stored) => {
+        // Only a sending mark with the retry id it was sent under is kept: without that id the entry could never be
+        // matched to a delivered message, and an unknown value is not a state the chip can show.
+        const { delivery, ...rest } = stored
+        const entry: QueuedMessage =
+          delivery === "sending" && typeof stored.messageId === "string" ? { ...rest, delivery } : rest
         if (entry.attachments === undefined) return entry
         // A chip is removed before Edit spreads its attachments into the composer. An invalid
         // list or entry must not throw after that removal and lose the queued prompt.
@@ -192,12 +215,38 @@ export const releaseQueuedDispatchClaim = (messageId: string): void => {
   }
 }
 
+// A hold belongs to the queue it stopped: once that queue is empty, a later queue starts unheld.
+const holdsWithQueues = (
+  heldQueues: Record<string, true>,
+  queuedMessages: Record<string, QueuedMessage[]>,
+): Record<string, true> => {
+  const kept = Object.keys(heldQueues).filter((sessionId) => (queuedMessages[sessionId]?.length ?? 0) > 0)
+  if (kept.length === Object.keys(heldQueues).length) return heldQueues
+  return Object.fromEntries(kept.map((sessionId) => [sessionId, true as const]))
+}
+
+const sanitizePersistedHolds = (
+  value: unknown,
+  queuedMessages: Record<string, QueuedMessage[]>,
+): Record<string, true> => {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return {}
+  const held: Record<string, true> = {}
+  for (const [sessionId, flag] of Object.entries(value as Record<string, unknown>)) {
+    if (flag === true) held[sessionId] = true
+  }
+  return holdsWithQueues(held, queuedMessages)
+}
+
+/** Entries a send may take: an entry being sent, or whose send is unconfirmed, is not offered again. */
+export const isQueuedMessageSendable = (message: QueuedMessage): boolean => message.delivery !== "sending"
+
 export const useMessageQueueStore = create<MessageQueueStore>()(
   devtools(
     persist(
       (set, get) => ({
         queuedMessages: {},
         queueModeEnabled: true,
+        heldQueues: {},
 
         addToQueue: (sessionId, message) => {
           const currentQueue = get().queuedMessages[sessionId] ?? []
@@ -239,6 +288,21 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
           })
         },
 
+        setDelivery: (sessionId, queuedMessageId, delivery) => {
+          set((state) => {
+            const currentQueue = state.queuedMessages[sessionId] ?? []
+            const index = currentQueue.findIndex((message) => message.id === queuedMessageId)
+            if (index === -1 || currentQueue[index].delivery === delivery) {
+              return state
+            }
+            const { delivery: _previous, ...rest } = currentQueue[index]
+            void _previous
+            const nextQueue = currentQueue.slice()
+            nextQueue[index] = delivery ? { ...rest, delivery } : rest
+            return { queuedMessages: { ...state.queuedMessages, [sessionId]: nextQueue } }
+          })
+        },
+
         removeFromQueue: (sessionId, messageId) => {
           set((state) => {
             const currentQueue = state.queuedMessages[sessionId] ?? []
@@ -247,7 +311,7 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
             if (newQueue.length === 0) {
               const { [sessionId]: _removed, ...rest } = state.queuedMessages
               void _removed
-              return { queuedMessages: rest }
+              return { queuedMessages: rest, heldQueues: holdsWithQueues(state.heldQueues, rest) }
             }
 
             return {
@@ -276,7 +340,7 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
             if (newQueue.length === 0) {
               const { [sessionId]: _removed, ...rest } = prevState.queuedMessages
               void _removed
-              return { queuedMessages: rest }
+              return { queuedMessages: rest, heldQueues: holdsWithQueues(prevState.heldQueues, rest) }
             }
 
             return {
@@ -294,7 +358,7 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
           set((state) => {
             const { [sessionId]: _removed, ...rest } = state.queuedMessages
             void _removed
-            return { queuedMessages: rest }
+            return { queuedMessages: rest, heldQueues: holdsWithQueues(state.heldQueues, rest) }
           })
         },
 
@@ -310,12 +374,12 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
                 changed = true
               }
             }
-            return changed ? { queuedMessages } : state
+            return changed ? { queuedMessages, heldQueues: holdsWithQueues(state.heldQueues, queuedMessages) } : state
           })
         },
 
         clearAllQueues: () => {
-          set({ queuedMessages: {} })
+          set({ queuedMessages: {}, heldQueues: {} })
         },
 
         setQueueMode: (enabled) => {
@@ -327,6 +391,22 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
         getQueueForSession: (sessionId) => {
           return get().queuedMessages[sessionId] ?? []
         },
+
+        holdQueue: (sessionId) => {
+          set((state) => {
+            if ((state.queuedMessages[sessionId]?.length ?? 0) === 0 || state.heldQueues[sessionId]) return state
+            return { heldQueues: { ...state.heldQueues, [sessionId]: true } }
+          })
+        },
+
+        resumeQueue: (sessionId) => {
+          set((state) => {
+            if (!state.heldQueues[sessionId]) return state
+            const { [sessionId]: _released, ...rest } = state.heldQueues
+            void _released
+            return { heldQueues: rest }
+          })
+        },
       }),
       {
         name: "message-queue-store",
@@ -334,15 +414,19 @@ export const useMessageQueueStore = create<MessageQueueStore>()(
         partialize: (state) => ({
           queuedMessages: state.queuedMessages,
           queueModeEnabled: state.queueModeEnabled,
+          heldQueues: state.heldQueues,
         }),
         merge: (persistedState, currentState) => {
           if (!hasPersistedFields(persistedState, ["queuedMessages", "queueModeEnabled"])) return currentState
           const persisted = persistedState as Partial<MessageQueueState> | undefined
+          const queuedMessages = sanitizePersistedQueues(persisted?.queuedMessages)
           return {
             ...currentState,
             // Storage is untrusted data: restore only validated fields so stale or malformed
             // action-name properties cannot replace the live queue methods.
-            queuedMessages: sanitizePersistedQueues(persisted?.queuedMessages),
+            queuedMessages,
+            // A hold survives a restart, so a relaunch never sends a queue its session's error stopped.
+            heldQueues: sanitizePersistedHolds(persisted?.heldQueues, queuedMessages),
             queueModeEnabled:
               typeof persisted?.queueModeEnabled === "boolean"
                 ? persisted.queueModeEnabled

@@ -333,6 +333,59 @@ describe("ReviewFileRail", () => {
     expect(row.getAttribute("aria-current")).toBe("true")
   })
 
+  test("Space on a focused file row marks it viewed and again unmarks it, keeping focus and selection", () => {
+    // G UX-13: the default tree keeps the checkbox out of the tab order, so Space on the row is the keyboard path.
+    render(<ReviewHarness files={sampleFiles} />)
+    const row = document.querySelector("[data-review-file='src/b.ts']") as HTMLElement
+    row.focus()
+    fireEvent.keyDown(row, { key: " " })
+    expect(screen.getByText("1 of 3 viewed")).toBeTruthy()
+    const checkbox = () =>
+      document.querySelector("[data-review-file='src/b.ts'] input[type='checkbox']") as HTMLInputElement
+    expect(checkbox().checked).toBe(true)
+    expect(selectedText()).toBe("src/a.ts")
+    expect(document.activeElement?.getAttribute("data-review-file")).toBe("src/b.ts")
+    fireEvent.keyDown(document.activeElement as HTMLElement, { key: " " })
+    expect(screen.getByText("0 of 3 viewed")).toBeTruthy()
+  })
+
+  test("a held Space marks once, and Space on the row's own button leaves the mark alone", () => {
+    render(<ReviewHarness files={sampleFiles} />)
+    const row = document.querySelector("[data-review-file='src/b.ts']") as HTMLElement
+    row.focus()
+    fireEvent.keyDown(row, { key: " " })
+    // One repeat: an even number of flips would hide a repeat that toggles.
+    fireEvent.keyDown(row, { key: " ", repeat: true })
+    expect(screen.getByText("1 of 3 viewed")).toBeTruthy()
+    // From the select button inside the row, Space is that button's activation, not the row's mark.
+    const select = row.querySelector(".review-file-rail__select") as HTMLElement
+    const event = new KeyboardEvent("keydown", { key: " ", bubbles: true, cancelable: true })
+    select.dispatchEvent(event)
+    expect(event.defaultPrevented).toBe(false)
+    expect(screen.getByText("1 of 3 viewed")).toBeTruthy()
+  })
+
+  test("Space reaches a row moved to with the arrow keys", () => {
+    render(<ReviewHarness files={sampleFiles} />)
+    const first = document.querySelector("[data-review-file='src/a.ts']") as HTMLElement
+    first.focus()
+    fireEvent.keyDown(first, { key: "ArrowDown" })
+    const focused = document.activeElement as HTMLElement
+    expect(focused.getAttribute("data-review-file")).toBe("src/b.ts")
+    fireEvent.keyDown(focused, { key: " " })
+    expect(
+      (document.querySelector("[data-review-file='src/b.ts'] input[type='checkbox']") as HTMLInputElement).checked,
+    ).toBe(true)
+  })
+
+  test("Space on a directory row marks nothing", () => {
+    render(<ReviewHarness files={sampleFiles} />)
+    const directoryRow = screen.getByRole("treeitem", { name: "src, 0 of 2 viewed" })
+    directoryRow.focus()
+    fireEvent.keyDown(directoryRow, { key: " " })
+    expect(screen.getByText("0 of 3 viewed")).toBeTruthy()
+  })
+
   test("next and previous reach a file inside a collapsed directory and expand it", () => {
     const nested = "a/b/c/deep.ts"
     const files = [gitFile("top.ts"), gitFile(nested), gitFile("tail.ts")]

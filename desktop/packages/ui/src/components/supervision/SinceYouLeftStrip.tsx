@@ -6,12 +6,12 @@ import { useNow } from "@/hooks/useNow"
 import { useSupervisionRow } from "@/hooks/useSupervisionRows"
 import { useI18n } from "@/lib/i18n"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
+import { SUPERVISION_PRESENTATION } from "@/lib/supervision/presentation"
 import {
   shouldShowSinceYouLeft,
   sinceYouLeftActivityAt,
   sinceYouLeftHookBlocks,
   sinceYouLeftRelativeParts,
-  sinceYouLeftStateLabel,
 } from "@/lib/supervision/sinceYouLeft"
 import { useDirectoryHookCounters, useHookActivityStore } from "@/stores/useHookActivityStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
@@ -38,8 +38,6 @@ export const SinceYouLeftStrip: React.FC<SinceYouLeftStripProps> = ({ sessionId 
   if (dismissedFor === sessionId) return null
   const activityAt = sinceYouLeftActivityAt(row.updatedAt, row.goal)
   if (!shouldShowSinceYouLeft({ snapshot, updatedAt: activityAt, state: row.state })) return null
-  const label = sinceYouLeftStateLabel(row.state)
-  if (!label) return null
 
   const parts = sinceYouLeftRelativeParts(activityAt, now)
   const hookBlocks = sinceYouLeftHookBlocks(hookCounters.blocked)
@@ -51,38 +49,47 @@ export const SinceYouLeftStrip: React.FC<SinceYouLeftStripProps> = ({ sessionId 
   }
 
   return (
+    // Wraps instead of overflowing (G UX-08): the title, state word, hook chip and age keep their width, the evidence
+    // takes what is left and truncates (full text on hover), and when the line is too narrow the evidence and the
+    // actions move to a second line together, so the state word and Review never leave the strip.
     <div
-      className="flex h-9 flex-shrink-0 items-center gap-2 border-b border-border/40 bg-[var(--surface-elevated)] px-3"
+      className="flex min-h-9 flex-shrink-0 flex-wrap items-center gap-x-2 gap-y-0.5 border-b border-border/40 bg-[var(--surface-elevated)] px-3 py-1"
       data-since-you-left="true"
     >
-      <span className="typography-ui-label text-foreground">{t("supervision.sinceYouLeft.title")}</span>
-      <span className="typography-meta text-muted-foreground">
-        {t(`supervision.sinceYouLeft.state.${label}` as Parameters<typeof t>[0])}
+      <span className="shrink-0 typography-ui-label text-foreground">{t("supervision.sinceYouLeft.title")}</span>
+      <span className="shrink-0 typography-meta text-muted-foreground" data-since-you-left-state>
+        {t(SUPERVISION_PRESENTATION[row.state].label)}
       </span>
-      <EvidenceText evidence={row.evidence} fallback="none" className="typography-meta text-muted-foreground" />
       {hookBlocks !== null ? (
         <span
           data-hook-blocks-chip="true"
-          className="rounded border border-border/60 px-1 typography-micro text-muted-foreground"
+          className="shrink-0 rounded border border-border/60 px-1 typography-micro text-muted-foreground"
         >
           {t("supervision.sinceYouLeft.hookBlocks", { count: hookBlocks })}
         </span>
       ) : null}
-      <span className="typography-meta text-muted-foreground">{relativeTime(parts.value, parts.unit)}</span>
-      <span className="flex-1" />
-      {row.evidence ? (
-        <Button type="button" variant="ghost" size="sm" className="h-7" onClick={() => openBesideChat("diff")}>
-          {t("supervision.sinceYouLeft.reviewChanges")}
-        </Button>
-      ) : null}
-      <button
-        type="button"
-        onClick={handleDismiss}
-        aria-label={t("supervision.sinceYouLeft.dismiss")}
-        className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[var(--interactive-hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
-      >
-        <Icon name="close" className="h-3.5 w-3.5" aria-hidden="true" />
-      </button>
+      <span className="shrink-0 typography-meta text-muted-foreground">{relativeTime(parts.value, parts.unit)}</span>
+      <EvidenceText
+        evidence={row.evidence}
+        fallback="none"
+        showTitle
+        className="min-w-0 flex-1 basis-48 truncate typography-meta text-muted-foreground"
+      />
+      <span className="ml-auto flex shrink-0 items-center gap-1" data-since-you-left-actions>
+        {row.evidence ? (
+          <Button type="button" variant="ghost" size="sm" className="h-7" onClick={() => openBesideChat("diff")}>
+            {t("supervision.sinceYouLeft.reviewChanges")}
+          </Button>
+        ) : null}
+        <button
+          type="button"
+          onClick={handleDismiss}
+          aria-label={t("supervision.sinceYouLeft.dismiss")}
+          className="inline-flex h-7 w-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-[var(--interactive-hover)] hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
+        >
+          <Icon name="close" className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
+      </span>
     </div>
   )
 }

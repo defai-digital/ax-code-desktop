@@ -62,8 +62,12 @@ test("lists follow-ups without answer buttons and marks them read when the panel
   const panel = container.querySelector<HTMLElement>('[role="dialog"]')!
   expect(panel.textContent).toContain("Run finished")
   expect(panel.textContent).toContain("Run failed")
-  // Two header actions (mark all read, clear all) and nothing that answers a request.
-  expect(panel.querySelectorAll("button")).toHaveLength(2)
+  // Two header actions (mark all read, clear all) and the session row, which only opens its session: nothing in the
+  // panel answers a request.
+  const buttons = [...panel.querySelectorAll("button")]
+  expect(buttons).toHaveLength(3)
+  expect(buttons.filter((button) => button.textContent?.includes("Run finished"))).toHaveLength(1)
+  expect(buttons.some((button) => /allow|deny|answer|approve/i.test(button.textContent ?? ""))).toBe(false)
   expect(useNotificationStore.getState().notifications.filter((item) => !item.read)).toHaveLength(2)
   await act(async () => useNotificationStore.getState().setOpen(false))
   expect(useNotificationStore.getState().notifications.every((item) => item.read)).toBe(true)

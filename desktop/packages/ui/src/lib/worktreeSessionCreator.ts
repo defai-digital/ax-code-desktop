@@ -189,10 +189,12 @@ const createInstantWorktreeDraft = async (options?: {
   // The preview path is set as the working directory before the worktree exists, so
   // a failed creation has to undo it (the value is also persisted as lastDirectory).
   let previewDirectory: string | null = null
+  let pendingRequestId: string | null = null
 
   try {
     const projectRef: ProjectRef = { id: activeProject.id, path: projectDirectory }
-    const pendingRequestId = createPendingDraftWorktreeRequest()
+    const requestId = createPendingDraftWorktreeRequest()
+    pendingRequestId = requestId
 
     // Lock the draft immediately so no React effect can reset it to the project
     // root while we await the preview / worktree creation below.
@@ -201,7 +203,7 @@ const createInstantWorktreeDraft = async (options?: {
       sessionStore.overrideNewSessionDraftTarget({
         projectId: projectRef.id,
         directoryOverride: sessionStore.newSessionDraft.directoryOverride ?? projectRef.path,
-        pendingWorktreeRequestId: pendingRequestId,
+        pendingWorktreeRequestId: requestId,
         preserveDirectoryOverride: true,
         title: options?.title,
         initialPrompt: options?.initialPrompt,
@@ -210,7 +212,7 @@ const createInstantWorktreeDraft = async (options?: {
       sessionStore.openNewSessionDraft({
         selectedProjectId: projectRef.id,
         directoryOverride: projectRef.path,
-        pendingWorktreeRequestId: pendingRequestId,
+        pendingWorktreeRequestId: requestId,
         preserveDirectoryOverride: true,
         title: options?.title,
         initialPrompt: options?.initialPrompt,
@@ -225,13 +227,13 @@ const createInstantWorktreeDraft = async (options?: {
       worktreeName: preferredName,
     }).catch(() => null)
 
-    // Refine draft target once we know the actual worktree path from the preview.
-    if (preview?.path) {
+    // Refine draft target once we know the actual worktree path from the preview, unless the draft moved on meanwhile.
+    if (preview?.path && useSessionUIStore.getState().newSessionDraft?.pendingWorktreeRequestId === requestId) {
       previewDirectory = preview.path
       useSessionUIStore.getState().overrideNewSessionDraftTarget({
         projectId: projectRef.id,
         directoryOverride: preview.path,
-        pendingWorktreeRequestId: pendingRequestId,
+        pendingWorktreeRequestId: requestId,
         bootstrapPendingDirectory: preview.path,
         preserveDirectoryOverride: true,
         title: options?.title,
@@ -249,27 +251,36 @@ const createInstantWorktreeDraft = async (options?: {
       setupCommands,
     })
 
-    resolvePendingDraftWorktreeRequest(pendingRequestId, metadata.path)
-    useSessionUIStore.getState().overrideNewSessionDraftTarget({
-      projectId: projectRef.id,
-      directoryOverride: metadata.path,
-      pendingWorktreeRequestId: null,
-      bootstrapPendingDirectory: metadata.path,
-      preserveDirectoryOverride: true,
-      title: options?.title,
-      initialPrompt: options?.initialPrompt,
-    })
-    useDirectoryStore.getState().setDirectory(metadata.path)
+    // Only a draft still waiting on this request is pointed at the worktree. One that was closed or moved to another
+    // request has left it: writing the target back would undo that, and a send waiting on this request would then
+    // read the old worktree as its own target and create its session there.
+    const ownsRequest = useSessionUIStore.getState().newSessionDraft?.pendingWorktreeRequestId === requestId
+    resolvePendingDraftWorktreeRequest(requestId, metadata.path)
+    if (ownsRequest) {
+      useSessionUIStore.getState().overrideNewSessionDraftTarget({
+        projectId: projectRef.id,
+        directoryOverride: metadata.path,
+        pendingWorktreeRequestId: null,
+        bootstrapPendingDirectory: metadata.path,
+        preserveDirectoryOverride: true,
+        title: options?.title,
+        initialPrompt: options?.initialPrompt,
+      })
+      useDirectoryStore.getState().setDirectory(metadata.path)
+    }
 
     return metadata.path
   } catch (error) {
     const message = error instanceof Error ? error.message : tr("worktreeSessionCreator.error.createWorktreeFailed")
-    const requestId = useSessionUIStore.getState().newSessionDraft.pendingWorktreeRequestId
-    if (requestId) {
-      rejectPendingDraftWorktreeRequest(requestId, error instanceof Error ? error : new Error(message))
-      useSessionUIStore.getState().resolvePendingDraftWorktreeTarget(requestId, null)
+    // Our own request always fails, so a send waiting on it is released even after its draft closed or moved on; the
+    // draft itself is only cleared while it still waits on this request, not on another one it moved to.
+    if (pendingRequestId) {
+      rejectPendingDraftWorktreeRequest(pendingRequestId, error instanceof Error ? error : new Error(message))
+      if (useSessionUIStore.getState().newSessionDraft?.pendingWorktreeRequestId === pendingRequestId) {
+        useSessionUIStore.getState().resolvePendingDraftWorktreeTarget(pendingRequestId, null)
+        useSessionUIStore.getState().setDraftBootstrapPendingDirectory(null)
+      }
     }
-    useSessionUIStore.getState().setDraftBootstrapPendingDirectory(null)
     // Undo our own preview target: the worktree was never created, so Git/Files/
     // Terminal (and the persisted lastDirectory) must not point at the ghost path.
     if (previewDirectory) {

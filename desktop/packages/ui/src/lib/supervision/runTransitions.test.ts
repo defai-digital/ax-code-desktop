@@ -14,6 +14,7 @@ import type { SupervisionState } from "./sessionState"
 const settings = (overrides: Partial<RunNotificationSettings> = {}): RunNotificationSettings => ({
   notifyOnCompletion: true,
   notifyOnError: true,
+  notifyOnQuestion: true,
   nativeNotificationsEnabled: true,
   notificationMode: "hidden-only",
   ...overrides,
@@ -120,27 +121,62 @@ describe("reduceRunTransitions", () => {
     expect(failedDue.notify).toEqual([{ sessionId: "a", kind: "failed", from: "running", to: "error" }])
   })
 
-  test("running to goal schedules a failure, never a finish", () => {
+  test("running to goal schedules a blocked goal, never a finish or a failure", () => {
     const running = settle(new Map(), [row("a", "running")], 0)
     const goal = settle(running.pending, [row("a", "goal")], 100)
     expect(goal.notify).toEqual([])
-    expect(goal.pending.get("a")?.scheduled).toMatchObject({ kind: "failed", from: "running", to: "goal" })
+    expect(goal.pending.get("a")?.scheduled).toMatchObject({ kind: "goal", from: "running", to: "goal" })
     const due = settle(goal.pending, [row("a", "goal")], 100 + RUN_TRANSITION_SETTLE_MS)
-    expect(due.notify).toEqual([{ sessionId: "a", kind: "failed", from: "running", to: "goal" }])
+    expect(due.notify).toEqual([{ sessionId: "a", kind: "goal", from: "running", to: "goal" }])
   })
 
-  test("goal to idle keeps the failure and its deadline instead of labelling it finished", () => {
+  test("an error after an announced goal is still announced as a failure", () => {
+    const running = settle(new Map(), [row("a", "running")], 0)
+    const goal = settle(running.pending, [row("a", "goal")], 100)
+    const goalDue = settle(goal.pending, [row("a", "goal")], 100 + RUN_TRANSITION_SETTLE_MS)
+    expect(goalDue.notify.map((transition) => transition.kind)).toEqual(["goal"])
+    const failed = settle(goalDue.pending, [row("a", "error")], 5_000)
+    const failedDue = settle(failed.pending, [row("a", "error")], 5_000 + RUN_TRANSITION_SETTLE_MS)
+    expect(failedDue.notify).toEqual([{ sessionId: "a", kind: "failed", from: "running", to: "error" }])
+  })
+
+  test("an announced goal is not followed by a finish after a question ends idle", () => {
+    const running = settle(new Map(), [row("a", "running")], 0)
+    const goal = settle(running.pending, [row("a", "goal")], 100)
+    const goalDue = settle(goal.pending, [row("a", "goal")], 100 + RUN_TRANSITION_SETTLE_MS)
+    const asked = settle(goalDue.pending, [row("a", "question")], 5_000)
+    const idle = settle(asked.pending, [row("a", "idle")], 6_000)
+    const idleDue = settle(idle.pending, [row("a", "idle")], 6_000 + RUN_TRANSITION_SETTLE_MS)
+    expect(idleDue.notify).toEqual([])
+    // An error after the question is still more serious than the goal, and is announced.
+    const askedAgain = settle(idleDue.pending, [row("a", "question")], 9_000)
+    const failed = settle(askedAgain.pending, [row("a", "error")], 9_500)
+    const failedDue = settle(failed.pending, [row("a", "error")], 9_500 + RUN_TRANSITION_SETTLE_MS)
+    expect(failedDue.notify.map((transition) => transition.kind)).toEqual(["failed"])
+  })
+
+  test("a goal that turns into an error before it settles is announced as the failure", () => {
+    const running = settle(new Map(), [row("a", "running")], 0)
+    const goal = settle(running.pending, [row("a", "goal")], 100)
+    const failed = settle(goal.pending, [row("a", "error")], 500)
+    expect(failed.pending.get("a")?.scheduled?.kind).toBe("failed")
+    const due = settle(failed.pending, [row("a", "error")], 500 + RUN_TRANSITION_SETTLE_MS)
+    expect(due.notify.map((transition) => transition.kind)).toEqual(["failed"])
+  })
+
+  test("goal to idle keeps the blocked goal and its deadline instead of labelling it finished", () => {
     const running = settle(new Map(), [row("a", "running")], 0)
     const goal = settle(running.pending, [row("a", "goal")], 1_000)
     const idle = settle(goal.pending, [row("a", "idle")], 2_000)
     expect(idle.notify).toEqual([])
     expect(idle.pending.get("a")?.scheduled).toMatchObject({
-      kind: "failed",
+      kind: "goal",
       to: "idle",
       dueAt: 1_000 + RUN_TRANSITION_SETTLE_MS,
     })
     const due = settle(idle.pending, [row("a", "idle")], 1_000 + RUN_TRANSITION_SETTLE_MS)
-    expect(due.notify).toEqual([{ sessionId: "a", kind: "failed", from: "running", to: "idle" }])
+    // Never "Run failed": the goal blocked, nothing errored.
+    expect(due.notify).toEqual([{ sessionId: "a", kind: "goal", from: "running", to: "idle" }])
     // The same episode does not announce a finish afterwards.
     const later = settle(due.pending, [row("a", "review")], 9_000)
     expect(later.notify).toEqual([])
@@ -148,10 +184,10 @@ describe("reduceRunTransitions", () => {
     expect(laterDue.notify).toEqual([])
   })
 
-  test("goal to running cancels the pending failure and re-arms the next run", () => {
+  test("goal to running cancels the pending announcement and re-arms the next run", () => {
     const running = settle(new Map(), [row("a", "running")], 0)
     const goal = settle(running.pending, [row("a", "goal")], 100)
-    expect(goal.pending.get("a")?.scheduled?.kind).toBe("failed")
+    expect(goal.pending.get("a")?.scheduled?.kind).toBe("goal")
     const resumed = settle(goal.pending, [row("a", "running")], 400)
     expect(resumed.notify).toEqual([])
     expect(resumed.pending.get("a")?.scheduled).toBeNull()
@@ -162,15 +198,15 @@ describe("reduceRunTransitions", () => {
     expect(announced.notify).toEqual([{ sessionId: "a", kind: "finished", from: "running", to: "idle" }])
   })
 
-  test("entering goal converts a pending finish into a failure instead of cancelling it", () => {
+  test("entering goal converts a pending finish into a blocked goal instead of cancelling it", () => {
     const running = settle(new Map(), [row("a", "running")], 0)
     const idle = settle(running.pending, [row("a", "idle")], 1_000)
     expect(idle.pending.get("a")?.scheduled?.kind).toBe("finished")
     const goal = settle(idle.pending, [row("a", "goal")], 1_500)
     expect(goal.notify).toEqual([])
-    expect(goal.pending.get("a")?.scheduled).toMatchObject({ kind: "failed", to: "goal" })
+    expect(goal.pending.get("a")?.scheduled).toMatchObject({ kind: "goal", to: "goal" })
     const due = settle(goal.pending, [row("a", "goal")], 1_500 + RUN_TRANSITION_SETTLE_MS)
-    expect(due.notify.map((transition) => transition.kind)).toEqual(["failed"])
+    expect(due.notify.map((transition) => transition.kind)).toEqual(["goal"])
   })
 
   test("a root that stays running is not treated as finished", () => {
@@ -286,5 +322,30 @@ describe("decideRunTransitionNotification", () => {
         settings: settings({ nativeNotificationsEnabled: false }),
       }),
     ).toEqual({ inApp: true, native: false })
+  })
+})
+
+describe("announcing a blocked goal", () => {
+  const goal = (overrides: Partial<Parameters<typeof decideRunTransitionNotification>[0]> = {}) =>
+    decideRunTransitionNotification({
+      kind: "goal",
+      sessionOpen: false,
+      windowFocused: true,
+      settings: settings(),
+      ...overrides,
+    })
+
+  test("follows the question setting, not the error setting", () => {
+    expect(goal({ settings: settings({ notifyOnError: false }) }).inApp).toBe(true)
+    expect(goal({ settings: settings({ notifyOnQuestion: false }) })).toEqual({ inApp: false, native: false })
+  })
+
+  test("is sent natively by the app alone, when the window is in the background", () => {
+    // The server has no blocked-goal notification, so a background window would otherwise get none.
+    expect(goal({ windowFocused: false }).native).toBe(true)
+    // A focused window already shows the in-app announcement: no second, native one.
+    expect(goal({ windowFocused: true }).native).toBe(false)
+    expect(goal({ windowFocused: true, settings: settings({ notificationMode: "always" }) }).native).toBe(true)
+    expect(goal({ windowFocused: true, sessionOpen: true }).native).toBe(false)
   })
 })

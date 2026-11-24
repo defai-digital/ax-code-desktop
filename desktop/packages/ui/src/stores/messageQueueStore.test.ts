@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest"
 import {
   MESSAGE_QUEUE_MAX_PER_SESSION,
   claimQueuedDispatch,
+  isQueuedMessageSendable,
   releaseQueuedDispatchClaim,
   useMessageQueueStore,
 } from "./messageQueueStore"
@@ -181,6 +182,45 @@ describe("messageQueueStore", () => {
     })
   })
 
+  it("restores an entry still marked sending only with the id it was sent under", async () => {
+    window.localStorage.setItem(
+      "message-queue-store",
+      JSON.stringify({
+        state: {
+          queuedMessages: {
+            ses_a: [
+              { id: "q1", content: "sent", createdAt: 1, messageId: "msg_1", delivery: "sending" },
+              // No id to match a delivered message against: it can only be shown as queued.
+              { id: "q2", content: "no id", createdAt: 2, delivery: "sending" },
+              { id: "q3", content: "odd", createdAt: 3, messageId: "msg_3", delivery: "delivered" },
+            ],
+          },
+        },
+        version: 0,
+      }),
+    )
+    await useMessageQueueStore.persist.rehydrate()
+
+    expect(useMessageQueueStore.getState().getQueueForSession("ses_a")).toEqual([
+      { id: "q1", content: "sent", createdAt: 1, messageId: "msg_1", delivery: "sending" },
+      { id: "q2", content: "no id", createdAt: 2 },
+      { id: "q3", content: "odd", createdAt: 3, messageId: "msg_3" },
+    ])
+  })
+
+  it("marks an entry sending and returns it to the queue", () => {
+    useMessageQueueStore.setState({ queuedMessages: { ses_a: [{ id: "q1", content: "hi", createdAt: 1 }] } })
+    const entry = () => useMessageQueueStore.getState().getQueueForSession("ses_a")[0]!
+
+    useMessageQueueStore.getState().setDelivery("ses_a", "q1", "sending")
+    expect(entry().delivery).toBe("sending")
+    expect(isQueuedMessageSendable(entry())).toBe(false)
+
+    useMessageQueueStore.getState().setDelivery("ses_a", "q1", undefined)
+    expect(entry()).toEqual({ id: "q1", content: "hi", createdAt: 1 })
+    expect(isQueuedMessageSendable(entry())).toBe(true)
+  })
+
   it("keeps queue actions callable when persisted data contains action names", async () => {
     const original = useMessageQueueStore.getState()
     window.localStorage.setItem(
@@ -288,5 +328,57 @@ describe("messageQueueStore", () => {
       server,
       resource,
     ])
+  })
+
+  describe("held queues (C UX-04)", () => {
+    it("holds only a session with something queued, and only Resume queue releases it", () => {
+      const store = useMessageQueueStore.getState()
+      store.holdQueue("ses_empty")
+      expect(useMessageQueueStore.getState().heldQueues).toEqual({})
+
+      store.addToQueue("ses_a", { content: "next" })
+      store.holdQueue("ses_a")
+      expect(useMessageQueueStore.getState().heldQueues).toEqual({ ses_a: true })
+      store.addToQueue("ses_a", { content: "after" })
+      expect(useMessageQueueStore.getState().heldQueues).toEqual({ ses_a: true })
+
+      store.resumeQueue("ses_a")
+      expect(useMessageQueueStore.getState().heldQueues).toEqual({})
+    })
+
+    it("a hold ends with its queue, so a later queue starts unheld", () => {
+      const store = useMessageQueueStore.getState()
+      store.addToQueue("ses_a", { content: "only" })
+      store.addToQueue("ses_b", { content: "other" })
+      store.holdQueue("ses_a")
+      store.holdQueue("ses_b")
+      const [entry] = store.getQueueForSession("ses_a")
+      store.removeFromQueue("ses_a", entry.id)
+      expect(useMessageQueueStore.getState().heldQueues).toEqual({ ses_b: true })
+      store.clearSessions(["ses_b"])
+      expect(useMessageQueueStore.getState().heldQueues).toEqual({})
+
+      store.addToQueue("ses_a", { content: "new" })
+      expect(useMessageQueueStore.getState().heldQueues).toEqual({})
+    })
+
+    it("a hold survives a restart; a malformed or queue-less one does not", async () => {
+      window.localStorage.setItem(
+        "message-queue-store",
+        JSON.stringify({
+          state: {
+            queuedMessages: {
+              ses_a: [{ id: "q1", content: "kept", createdAt: 1 }],
+              ses_b: [{ id: "q2", content: "kept", createdAt: 2 }],
+            },
+            queueModeEnabled: true,
+            heldQueues: { ses_a: true, ses_b: "yes", ses_gone: true },
+          },
+          version: 0,
+        }),
+      )
+      await useMessageQueueStore.persist.rehydrate()
+      expect(useMessageQueueStore.getState().heldQueues).toEqual({ ses_a: true })
+    })
   })
 })

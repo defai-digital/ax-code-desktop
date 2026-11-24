@@ -205,6 +205,92 @@ describe("createSession draft rollback", () => {
     expect(useSessionUIStore.getState().newSessionDraft?.open).toBe(true)
   })
 
+  // A CLI model makes /council wait for the catalog; a catalog without it lets the send go on as plain text.
+  const sendWhileCatalogLoads = (duringWait: () => void, options: Record<string, unknown> = {}) => {
+    const loadCommands = vi.fn(async () => {
+      duringWait()
+      useCommandsStore.setState({ commands: [{ name: "review" }] } as never)
+      return true
+    })
+    useCommandsStore.setState({ commands: [], loadCommands } as never)
+    return useSessionUIStore
+      .getState()
+      .sendMessage(
+        "/council rate the API",
+        "claude-code",
+        "claude-fable-5-2",
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        undefined,
+        { workMode: "agent", ...options },
+      )
+  }
+
+  test("a draft retargeted while the send waited for the command catalog is refused before the create", async () => {
+    // No bootstrap directory: it would win over the retargeted directory and keep the send where it was.
+    useSessionUIStore.setState({ newSessionDraft: { ...draft(), bootstrapPendingDirectory: null } as never })
+
+    await expect(
+      sendWhileCatalogLoads(() =>
+        useSessionUIStore.getState().setNewSessionDraftTarget({ directoryOverride: "/proj-c" }, { preserveWorkMode: true }),
+      ),
+    ).rejects.toThrow("The draft's target changed before the message was sent")
+
+    expect(createSessionAction).not.toHaveBeenCalled()
+    // The draft is still open, so "no active draft" would be wrong: the message names what happened.
+    expect(useSessionUIStore.getState().error).toBe("The draft's target changed before the message was sent")
+  })
+
+  test("a retarget during the catalog wait is reported instead of the old target's work-mode refusal", async () => {
+    useSessionUIStore.setState({ newSessionDraft: { ...draft(), bootstrapPendingDirectory: null } as never })
+    const loadCommands = vi.fn(async () => {
+      useSessionUIStore.getState().setNewSessionDraftTarget({ directoryOverride: "/proj-c" }, { preserveWorkMode: true })
+      useCommandsStore.setState({ commands: [{ name: "council" }] } as never)
+      return true
+    })
+    useCommandsStore.setState({ commands: [], loadCommands } as never)
+
+    await expect(composerSend("/council rate the API", "agent")).rejects.toThrow("The draft's target changed before the message was sent")
+    expect(createSessionAction).not.toHaveBeenCalled()
+  })
+
+  test("the project filled in for an unchanged directory during the catalog wait is no retarget", async () => {
+    useSessionUIStore.setState({
+      newSessionDraft: { ...draft(), bootstrapPendingDirectory: null, selectedProjectId: null } as never,
+    })
+    createSessionAction.mockResolvedValue(null)
+
+    await expect(
+      sendWhileCatalogLoads(() =>
+        useSessionUIStore.getState().setNewSessionDraftTarget({ projectId: "proj-b" }, { preserveWorkMode: true }),
+      ),
+    ).rejects.toThrow("Failed to create session")
+    expect(createSessionAction).toHaveBeenCalledOnce()
+  })
+
+  test("a worktree confirmed gone while the send waited is refused before the create (C UX-03)", async () => {
+    useSessionUIStore.setState({
+      newSessionDraft: { ...draft(), bootstrapPendingDirectory: null, directoryOverride: "/proj-b/.wt/feature" } as never,
+    })
+
+    await expect(
+      sendWhileCatalogLoads(() => useSessionUIStore.getState().markDraftTargetLost("/proj-b/.wt/feature")),
+    ).rejects.toThrow("Worktree feature is no longer available. Choose where to send.")
+    expect(createSessionAction).not.toHaveBeenCalled()
+    // Still the same target: the draft was not moved to the root.
+    expect(useSessionUIStore.getState().newSessionDraft?.directoryOverride).toBe("/proj-b/.wt/feature")
+  })
+
+  test("a draft closed while the send waited for the command catalog is refused as having no target", async () => {
+    await expect(
+      sendWhileCatalogLoads(() => useSessionUIStore.getState().closeNewSessionDraft()),
+    ).rejects.toThrow("Cannot send message without an active session or draft")
+    expect(createSessionAction).not.toHaveBeenCalled()
+  })
+
   test("an existing session refuses the same send before the message-sent notification goes out", async () => {
     useSessionUIStore.setState({ newSessionDraft: { open: false } as never, currentSessionId: "session-1" })
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null))
@@ -216,5 +302,44 @@ describe("createSession draft rollback", () => {
     } finally {
       fetchSpy.mockRestore()
     }
+  })
+})
+
+describe("a draft's lost target (C UX-03)", () => {
+  const worktree = "/proj-b/.wt/feature"
+  beforeEach(() => {
+    useSessionUIStore.setState({
+      newSessionDraft: { ...draft(), bootstrapPendingDirectory: null, directoryOverride: worktree } as never,
+    })
+  })
+  const lost = () => useSessionUIStore.getState().newSessionDraft?.lostTargetDirectory ?? null
+
+  test("is recorded only for the directory the open draft points at", () => {
+    useSessionUIStore.getState().markDraftTargetLost("/proj-b/.wt/other")
+    expect(lost()).toBeNull()
+    useSessionUIStore.getState().markDraftTargetLost(`${worktree}/`)
+    expect(lost()).toBe(worktree)
+  })
+
+  test("stays through automatic updates that keep the directory, and clears on an explicit choice", () => {
+    const { markDraftTargetLost, setNewSessionDraftTarget } = useSessionUIStore.getState()
+    markDraftTargetLost(worktree)
+    setNewSessionDraftTarget({ projectId: "proj-b" }, { preserveWorkMode: true })
+    expect(lost()).toBe(worktree)
+    // Choosing the same worktree again, once it is back, is a person's explicit choice.
+    setNewSessionDraftTarget({ directoryOverride: worktree }, { force: true, preserveWorkMode: true })
+    expect(lost()).toBeNull()
+  })
+
+  test("clears when the draft moves to another directory", () => {
+    useSessionUIStore.getState().markDraftTargetLost(worktree)
+    useSessionUIStore.getState().setNewSessionDraftTarget({ directoryOverride: "/proj-b" }, { preserveWorkMode: true })
+    expect(lost()).toBeNull()
+  })
+
+  test("a closed draft records nothing", () => {
+    useSessionUIStore.setState({ newSessionDraft: { ...draft(), open: false, directoryOverride: worktree } as never })
+    useSessionUIStore.getState().markDraftTargetLost(worktree)
+    expect(lost()).toBeNull()
   })
 })

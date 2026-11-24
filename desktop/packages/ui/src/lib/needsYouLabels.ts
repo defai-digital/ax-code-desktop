@@ -10,17 +10,18 @@ export const ATTENTION_REASON_ICON: Record<AttentionReason, IconName> = {
   uncommitted: "git-commit",
 }
 
+/** The reason in the one state vocabulary the board, the strip and notifications use (G UX-01). */
 export function needsYouReasonLabel(reason: AttentionReason, t: I18nContextValue["t"]): string {
   switch (reason) {
     case "permission":
-      return t("projects.home.needsYou.permission")
+      return t("supervision.state.permission")
     case "question":
-      return t("projects.home.needsYou.question")
+      return t("supervision.state.question")
     case "uncommitted":
-      return t("projects.home.needsYou.uncommitted")
+      return t("supervision.state.review")
     case "error":
-      return t("projects.home.needsYou.error")
+      return t("supervision.state.error")
     case "goal":
-      return t("projects.home.needsYou.goal")
+      return t("supervision.state.goal")
   }
 }

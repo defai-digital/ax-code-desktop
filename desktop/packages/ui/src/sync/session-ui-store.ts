@@ -24,6 +24,7 @@ import type {
 } from "@defai-digital/ax-code-sdk/v2/client"
 import type { AttachedFile, SessionContextUsage, SessionWorktreeAttachment } from "@/stores/types/sessionTypes"
 import type { WorktreeMetadata } from "@/types/worktree"
+import type { ProviderWithModelList } from "@/types/providerModels"
 import { axCodeClient, ascendingId, isValidMessageId } from "@/lib/ax-code/client"
 import { formatSdkError } from "@/lib/ax-code/sdkError"
 import { useConfigStore } from "@/stores/useConfigStore"
@@ -145,8 +146,9 @@ function workModeRefusal(
   command: "council" | "arena",
   model: { providerID: string; modelID: string },
   allowUnverifiedToolCalling: boolean | undefined,
+  providers: ProviderWithModelList[] = useConfigStore.getState().providers,
 ): { message: string; reason: WorkModeBlockedReason } | null {
-  const reason = workModeBlockedReason(command, model, useConfigStore.getState().providers)
+  const reason = workModeBlockedReason(command, model, providers)
   if (!reason) return null
   if (reason === "noToolCalling" && allowUnverifiedToolCalling) return null
   const message = formatMessage(useI18nStore.getState().dictionary, workModeBlockedMessageKey(reason), {
@@ -155,6 +157,7 @@ function workModeRefusal(
   return { message, reason }
 }
 
+/** Refuse a composer send: the message goes to the composer's error line and the error names its reason. */
 function throwWorkModeRefusal(refusal: { message: string; reason: WorkModeBlockedReason } | null): void {
   if (!refusal) return
   useSessionUIStore.setState({ error: refusal.message })
@@ -169,10 +172,24 @@ function throwWorkModeRefusal(refusal: { message: string; reason: WorkModeBlocke
  */
 async function resolveSlashCommand(
   name: string,
+  preloaded?: boolean,
+  directoryCatalog?: DirectoryCommandCatalog,
 ): Promise<{ knownCommand: boolean; commandsLoaded: boolean; catalogLoadFailed: boolean }> {
+  if (directoryCatalog !== undefined) {
+    // Another directory's own catalog, read for this send; null is a failed read, decided like a failed store load.
+    const commands = directoryCatalog ?? []
+    return {
+      knownCommand: commands.some((command) => command.name === name),
+      commandsLoaded: commands.length > 0,
+      catalogLoadFailed: directoryCatalog === null,
+    }
+  }
   let storeCommands = useCommandsStore.getState().commands
   let catalogLoadFailed = false
-  if (storeCommands.length === 0) {
+  if (preloaded !== undefined) {
+    // The caller already tried the load outside its directory lock; loading again inside it would wait on itself.
+    catalogLoadFailed = !preloaded && storeCommands.length === 0
+  } else if (storeCommands.length === 0) {
     const loaded = await useCommandsStore.getState().loadCommands()
     storeCommands = useCommandsStore.getState().commands
     // A FAILED load (store still empty after awaiting) must not degrade a real slash command into
@@ -189,6 +206,16 @@ async function resolveSlashCommand(
   }
 }
 
+/** A directory's command catalog read through its own scoped client; null when the read failed. */
+type DirectoryCommandCatalog = readonly { name: string }[] | null
+
+/**
+ * The command catalog of a directory other than the active one. useCommandsStore holds the active project's only, so a
+ * sender that targets another project (Quick Dispatch) would otherwise decide its slash commands by the wrong catalog.
+ */
+const loadDirectoryCommandCatalog = (directory: string): Promise<DirectoryCommandCatalog> =>
+  axCodeClient.listCommands(directory).catch(() => null)
+
 interface WorkModeSendCheck {
   content: string
   workMode: WorkModeId | undefined
@@ -196,6 +223,10 @@ interface WorkModeSendCheck {
   modelID: string
   inputMode?: "normal" | "shell"
   allowUnverifiedToolCalling?: boolean
+  /** The catalog of the directory the send goes to; defaults to the active directory's. */
+  providers?: ProviderWithModelList[]
+  /** The directory whose command catalog decides an explicit `/council` or `/arena`; defaults to the active one. */
+  commandCatalogDirectory?: string
 }
 
 /**
@@ -210,13 +241,17 @@ async function findWorkModeSendRefusal(
   const model = { providerID: input.providerID, modelID: input.modelID }
   const resolved = resolveWorkModeSend(input.workMode ?? DEFAULT_WORK_MODE, input.content)
   if (resolved.forcedCommand) {
-    return workModeRefusal(resolved.forcedCommand.name, model, input.allowUnverifiedToolCalling)
+    return workModeRefusal(resolved.forcedCommand.name, model, input.allowUnverifiedToolCalling, input.providers)
   }
   const command = workModeEnsembleCommand(resolved.content, null)
   // The catalog is only worth waiting for when this model would be refused the command.
-  const refusal = command ? workModeRefusal(command, model, input.allowUnverifiedToolCalling) : null
+  const refusal = command
+    ? workModeRefusal(command, model, input.allowUnverifiedToolCalling, input.providers)
+    : null
   if (!command || !refusal) return null
-  const catalog = await resolveSlashCommand(command)
+  const catalog = input.commandCatalogDirectory
+    ? await resolveSlashCommand(command, undefined, await loadDirectoryCommandCatalog(input.commandCatalogDirectory))
+    : await resolveSlashCommand(command)
   return catalog.knownCommand || catalog.catalogLoadFailed ? refusal : null
 }
 
@@ -269,7 +304,20 @@ export function routeMessage(params: {
    * opinion here would refuse after the session exists: the one decision stands.
    */
   workModeAdmitted?: boolean
+  /**
+   * The catalog of the directory the send goes to, for the work-mode check of a sender that targets a directory
+   * other than the active one (Quick Dispatch). Defaults to the active directory's.
+   */
+  workModeProviders?: ProviderWithModelList[]
+  /**
+   * The directory whose command catalog decides how a slash command is routed, for a sender that targets a project
+   * other than the active one (Quick Dispatch). Defaults to the active project's catalog in useCommandsStore.
+   */
+  commandCatalogDirectory?: string
 }): Promise<void> {
+  // Set when the command catalog was loaded before the directory lock was taken; see resolveSlashCommand.
+  let commandCatalogPreload: boolean | undefined
+  let directoryCommandCatalog: DirectoryCommandCatalog | undefined
   const run = async (): Promise<void> => {
     if (params.inputMode === "shell") {
       const sdk = axCodeClient.getSdkClient()
@@ -309,8 +357,12 @@ export function routeMessage(params: {
     const forcedCommand = resolved.forcedCommand
     const commandFiles =
       userParts.length > 0 ? [...(params.files ?? []), ...userParts.flatMap((part) => part.files ?? [])] : params.files
+    // Only a sender that did not admit the send itself reaches this refusal. Those (Multi-Run, Quick Dispatch) report
+    // it on their own surface, so it is thrown without touching the composer's error line.
     const refuse = (command: "council" | "arena") => {
-      if (!params.workModeAdmitted) throwWorkModeRefusal(workModeRefusal(command, lead, params.allowUnverifiedToolCalling))
+      if (params.workModeAdmitted) return
+      const refusal = workModeRefusal(command, lead, params.allowUnverifiedToolCalling, params.workModeProviders)
+      if (refusal) throw markWorkModeBlockedError(new Error(refusal.message), refusal.reason)
     }
 
     // The work-mode remap always asks for the runtime's council/arena tool: as the slash command, or
@@ -324,7 +376,11 @@ export function routeMessage(params: {
       const cmdName = forcedCommand?.name ?? head.slice(1)
       const cmdArgs = forcedCommand?.arguments ?? tail.join(" ")
 
-      const { knownCommand, commandsLoaded, catalogLoadFailed } = await resolveSlashCommand(cmdName)
+      const { knownCommand, commandsLoaded, catalogLoadFailed } = await resolveSlashCommand(
+        cmdName,
+        commandCatalogPreload,
+        directoryCommandCatalog,
+      )
 
       // An explicit `/council` or `/arena` asks for the same tool only when it is sent as that
       // command. One the runtime does not offer falls through below and is sent as plain text, which
@@ -447,8 +503,32 @@ export function routeMessage(params: {
     })
   }
 
+  // The command catalog loads under the same directory lock this send takes, so a cold catalog is loaded first:
+  // loading it from inside the lock waited for the lock until it timed out.
+  const mayRouteCommand =
+    params.inputMode !== "shell" &&
+    (params.content.trimStart().startsWith("/") || (params.workMode ?? DEFAULT_WORK_MODE) !== DEFAULT_WORK_MODE)
+  const catalogDirectory = params.commandCatalogDirectory
+  if (mayRouteCommand && catalogDirectory) {
+    return loadDirectoryCommandCatalog(catalogDirectory).then((catalog) => {
+      directoryCommandCatalog = catalog
+      return params.directory !== undefined ? axCodeClient.withDirectory(params.directory, run) : run()
+    })
+  }
+
   if (params.directory !== undefined) {
-    return axCodeClient.withDirectory(params.directory, run)
+    const directory = params.directory
+    if (!mayRouteCommand || useCommandsStore.getState().commands.length > 0) {
+      return axCodeClient.withDirectory(directory, run)
+    }
+    return useCommandsStore
+      .getState()
+      .loadCommands()
+      .catch(() => false)
+      .then((loaded) => {
+        commandCatalogPreload = loaded
+        return axCodeClient.withDirectory(directory, run)
+      })
   }
 
   return run()
@@ -483,7 +563,11 @@ type SendMessageOptions = {
   allowUnverifiedToolCalling?: boolean
 }
 
-function notifyMessageSent(sessionId: string): void {
+/**
+ * Stamp the session's last user message on the server. The runtime raises needs-attention when a session that is not
+ * being watched goes idle only when this stamp is set, so every sender of a user prompt calls it.
+ */
+export function notifyMessageSent(sessionId: string): void {
   fetch(replacePathParams(API_ENDPOINTS.config.sessionsMessageSent, { sessionId }), { method: "POST" }).catch(() => {
     /* ignore */
   })
@@ -500,6 +584,12 @@ type NewSessionDraftState = {
   pendingWorktreeRequestId?: string | null
   bootstrapPendingDirectory?: string | null
   preserveDirectoryOverride?: boolean
+  /**
+   * A worktree this draft pointed at that is confirmed gone: deleted, or absent from a successful listing. The draft
+   * keeps it as its target, so a prompt meant for it never moves to the root unasked, and refuses to send there until
+   * the person chooses a target again; only that choice clears it (C UX-03).
+   */
+  lostTargetDirectory?: string | null
   parentID: string | null
   title?: string
   initialPrompt?: string
@@ -534,6 +624,11 @@ type SessionUIState = {
   worktreeMetadata: Map<string, WorktreeMetadata>
   availableWorktrees: WorktreeMetadata[]
   availableWorktreesByProject: Map<string, WorktreeMetadata[]>
+  /**
+   * Project paths whose worktree listing succeeded (an empty one included) in the latest discovery. A project that
+   * is absent was not listed yet or its listing failed, so a worktree missing from it is unknown, not gone.
+   */
+  worktreeListingReadyPaths: ReadonlySet<string>
   sessionAbortFlags: Map<string, { timestamp: number; acknowledged: boolean }>
   abortControllers: Map<string, AbortController>
   /** Fan-out cleanup for a hard-deleted session: per-session maps and the worktree attachment. */
@@ -568,6 +663,11 @@ type SessionUIState = {
     },
   ) => void
   setDraftPreserveDirectoryOverride: (value: boolean) => void
+  /**
+   * Mark the open draft's target as gone, when it still points at `directory`; the picker accepts a new choice
+   * afterwards.
+   */
+  markDraftTargetLost: (directory: string) => void
   acknowledgeSessionAbort: (sessionId: string) => void
   markSessionAborted: (sessionId: string) => void
   clearSessionAbort: (sessionId: string) => void
@@ -810,6 +910,37 @@ const DEFAULT_DRAFT: NewSessionDraftState = {
 }
 
 const INVALID_SEND_TARGET_MESSAGE = "Cannot send message without an active session or draft"
+const draftRetargetedMessage = (): string =>
+  formatMessage(useI18nStore.getState().dictionary, "chat.chatInput.draftRetargeted")
+
+/**
+ * Record the model, agent and variant a new session was started with, so opening it later shows the selection its
+ * first prompt used rather than the directory's.
+ */
+export function saveSessionSendSelection(
+  sessionId: string,
+  selection: { providerID?: string; modelID?: string; agent?: string; variant?: string },
+): void {
+  const { providerID, modelID, agent, variant } = selection
+  const selections = useSelectionStore.getState()
+  if (providerID && modelID) selections.saveSessionModelSelection(sessionId, providerID, modelID)
+  if (!agent) return
+  selections.saveSessionAgentSelection(sessionId, agent)
+  if (providerID && modelID) {
+    selections.saveAgentModelForSession(sessionId, agent, providerID, modelID)
+    selections.saveAgentModelVariantForSession(sessionId, agent, providerID, modelID, variant)
+  }
+}
+
+/**
+ * Where a draft would create its session: its effective directory and any worktree still pending. The project is left
+ * out: the composer fills in the project of an unchanged directory once the registry loads, which is no retarget.
+ */
+const draftTargetKey = (draft: NewSessionDraftState): string =>
+  JSON.stringify([
+    normalizePath(draft.bootstrapPendingDirectory ?? draft.directoryOverride ?? null),
+    draft.pendingWorktreeRequestId ?? null,
+  ])
 // Resolving a pending worktree updates the draft object without changing its
 // lifetime. Opening or closing a draft invalidates sends waiting on that work.
 let draftLifecycleRevision = 0
@@ -834,6 +965,7 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
   worktreeMetadata: new Map(),
   availableWorktrees: [],
   availableWorktreesByProject: new Map(),
+  worktreeListingReadyPaths: new Set(),
   sessionAbortFlags: new Map(),
   abortControllers: new Map(),
   isLoading: false,
@@ -1024,11 +1156,14 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     let nextDirectory: string | null = null
     set((s) => {
       nextDirectory = normalizePath(target.directoryOverride ?? s.newSessionDraft.directoryOverride)
+      const lost = normalizePath(s.newSessionDraft.lostTargetDirectory ?? null)
       return {
         newSessionDraft: {
           ...s.newSessionDraft,
           selectedProjectId: target.projectId ?? target.selectedProjectId ?? s.newSessionDraft.selectedProjectId,
           directoryOverride: target.directoryOverride ?? s.newSessionDraft.directoryOverride,
+          // A person's explicit choice (force), or any move to another directory, ends the lost state.
+          lostTargetDirectory: options?.force || lost !== nextDirectory ? null : s.newSessionDraft.lostTargetDirectory,
         },
       }
     })
@@ -1037,6 +1172,26 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
     if (!options?.preserveWorkMode) useWorkModeStore.getState().resetToAgent(nextDirectory)
     void activateConfigForDirectory(nextDirectory)
   },
+
+  markDraftTargetLost: (directory) =>
+    set((s) => {
+      const draft = s.newSessionDraft
+      const lost = normalizePath(directory)
+      if (!draft?.open || !lost) return s
+      const target = normalizePath(draft.bootstrapPendingDirectory ?? draft.directoryOverride ?? null)
+      if (target !== lost || normalizePath(draft.lostTargetDirectory ?? null) === lost) return s
+      // The target stays where it was, and the locks that make the picker ignore a choice (a pending bootstrap of
+      // this directory, a preserved override) go, so the person can choose another target.
+      return {
+        newSessionDraft: {
+          ...draft,
+          directoryOverride: lost,
+          bootstrapPendingDirectory: null,
+          preserveDirectoryOverride: false,
+          lostTargetDirectory: lost,
+        },
+      }
+    }),
 
   setDraftPreserveDirectoryOverride: (value) =>
     set((s) => {
@@ -1297,17 +1452,19 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
   ) => {
     const draft = get().newSessionDraft
     const startedFromDraft = options?.fromNewSessionDraft ?? (!options?.sessionId && Boolean(draft?.open))
+    const refuseDraftSend = (message = INVALID_SEND_TARGET_MESSAGE): never => {
+      set({ error: message })
+      throw new Error(message)
+    }
     if (startedFromDraft && !draft?.open) {
       // Validate the captured draft target before touching the now-selected
       // session's abort flags or changed-files dismissal state.
-      set({ error: INVALID_SEND_TARGET_MESSAGE })
-      throw new Error(INVALID_SEND_TARGET_MESSAGE)
+      refuseDraftSend()
     }
     if (startedFromDraft && options?.draftRevision !== undefined && options.draftRevision !== draftLifecycleRevision) {
       // The caller's text belongs to a draft that has since been replaced or closed;
       // delivering it now would send it to the current draft's target instead.
-      set({ error: INVALID_SEND_TARGET_MESSAGE })
-      throw new Error(INVALID_SEND_TARGET_MESSAGE)
+      refuseDraftSend()
     }
 
     // Clear non-Git changed-files bar on new user message for current session
@@ -1334,28 +1491,53 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       if (draft.pendingWorktreeRequestId) {
         draftDirectoryOverride = await waitForPendingDraftWorktreeRequest(draft.pendingWorktreeRequestId)
         if (!get().newSessionDraft?.open || draftLifecycleRevision !== draftRevision) {
-          set({ error: INVALID_SEND_TARGET_MESSAGE })
-          throw new Error(INVALID_SEND_TARGET_MESSAGE)
+          refuseDraftSend()
+        }
+        // Picking another project or branch during the wait replaces the pending request: the worktree it produced is
+        // no longer where the draft points, and creating there would leave the draft showing another target. The
+        // worktree creator may already have resolved this request onto the draft, which is no retarget.
+        const draftAfterWait = get().newSessionDraft
+        const stillPending = draftAfterWait?.pendingWorktreeRequestId === draft.pendingWorktreeRequestId
+        const resolvedHere =
+          !draftAfterWait?.pendingWorktreeRequestId &&
+          normalizePath(draftAfterWait?.directoryOverride ?? null) === normalizePath(draftDirectoryOverride)
+        if (!stillPending && !resolvedHere) {
+          refuseDraftSend(draftRetargetedMessage())
         }
         get().resolvePendingDraftWorktreeTarget(draft.pendingWorktreeRequestId, draftDirectoryOverride)
       }
 
+      // The target this send was admitted for. Retargeting a draft (the branch or project picker) keeps its revision.
+      const admittedTarget = draftTargetKey(get().newSessionDraft)
+
       // Before the session exists: a refused send must leave the draft open and nothing behind.
-      throwWorkModeRefusal(
-        await findWorkModeSendRefusal({
-          content,
-          workMode: options?.workMode,
-          providerID,
-          modelID,
-          inputMode,
-          allowUnverifiedToolCalling: options?.allowUnverifiedToolCalling,
-        }),
-      )
-      // The check can wait for the command catalog; the draft may have been replaced meanwhile.
-      if (!get().newSessionDraft?.open || draftLifecycleRevision !== draftRevision) {
-        set({ error: INVALID_SEND_TARGET_MESSAGE })
-        throw new Error(INVALID_SEND_TARGET_MESSAGE)
+      const workModeRefusal = await findWorkModeSendRefusal({
+        content,
+        workMode: options?.workMode,
+        providerID,
+        modelID,
+        inputMode,
+        allowUnverifiedToolCalling: options?.allowUnverifiedToolCalling,
+      })
+      // The check can wait for the command catalog; the draft may have been replaced or retargeted meanwhile. That
+      // comes first: a refusal worked out for the old target would be reported on the new one.
+      const draftAfterCheck = get().newSessionDraft
+      if (!draftAfterCheck?.open || draftLifecycleRevision !== draftRevision) {
+        refuseDraftSend()
       }
+      if (draftTargetKey(draftAfterCheck) !== admittedTarget) {
+        refuseDraftSend(draftRetargetedMessage())
+      }
+      // The target can be confirmed gone while the send waited (C UX-03); never create a session there.
+      const lostTarget = normalizePath(draftAfterCheck.lostTargetDirectory ?? null)
+      if (lostTarget && lostTarget === normalizePath(draftDirectoryOverride)) {
+        refuseDraftSend(
+          formatMessage(useI18nStore.getState().dictionary, "chat.chatInput.sendNeedsTarget", {
+            name: lostTarget.split("/").pop() || lostTarget,
+          }),
+        )
+      }
+      throwWorkModeRefusal(workModeRefusal)
 
       const created = await get().createSession(draft.title, draftDirectoryOverride, draft.parentID ?? null)
       if (!created?.id) throw new Error("Failed to create session")
@@ -1383,30 +1565,12 @@ export const useSessionUIStore = create<SessionUIState>()((set, get) => ({
       const configState = useConfigStore.getState()
       const draftAgentName = configState.currentAgentName
       const effectiveDraftAgent = submittedAgent ?? draftAgentName
-      const sessionProviderID = submittedProviderID || configState.currentProviderId
-      const sessionModelID = submittedModelID || configState.currentModelId
-
-      if (sessionProviderID && sessionModelID) {
-        useSelectionStore.getState().saveSessionModelSelection(created.id, sessionProviderID, sessionModelID)
-      }
-
-      if (effectiveDraftAgent) {
-        useSelectionStore.getState().saveSessionAgentSelection(created.id, effectiveDraftAgent)
-        if (sessionProviderID && sessionModelID) {
-          useSelectionStore
-            .getState()
-            .saveAgentModelForSession(created.id, effectiveDraftAgent, sessionProviderID, sessionModelID)
-          useSelectionStore
-            .getState()
-            .saveAgentModelVariantForSession(
-              created.id,
-              effectiveDraftAgent,
-              sessionProviderID,
-              sessionModelID,
-              variant,
-            )
-        }
-      }
+      saveSessionSendSelection(created.id, {
+        providerID: submittedProviderID || configState.currentProviderId,
+        modelID: submittedModelID || configState.currentModelId,
+        agent: effectiveDraftAgent,
+        variant,
+      })
 
       const createdDirectory = normalizePath(draftDirectoryOverride ?? created.directory ?? null)
 

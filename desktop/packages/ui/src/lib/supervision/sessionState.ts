@@ -75,11 +75,6 @@ export function isLiveState(state: SupervisionState): boolean {
   return state !== "idle"
 }
 
-/** Sessions that hold the user's attention: blocked on them or running on their turn. */
-export function isHighTouchState(state: SupervisionState): boolean {
-  return state === "permission" || state === "question" || state === "running"
-}
-
 export interface SupervisionEvidence {
   additions: number
   deletions: number
@@ -155,23 +150,22 @@ export interface WorkInProgressSummary {
   running: number
   needsYou: number
   followUp: number
-  highTouch: number
-  overSoftLimit: boolean
 }
 
-/** Above this many high-touch sessions, supervision quality drops; the UI hints but never blocks. */
+/**
+ * The most decision toasts shown at once; more are summarized. The board no longer warns past this count: working
+ * sessions are the point of parallel work, and the sessions that need a person are already counted (G UX-09).
+ */
 export const HIGH_TOUCH_SOFT_LIMIT = 4
 
 export function summarizeWorkInProgress(rows: readonly Pick<SupervisionRowLike, "state">[]): WorkInProgressSummary {
   let running = 0
   let needsYou = 0
   let followUp = 0
-  let highTouch = 0
   for (const row of rows) {
     if (row.state === "running") running += 1
     if (needsHuman(row.state)) needsYou += 1
     if (needsFollowUp(row.state)) followUp += 1
-    if (isHighTouchState(row.state)) highTouch += 1
   }
-  return { running, needsYou, followUp, highTouch, overSoftLimit: highTouch > HIGH_TOUCH_SOFT_LIMIT }
+  return { running, needsYou, followUp }
 }

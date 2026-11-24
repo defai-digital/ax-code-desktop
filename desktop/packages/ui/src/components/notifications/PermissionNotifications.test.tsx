@@ -42,6 +42,7 @@ vi.mock("@/lib/i18n", () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock("@/components/ui", () => ({ toast: { info: vi.fn(), dismiss: vi.fn() } }))
 
 import { useAttentionStore } from "@/stores/useAttentionStore"
+import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useNotificationStore } from "@/stores/useNotificationStore"
 import { PermissionNotifications } from "./PermissionNotifications"
 
@@ -53,6 +54,7 @@ beforeEach(() => {
   mocks.sessions = []
   mocks.permissions = []
   useNotificationStore.getState().clearAll()
+  useSupervisionStore.setState({ rows: [] })
   mocks.setBadge.mockClear()
   container = document.createElement("div")
   root = createRoot(container)
@@ -61,26 +63,25 @@ afterEach(() => {
   act(() => root.unmount())
 })
 
-test("the badge counts permission and question requests once each, the same rule the tray uses", () => {
-  mocks.pending = [
-    { kind: "permission", sessionId: "a", request: { id: "1" } },
-    { kind: "question", sessionId: "a", request: { id: "2" } },
-    { kind: "permission", sessionId: "b", request: { id: "3" } },
-    { kind: "permission", sessionId: "b", request: { id: "3" } },
-  ]
+type Row = ReturnType<typeof useSupervisionStore.getState>["rows"][number]
+const row = (sessionId: string, state: Row["state"]) => ({ sessionId, directory: "/repo", state }) as unknown as Row
+
+test("the badge counts sessions that need you, the number the titlebar pill shows", () => {
+  // Two requests in session a and one in b are two sessions; a blocked goal counts, a failure does not.
+  useSupervisionStore.setState({
+    rows: [row("a", "permission"), row("b", "question"), row("c", "goal"), row("d", "error"), row("e", "running")],
+  })
   act(() => root.render(<PermissionNotifications />))
-  // Three requests across two sessions: counting sessions, or permissions only, would give two.
   expect(mocks.setBadge).toHaveBeenLastCalledWith(3)
   expect(useAttentionStore.getState().pendingApprovalCount).toBe(3)
 })
 
-test("clears the badge when the requests are answered", () => {
-  mocks.pending = [{ kind: "question", sessionId: "a", request: { id: "1" } }]
+test("clears the badge when nothing needs you any more", () => {
+  useSupervisionStore.setState({ rows: [row("a", "question")] })
   act(() => root.render(<PermissionNotifications />))
   expect(mocks.setBadge).toHaveBeenLastCalledWith(1)
   act(() => {
-    mocks.pending = []
-    root.render(<PermissionNotifications />)
+    useSupervisionStore.setState({ rows: [row("a", "running")] })
   })
   expect(mocks.setBadge).toHaveBeenLastCalledWith(0)
   expect(useAttentionStore.getState().pendingApprovalCount).toBe(0)
@@ -91,7 +92,6 @@ test("a pending permission is not copied into the notification center", () => {
   mocks.permissions = [{ id: "perm-1", permission: "bash", patterns: ["rm -rf build"] }]
   mocks.pending = [{ kind: "permission", sessionId: "a", request: { id: "perm-1" } }]
   act(() => root.render(<PermissionNotifications />))
-  // It is still counted as a decision; it is just answered in one place, the Needs you inbox.
-  expect(mocks.setBadge).toHaveBeenLastCalledWith(1)
+  // It is answered in one place, the Needs you inbox.
   expect(useNotificationStore.getState().notifications).toEqual([])
 })

@@ -675,10 +675,17 @@ export interface ListDirectoryOptions {
 export interface FileReadOptions {
   allowOutsideWorkspace?: boolean
   optional?: boolean
+  /** The workspace the path belongs to, when it is not the directory the app is browsing now. */
+  directory?: string
 }
 
 export interface FileWriteOptions {
   allowOutsideWorkspace?: boolean
+  /**
+   * The workspace the path belongs to. Without it the server checks the path against the directory the app is
+   * browsing now, which refuses a draft saved after the session moved to another project.
+   */
+  directory?: string
 }
 
 export interface DirectoryWriteOptions {
@@ -813,6 +820,9 @@ export interface NotificationPayload {
   body?: string
 
   tag?: string
+  /** The session a click on the notification opens, in its project's directory. */
+  sessionId?: string
+  directory?: string
 }
 
 export interface NotificationsAPI {

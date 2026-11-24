@@ -13,6 +13,8 @@ let visibleAgents: Agent[] = []
 const sendMessageCalls: unknown[][] = []
 let sendShouldFail = false
 let sendFailure: Error | null = null
+/** When set, a send waits on this promise, so a test can look at the queue while the send is in flight. */
+let sendGate: Promise<void> | null = null
 
 /** Options argument of the captured sendMessage call (content is index 0). */
 const sendOptionsOf = (index: number) => sendMessageCalls[index]?.[9] as { sessionId?: string; messageId?: string }
@@ -55,6 +57,7 @@ vi.doMock("@/sync/session-ui-store", () => ({
       sendMessage: (...args: unknown[]) => {
         sendMessageCalls.push(args)
         if (sendFailure) return Promise.reject(sendFailure)
+        if (sendGate) return sendGate
         return sendShouldFail ? Promise.reject(new Error("send failed")) : Promise.resolve()
       },
       sessionAbortFlags: mockSessionAbortFlags,
@@ -123,6 +126,7 @@ const {
   buildQueuedAutoSendPayload,
   computeQueuedAutoSendStatusUpdate,
   isQueuedAutoSendHeld,
+  isQueuedEntryInFlight,
   sendQueuedAutoSendPayload,
   shouldDispatchQueuedAutoSend,
   useQueuedMessageAutoSend,
@@ -240,6 +244,16 @@ describe("isQueuedAutoSendHeld", () => {
     // Viewing the session clears the unseen error and releases the hold.
     useSyncNotificationStore.getState().markSessionViewed("session-err")
     expect(isQueuedAutoSendHeld("session-err")).toBe(false)
+  })
+
+  test("a queue its session's error held stays held when the session is opened, until Resume queue", () => {
+    useMessageQueueStore.getState().addToQueue("session-err", { content: "next" })
+    useMessageQueueStore.getState().holdQueue("session-err")
+    useSyncNotificationStore.getState().markSessionViewed("session-err")
+    expect(isQueuedAutoSendHeld("session-err")).toBe(true)
+    useMessageQueueStore.getState().resumeQueue("session-err")
+    expect(isQueuedAutoSendHeld("session-err")).toBe(false)
+    useMessageQueueStore.getState().clearQueue("session-err")
   })
 })
 
@@ -422,11 +436,12 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     sendMessageCalls.length = 0
     sendShouldFail = false
     sendFailure = null
+    sendGate = null
     toastErrorMock.mockClear()
     mockSessionAbortFlags.clear()
     claimHookRef.current = null
     statusState.current = { "session-a": { type: "busy" } }
-    useMessageQueueStore.setState({ queuedMessages: {} })
+    useMessageQueueStore.setState({ queuedMessages: {}, heldQueues: {} })
     useSyncNotificationStore.setState({
       list: [],
       index: {
@@ -498,6 +513,33 @@ describe("useQueuedMessageAutoSend hold lift", () => {
       useSyncNotificationStore.getState().markSessionViewed("session-a")
     })
 
+    expect(sendMessageCalls).toHaveLength(1)
+    expect(sendMessageCalls[0][0]).toBe("queued message")
+  })
+
+  test("a held queue is not sent when the session is opened, and goes out on Resume queue", async () => {
+    // C UX-04: reading the error is a look; only Resume queue lets the queue go into the failed session.
+    useMessageQueueStore.getState().addToQueue("session-a", {
+      content: "queued message",
+      sendConfig: { providerID: "provider-1", modelID: "model-1" },
+    })
+    useMessageQueueStore.getState().holdQueue("session-a")
+
+    render()
+    statusState.current = { "session-a": { type: "idle" } }
+    render()
+    await React.act(async () => {})
+    expect(sendMessageCalls).toHaveLength(0)
+
+    await React.act(async () => {
+      useSyncNotificationStore.getState().markSessionViewed("session-a")
+    })
+    expect(sendMessageCalls).toHaveLength(0)
+
+    // The edge stayed armed while held: resuming sends without another status change.
+    await React.act(async () => {
+      useMessageQueueStore.getState().resumeQueue("session-a")
+    })
     expect(sendMessageCalls).toHaveLength(1)
     expect(sendMessageCalls[0][0]).toBe("queued message")
   })
@@ -586,6 +628,67 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     expect(sendOptionsOf(1).messageId).toBe(firstId)
   })
 
+  test("keeps the entry saved as sending until its send returns, then removes it", async () => {
+    // Removing the entry before the send lost the prompt when the app quit while the send was in flight (C UX-02).
+    useMessageQueueStore.getState().addToQueue("session-a", {
+      content: "queued message",
+      sendConfig: { providerID: "provider-1", modelID: "model-1" },
+    })
+    let finish: () => void = () => {}
+    sendGate = new Promise<void>((resolve) => {
+      finish = resolve
+    })
+
+    render()
+    statusState.current = { "session-a": { type: "idle" } }
+    render()
+    await React.act(async () => {})
+
+    expect(sendMessageCalls).toHaveLength(1)
+    const [inFlight] = useMessageQueueStore.getState().getQueueForSession("session-a")
+    expect(inFlight?.delivery).toBe("sending")
+    expect(inFlight?.messageId).toBe(sendOptionsOf(0).messageId)
+    expect(isQueuedEntryInFlight(inFlight!.id)).toBe(true)
+
+    await React.act(async () => finish())
+
+    expect(useMessageQueueStore.getState().getQueueForSession("session-a")).toEqual([])
+    expect(isQueuedEntryInFlight(inFlight!.id)).toBe(false)
+  })
+
+  test("an entry left marked sending is not sent again by itself, and holds the entries behind it", async () => {
+    // What a quit mid-send leaves behind: the runtime may already have this prompt.
+    useMessageQueueStore.setState({
+      queuedMessages: {
+        "session-a": [
+          { id: "q1", content: "first", createdAt: 1, messageId: "msg_1", delivery: "sending" },
+          { id: "q2", content: "second", createdAt: 2, sendConfig: { providerID: "provider-1", modelID: "model-1" } },
+        ],
+      },
+    })
+
+    render()
+    statusState.current = { "session-a": { type: "idle" } }
+    render()
+    await React.act(async () => {})
+
+    expect(sendMessageCalls).toHaveLength(0)
+    expect(
+      useMessageQueueStore
+        .getState()
+        .getQueueForSession("session-a")
+        .map((entry) => entry.id),
+    ).toEqual(["q1", "q2"])
+
+    // Once the person resolves it, the edge that was kept armed sends the next entry.
+    await React.act(async () => useMessageQueueStore.getState().removeFromQueue("session-a", "q1"))
+    render()
+    await React.act(async () => {})
+
+    expect(sendMessageCalls).toHaveLength(1)
+    expect(sendMessageCalls[0]?.[0]).toBe("second")
+  })
+
   test("surfaces a toast when the queued auto-send fails", async () => {
     useMessageQueueStore.getState().addToQueue("session-a", {
       content: "queued message",
@@ -602,6 +705,8 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     // instead of console-only.
     expect(toastErrorMock).toHaveBeenCalledWith("chat.queuedMessage.sendFailed", { id: "queued-auto-send-failed" })
     expect(useMessageQueueStore.getState().getQueueForSession("session-a")).toHaveLength(1)
+    // Back in the queue, not left marked as sending.
+    expect(useMessageQueueStore.getState().getQueueForSession("session-a")[0]?.delivery).toBeUndefined()
   })
 
   test("a refused queued send reports the refusal, not a generic failure", async () => {
@@ -775,7 +880,7 @@ describe("useQueuedMessageAutoSend hold lift", () => {
     expect(sendMessageCalls).toHaveLength(0)
 
     // That window's copy of the queue and its claim go away; a new entry arrives.
-    useMessageQueueStore.setState({ queuedMessages: {} })
+    useMessageQueueStore.setState({ queuedMessages: {}, heldQueues: {} })
     useMessageQueueStore.getState().addToQueue("session-a", {
       content: "later queued message",
       sendConfig: { providerID: "provider-1", modelID: "model-1" },
@@ -821,7 +926,7 @@ describe("useQueuedMessageAutoSend cross-window claim", () => {
     claimHookRef.current = null
     mockSessionAbortFlags.clear()
     statusState.current = { "session-a": { type: "busy" } }
-    useMessageQueueStore.setState({ queuedMessages: {} })
+    useMessageQueueStore.setState({ queuedMessages: {}, heldQueues: {} })
     useSyncNotificationStore.setState({
       list: [],
       index: {

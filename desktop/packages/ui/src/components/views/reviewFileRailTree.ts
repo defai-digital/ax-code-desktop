@@ -213,6 +213,7 @@ export type ReviewTreeMotion =
   | { type: "collapse"; directoryId: string; key: string }
   | { type: "toggle"; directoryId: string; key: string }
   | { type: "select"; path: string; key: string }
+  | { type: "viewed"; path: string; key: string }
   | { type: "ignore" }
 
 const TREE_MOTION_IGNORE: ReviewTreeMotion = { type: "ignore" }
@@ -339,6 +340,12 @@ export function reviewTreeKeyMotion(
       return { type: "collapse", directoryId: current.directoryId, key: current.key }
     }
     return current.parentKey ? { type: "focus", key: current.parentKey } : TREE_MOTION_IGNORE
+  }
+  // Space marks the focused file viewed. Its checkbox stays out of the tab order so the tree is one stop, which left
+  // the default rail with no keyboard way to mark a file (G UX-13).
+  if (key === " ") {
+    if (current.kind === "file" && current.path) return { type: "viewed", path: current.path, key: current.key }
+    return TREE_MOTION_IGNORE
   }
   if (key === "Enter") {
     if (current.kind === "file" && current.path) return { type: "select", path: current.path, key: current.key }

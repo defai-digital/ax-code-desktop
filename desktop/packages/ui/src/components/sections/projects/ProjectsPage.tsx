@@ -14,6 +14,7 @@ import {
 } from "@/lib/projectMeta"
 import { WorktreeSectionContent } from "@/components/sections/ax-code/WorktreeSectionContent"
 import { ProjectActionsSection } from "@/components/sections/projects/ProjectActionsSection"
+import { ImportedRepositoryCommandsNotice } from "@/components/sections/projects/ImportedRepositoryCommandsNotice"
 import { Icon } from "@/components/icon/Icon"
 import { useThemeSystem } from "@/contexts/useThemeSystem"
 import { useI18n } from "@/lib/i18n"
@@ -83,6 +84,13 @@ export const ProjectsPage: React.FC = () => {
   }, [selectedProject])
   const selectedProjectTargetRef = React.useRef<ProjectOperationTarget | null>(null)
   selectedProjectTargetRef.current = selectedProjectTarget
+  // Bumped after held repository commands are added, so the sections that show the live settings read them again.
+  const [commandsRevision, setCommandsRevision] = React.useState(0)
+  const handleImportedCommandsAdded = React.useCallback((project: ProjectOperationTarget) => {
+    // Only when that project is still selected: remounting another project's editors would drop its unsaved edits.
+    if (!isCurrentProjectOperationTarget(project, selectedProjectTargetRef.current)) return
+    setCommandsRevision((value) => value + 1)
+  }, [])
 
   const isCurrentProjectOperation = React.useCallback(
     (target: ProjectOperationTarget | null) =>
@@ -568,10 +576,22 @@ export const ProjectsPage: React.FC = () => {
           </div>
         </div>
 
-        {/* Worktree Group */}
+        {selectedProjectTarget && (
+          <div className="px-2">
+            <ImportedRepositoryCommandsNotice
+              key={`${selectedProjectTarget.id}:${selectedProjectTarget.path}`}
+              projectRef={selectedProjectTarget}
+              onAdded={handleImportedCommandsAdded}
+            />
+          </div>
+        )}
+
+        {/* Actions Group */}
         <div className="mb-8">
           <section className="px-2 pb-2 pt-0">
-            {selectedProjectTarget && <ProjectActionsSection projectRef={selectedProjectTarget} />}
+            {selectedProjectTarget && (
+              <ProjectActionsSection key={`actions:${commandsRevision}`} projectRef={selectedProjectTarget} />
+            )}
           </section>
         </div>
 
@@ -583,7 +603,9 @@ export const ProjectsPage: React.FC = () => {
             </h3>
           </div>
           <section className="px-2 pb-2 pt-0">
-            {selectedProjectTarget && <WorktreeSectionContent projectRef={selectedProjectTarget} />}
+            {selectedProjectTarget && (
+              <WorktreeSectionContent key={`worktree:${commandsRevision}`} projectRef={selectedProjectTarget} />
+            )}
           </section>
         </div>
       </div>

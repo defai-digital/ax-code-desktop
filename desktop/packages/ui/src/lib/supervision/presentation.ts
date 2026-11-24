@@ -14,6 +14,7 @@ export const SUPERVISION_PRESENTATION: Record<SupervisionState, StatePresentatio
   error: { label: "supervision.state.error", mark: "failed", dot: "bg-[var(--status-error)]" },
   goal: { label: "supervision.state.goal", mark: "needs", dot: "bg-[var(--status-warning)]" },
   review: { label: "supervision.state.review", mark: "review", dot: "bg-[var(--status-info)]" },
-  running: { label: "supervision.state.running", mark: "running", dot: "bg-[var(--status-success)]" },
+  // Info, like the running status mark: a working session was green in the session list and blue on the board.
+  running: { label: "supervision.state.running", mark: "running", dot: "bg-[var(--status-info)]" },
   idle: { label: "supervision.state.idle", mark: "idle", dot: "bg-muted-foreground/50" },
 }

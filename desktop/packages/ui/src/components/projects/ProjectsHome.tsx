@@ -23,6 +23,7 @@ import { useAllLiveSessions, useAllSessionStatuses, usePendingPermissionSessionI
 import { resolveGlobalSessionDirectory } from "@/stores/useGlobalSessionsStore"
 import { useSessionUIStore } from "@/sync/session-ui-store"
 import { ImportProjectsDialog } from "@/components/projects/ImportProjectsDialog"
+import { canRetargetDraftToProject } from "@/components/chat/chatDraftState"
 
 type ProjectsHomeProps = {
   /** When true, render a denser list suitable for the sidebar empty state. */
@@ -91,7 +92,7 @@ const ActivityDot: React.FC<{ activity: ProjectActivity }> = ({ activity }) => (
     className={cn(
       "status-dot",
       activity.tone === "attention" && "bg-status-warning",
-      activity.tone === "running" && "bg-status-success status-dot-running",
+      activity.tone === "running" && "bg-status-info status-dot-running",
       activity.tone === "idle" && "bg-muted-foreground/35",
     )}
   />
@@ -168,21 +169,30 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
   const handleClone = React.useCallback(() => sessionEvents.requestDirectoryDialog({ mode: "clone" }), [])
   const handleBrowsePath = React.useCallback(() => sessionEvents.requestDirectoryDialog({ mode: "browse" }), [])
 
+  // On the draft home a row retargets the open draft, which stays put while its worktree is still being created.
+  // Activating the project first would move the app's directory away from a draft that did not follow.
+  const draftIsLocked = React.useCallback(
+    () => variant === "draft" && !canRetargetDraftToProject(useSessionUIStore.getState().newSessionDraft),
+    [variant],
+  )
+
   const handleOpen = React.useCallback(
     (project: ProjectEntry) => {
+      if (draftIsLocked()) return
       setActiveProject(project.id)
       onOpenProject?.(project.id)
     },
-    [onOpenProject, setActiveProject],
+    [draftIsLocked, onOpenProject, setActiveProject],
   )
 
   const handleNewSession = React.useCallback(
     (project: ProjectEntry, event: React.SyntheticEvent) => {
       event.stopPropagation()
+      if (draftIsLocked()) return
       setActiveProject(project.id)
       onNewSession?.(project.id)
     },
-    [onNewSession, setActiveProject],
+    [draftIsLocked, onNewSession, setActiveProject],
   )
 
   const handleTogglePin = React.useCallback(
@@ -361,18 +371,22 @@ export const ProjectsHome: React.FC<ProjectsHomeProps> = ({
             projectActivity.tone === "attention" ? attentionSessionForProject(project.id, needsYouInputs) : null
           const statusLabel =
             projectActivity.tone === "attention"
-              ? t("projects.home.status.needsYou", { count: projectActivity.attentionSessions })
+              ? t(projectActivity.attentionSessions === 1 ? "projects.home.status.needsYouOne" : "projects.home.status.needsYou", {
+                  count: projectActivity.attentionSessions,
+                })
               : projectActivity.tone === "running"
                 ? t("projects.home.status.running", { count: projectActivity.busySessions })
                 : projectActivity.activeSessions > 0
                   ? t("projects.home.status.sessions", { count: projectActivity.activeSessions })
-                  : t("projects.home.status.idle")
+                  : t("supervision.state.idle")
 
           return (
             <div
               key={project.id}
               role="button"
-              aria-label={contextName}
+              // The status is part of the name: the dot is hidden from assistive tech, and the compact sidebar list
+              // prints no status words, so keyboard and screen-reader users heard only project names (G UX-05).
+              aria-label={`${contextName}, ${statusLabel}`}
               aria-current={isActive ? "true" : undefined}
               data-project-row={project.id}
               data-project-directory={project.path}

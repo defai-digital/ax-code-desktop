@@ -158,6 +158,8 @@ interface UIStore extends UIPreferences {
   isCommandPaletteOpen: boolean
   isCommandPaletteSearchMode: boolean
   isHelpDialogOpen: boolean
+  /** The All projects dialog: the project registry over the current view, which stays where it was (C UX-09). */
+  isAllProjectsOpen: boolean
   isAboutDialogOpen: boolean
   aboutDialogMenuRequest?: MenuDialogRequest
   isAxCodeStatusDialogOpen: boolean
@@ -224,6 +226,7 @@ interface UIStore extends UIPreferences {
   setSplitPaneRightTab: (tab: Exclude<MainTab, "chat">) => void
   toggleHelpDialog: () => void
   setHelpDialogOpen: (open: boolean) => void
+  setAllProjectsOpen: (open: boolean) => void
   setAboutDialogOpen: (open: boolean, options?: MenuDialogOpenOptions) => void
   setAxCodeStatusDialogOpen: (open: boolean) => void
   setAxCodeStatusText: (text: string) => void
@@ -358,6 +361,7 @@ export const useUIStore = create<UIStore>()(
         splitPaneRatio: 0.5,
         splitPaneRightTab: "files",
         isHelpDialogOpen: false,
+        isAllProjectsOpen: false,
         isAboutDialogOpen: false,
         aboutDialogMenuRequest: undefined,
         isAxCodeStatusDialogOpen: false,
@@ -1018,6 +1022,10 @@ export const useUIStore = create<UIStore>()(
 
         setHelpDialogOpen: (open) => {
           set({ isHelpDialogOpen: open })
+        },
+
+        setAllProjectsOpen: (open) => {
+          set({ isAllProjectsOpen: open })
         },
 
         setAboutDialogOpen: (open, options) => {

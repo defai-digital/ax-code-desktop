@@ -45,4 +45,28 @@ describe("createWebFilesAPI", () => {
     expect(click).toHaveBeenCalled()
     expect(removeChild).toHaveBeenCalledWith(anchor)
   })
+
+  it("scopes a write to the workspace it names, and leaves other writes unscoped", async () => {
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ success: true, path: "/repo/a.txt" })))
+    globalThis.fetch = fetchMock as typeof fetch
+    const api = createWebFilesAPI()
+
+    await api.writeFile?.("/repo/a.txt", "alpha", { directory: "/repo dir" })
+    await api.writeFile?.("/repo/a.txt", "alpha")
+
+    const urls = fetchMock.mock.calls.map((call) => (call as unknown as [string])[0])
+    expect(urls).toEqual([`${API_ENDPOINTS.files.fsWrite}?directory=%2Frepo+dir`, API_ENDPOINTS.files.fsWrite])
+  })
+
+  it("scopes a read to the workspace it names", async () => {
+    const fetchMock = vi.fn(async () => new Response("alpha"))
+    globalThis.fetch = fetchMock as typeof fetch
+
+    await createWebFilesAPI().readFile?.("/repo/a.txt", { directory: "/repo" })
+
+    const url = new URL((fetchMock.mock.calls[0] as unknown as [string])[0], "http://local")
+    expect(url.pathname).toBe(API_ENDPOINTS.files.fsRead)
+    expect(url.searchParams.get("path")).toBe("/repo/a.txt")
+    expect(url.searchParams.get("directory")).toBe("/repo")
+  })
 })

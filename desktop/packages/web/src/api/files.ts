@@ -161,6 +161,9 @@ export const createWebFilesAPI = (): FilesAPI => ({
     if (options?.optional) {
       params.set("optional", HTTP_QUERY_STRINGS.true)
     }
+    if (options?.directory) {
+      params.set("directory", normalizePath(options.directory))
+    }
     const response = await fetch(buildQueryUrl(API_ENDPOINTS.files.fsRead, params), {
       cache: options?.optional ? HTTP_DEFAULTS.cache.noStore : HTTP_DEFAULTS.cache.default,
     })
@@ -180,7 +183,11 @@ export const createWebFilesAPI = (): FilesAPI => ({
     options?: FileWriteOptions,
   ): Promise<{ success: boolean; path: string }> {
     const target = normalizePath(path)
-    const response = await fetch(API_ENDPOINTS.files.fsWrite, {
+    const directory = options?.directory ? normalizePath(options.directory) : ""
+    const url = directory
+      ? buildQueryUrl(API_ENDPOINTS.files.fsWrite, new URLSearchParams({ directory }))
+      : API_ENDPOINTS.files.fsWrite
+    const response = await fetch(url, {
       method: HTTP_DEFAULTS.method.post,
       headers: HTTP_DEFAULTS.headers.contentTypeJson,
       body: JSON.stringify({

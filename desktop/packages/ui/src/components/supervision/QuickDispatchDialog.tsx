@@ -18,53 +18,49 @@ import type { ProjectEntry } from "@/lib/api/types"
 import { axCodeClient } from "@/lib/ax-code/client"
 import { generateBranchName } from "@/lib/git/branchNameGenerator"
 import { useI18n } from "@/lib/i18n"
-import { normalizeProjectPath } from "@/lib/projectResolution"
 import { formatShortcutForDisplay, getEffectiveShortcutCombo } from "@/lib/shortcuts"
 import { checkIsGitRepository } from "@/lib/gitApi"
+import { getWorktreeSetupCommands } from "@/lib/openchamberConfig"
+import { waitForWorktreeBootstrap } from "@/lib/worktrees/worktreeBootstrap"
 import { createWorktreeWithDefaults } from "@/lib/worktrees/worktreeCreate"
-import { removeProjectWorktree } from "@/lib/worktrees/worktreeManager"
-import {
-  createDispatchToken,
-  dispatchStillShowingAttempt,
-  planQuickDispatchCompletion,
-  planQuickDispatchFailure,
-  quickDispatchSessionLabel,
-  reduceDispatchToken,
-} from "@/lib/supervision/quickDispatch"
+import { getRootBranch } from "@/lib/worktrees/worktreeStatus"
+import { quickDispatchSessionLabel } from "@/lib/supervision/quickDispatch"
 import { openSupervisedSession } from "@/lib/supervision/openSession"
 import { cn } from "@/lib/utils"
-import { useConfigStore } from "@/stores/useConfigStore"
-import { useDirectoryStore } from "@/stores/useDirectoryStore"
+import {
+  directoryProviderCatalog,
+  isActiveConfigDirectory,
+  isDirectoryProviderLoadPending,
+  resolveDirectorySendSelection,
+  useConfigStore,
+  type ActivationAgent,
+  type DirectorySendSelection,
+} from "@/stores/useConfigStore"
 import { useGitStore } from "@/stores/useGitStore"
 import { useGlobalSessionsStore } from "@/stores/useGlobalSessionsStore"
 import { MESSAGE_QUEUE_MAX_PER_SESSION, useMessageQueueStore } from "@/stores/messageQueueStore"
 import { useProjectsStore } from "@/stores/useProjectsStore"
 import { useSupervisionStore } from "@/stores/useSupervisionStore"
 import { useUIStore } from "@/stores/useUIStore"
-import { getNewSessionDraftRevision, useSessionUIStore } from "@/sync/session-ui-store"
-import { getAllSyncSessions } from "@/sync/sync-refs"
+import { seedSessionAutoAccept } from "@/stores/utils/sessionAutoAcceptSeed"
+import { registerCreatedSession } from "@/sync/register-created-session"
+import {
+  notifyMessageSent,
+  routeMessage,
+  saveSessionSendSelection,
+  useSessionUIStore,
+  workModeSendRefusalMessage,
+} from "@/sync/session-ui-store"
 import { useAllLiveSessions } from "@/sync/sync-context"
 
 const RECENT_LIMIT = 5
+const QUICK_DISPATCH_BOOTSTRAP_TIMEOUT_MS = 30 * 60 * 1000
 
 const projectDisplayLabel = (project: ProjectEntry): string => {
   const label = project.label?.trim()
   if (label) return label
   const parts = project.path.split(/[/\\]/).filter(Boolean)
   return parts[parts.length - 1] || project.path
-}
-
-const knownSessionIds = (previousSessionId: string | null): Set<string> => {
-  const ids = new Set<string>()
-  if (previousSessionId) ids.add(previousSessionId)
-  for (const session of getAllSyncSessions()) ids.add(session.id)
-  const global = useGlobalSessionsStore.getState()
-  for (const session of global.activeSessions) ids.add(session.id)
-  for (const session of global.archivedSessions) ids.add(session.id)
-  for (const sessions of global.sessionsByDirectory.values()) {
-    for (const session of sessions) ids.add(session.id)
-  }
-  return ids
 }
 
 const labelForCreatedSession = (sessionId: string, prompt: string): string => {
@@ -76,179 +72,143 @@ const labelForCreatedSession = (sessionId: string, prompt: string): string => {
 }
 
 type QuickDispatchResult =
-  | { ok: true }
-  | { ok: false; reason: "no-model" | "failed" | "worktree-failed" }
+  | { ok: true; sessionId: string; directory: string }
+  | { ok: false; reason: "no-model" | "providers-loading" | "worktree-failed" | "failed" }
+  | { ok: false; reason: "refused"; message: string }
+  /** The create request went out and failed; the runtime may still have made the session, so its worktree stays. */
+  | { ok: false; reason: "create-unknown"; worktreePath: string }
   | { ok: false; reason: "created"; sessionId: string; label: string; directory: string }
 
 /**
- * Start a session through the same draft path the composer uses, then either open it or
- * return to the view that was on screen. The draft path clears the current session, so the
- * previous target is captured before the draft opens. A dispatch token records the session
- * this attempt creates; the previous view is restored only while that session (or the draft)
- * is still what the user is looking at.
+ * Fill in what working out another project's selection needs, without activating it: its provider list when this run
+ * has not loaded it (into that directory's snapshot only), and its own agent list, which decides the default agent and
+ * the model pinned to it. Agents stay null when they cannot be read; the selection then leaves the agent out.
+ */
+const loadProjectSelectionInputs = async (projectPath: string): Promise<readonly ActivationAgent[] | null> => {
+  const config = useConfigStore.getState()
+  if (directoryProviderCatalog(config, projectPath).length === 0) {
+    await config.loadProviders({ directory: projectPath }).catch(() => undefined)
+  }
+  return axCodeClient.listAgents(projectPath).catch(() => null)
+}
+
+/**
+ * The selection the project's new session gets: the composer's own for the active project, otherwise what activating
+ * the project would pick. A worktree shares its repository's configuration, so the project path is the key for both.
+ */
+const resolveDispatchSelection = async (projectPath: string): Promise<DirectorySendSelection | null> => {
+  if (isActiveConfigDirectory(useConfigStore.getState(), projectPath)) {
+    return resolveDirectorySendSelection(useConfigStore.getState(), projectPath)
+  }
+  const agents = await loadProjectSelectionInputs(projectPath)
+  return resolveDirectorySendSelection(useConfigStore.getState(), projectPath, agents)
+}
+
+/**
+ * Start a session in the background, the way Multi-Run starts its runs: the view, the composer and its draft are never
+ * touched, and only "Open the session" navigates. Every refusal that can be known in advance (no model, a work mode
+ * the model cannot run, no worktree) is decided before anything exists, so those failures leave nothing behind.
  */
 const startQuickDispatch = async (input: {
   project: ProjectEntry
   prompt: string
-  openAfter: boolean
   isolateWorktree: boolean
 }): Promise<QuickDispatchResult> => {
-  let targetDirectory = input.project.path
   const projectRef = { id: input.project.id, path: input.project.path }
-  let createdWorktree: Awaited<ReturnType<typeof createWorktreeWithDefaults>> | null = null
+  const selection = await resolveDispatchSelection(input.project.path).catch(() => null)
+  if (!selection) {
+    // A catalog still being read (the runtime is starting) is no proof the project has no model.
+    const loading =
+      directoryProviderCatalog(useConfigStore.getState(), input.project.path).length === 0 &&
+      isDirectoryProviderLoadPending(input.project.path)
+    return { ok: false, reason: loading ? "providers-loading" : "no-model" }
+  }
+  // Slash commands are judged by the target project's own catalog. The command store follows whichever project is
+  // active, and the person can switch projects while the worktree bootstraps.
+  const commandCatalogDirectory = input.project.path
+
+  let refusal: string | null
+  try {
+    refusal = await workModeSendRefusalMessage({
+      content: input.prompt,
+      workMode: undefined,
+      providerID: selection.providerID,
+      modelID: selection.modelID,
+      providers: selection.providers,
+      commandCatalogDirectory,
+    })
+  } catch {
+    // The send below skips its own check on the strength of this one, so a check that could not run stops it.
+    return { ok: false, reason: "failed" }
+  }
+  if (refusal) return { ok: false, reason: "refused", message: refusal }
+
+  let directory = input.project.path
+  let worktree: Awaited<ReturnType<typeof createWorktreeWithDefaults>> | null = null
   if (input.isolateWorktree) {
+    // The project's setup commands make the worktree usable (dependencies, local files); the bootstrap wait below
+    // waits for them. The branch it was cut from is what Integrate Commits compares against.
+    const [setupCommands, rootBranch] = await Promise.all([
+      getWorktreeSetupCommands(projectRef).catch(() => []),
+      getRootBranch(projectRef.path).catch(() => undefined),
+    ])
     try {
-      createdWorktree = await createWorktreeWithDefaults(projectRef, { preferredName: generateBranchName() })
-      if (!createdWorktree?.path) {
-        return { ok: false, reason: "worktree-failed" }
-      }
-      targetDirectory = createdWorktree.path
+      const created = await createWorktreeWithDefaults(projectRef, {
+        preferredName: generateBranchName(),
+        setupCommands,
+      })
+      if (!created?.path) return { ok: false, reason: "worktree-failed" }
+      worktree = { ...created, createdFromBranch: rootBranch || undefined, kind: "standard" }
     } catch {
       return { ok: false, reason: "worktree-failed" }
     }
-  }
-  // A dispatch that never produced a session must not leave its worktree and branch behind. Once a session exists the
-  // worktree is that session's home and stays.
-  let sendStarted = false
-  const discardUnusedWorktree = async () => {
-    if (!createdWorktree) return
-    // A send can fail after the runtime created the session but before any store here learned of it. That session
-    // lives in this worktree, and removing the worktree would delete its files and branch. An unused worktree left
-    // behind can be removed by hand; deleted work cannot be recovered. So once the send started, keep it.
-    if (sendStarted) return
-    const draft = useSessionUIStore.getState().newSessionDraft
-    if (draft.open && normalizeProjectPath(draft.directoryOverride) === normalizeProjectPath(createdWorktree.path)) return
-    await removeProjectWorktree(projectRef, createdWorktree, { deleteLocalBranch: true }).catch(() => {})
+    directory = worktree.path
   }
 
-  const session = useSessionUIStore.getState()
-  const previousSessionId = session.currentSessionId
-  const previousSessionDirectory = previousSessionId ? session.getDirectoryForSession(previousSessionId) : null
-  const previousDirectoryPath = useDirectoryStore.getState().currentDirectory
-
-  const restorePreviousView = async () => {
-    const current = useSessionUIStore.getState()
-    if (previousSessionId) {
-      current.setCurrentSession(previousSessionId, previousSessionDirectory ?? previousDirectoryPath)
-    } else {
-      if (current.newSessionDraft.open) current.closeNewSessionDraft()
-      current.setCurrentSession(null)
-      if (previousDirectoryPath && useDirectoryStore.getState().currentDirectory !== previousDirectoryPath) {
-        useDirectoryStore.getState().setDirectory(previousDirectoryPath)
-      }
-    }
-    const directoryToRestore = previousSessionDirectory ?? previousDirectoryPath
-    if (directoryToRestore) {
-      await useConfigStore.getState().activateDirectory(directoryToRestore)
-    }
+  let sessionId: string
+  try {
+    // An explicit directory takes no directory lock, so the request cannot be refused before it is sent.
+    const created = await axCodeClient.createSessionInDirectory(directory)
+    sessionId = registerCreatedSession(created, directory).id
+  } catch {
+    // Every failure here comes after the request went out: a lost response or an error body does not prove the
+    // runtime made no session. The worktree is also already listed in the sidebar, where it can be picked up, so it
+    // stays; the person is told where it is.
+    if (worktree) return { ok: false, reason: "create-unknown", worktreePath: worktree.path }
+    return { ok: false, reason: "failed" }
   }
+
+  seedSessionAutoAccept(sessionId, null)
+  if (worktree) useSessionUIStore.getState().setWorktreeMetadata(sessionId, worktree)
+  saveSessionSendSelection(sessionId, selection)
 
   try {
-    session.openNewSessionDraft({
-      selectedProjectId: input.project.id,
-      directoryOverride: targetDirectory,
-      // The composer may not have discovered the newly created branch yet.
-      preserveDirectoryOverride: Boolean(createdWorktree),
-      // The dispatch is always an Agent prompt; the project's own work mode is not its to change.
-      preserveWorkMode: true,
+    // The dispatch runs in the background, so a long setup such as pnpm install must not drop the prompt at 5 minutes.
+    if (worktree) await waitForWorktreeBootstrap(directory, QUICK_DISPATCH_BOOTSTRAP_TIMEOUT_MS)
+    notifyMessageSent(sessionId)
+    await routeMessage({
+      sessionId,
+      directory,
+      content: input.prompt,
+      providerID: selection.providerID,
+      modelID: selection.modelID,
+      agent: selection.agent,
+      variant: selection.variant,
+      // Checked above before anything existed; checked again here against the same catalog, so a command the catalog
+      // gained meanwhile cannot go out unchecked.
+      workModeProviders: selection.providers,
+      commandCatalogDirectory,
     })
   } catch {
-    await discardUnusedWorktree()
-    return { ok: false, reason: "failed" }
-  }
-
-  const draftRevision = getNewSessionDraftRevision()
-  const targetPath = normalizeProjectPath(targetDirectory)
-  const ownsDraft = () => {
-    const draft = useSessionUIStore.getState().newSessionDraft
-    return (
-      draft.open &&
-      getNewSessionDraftRevision() === draftRevision &&
-      draft.selectedProjectId === projectRef.id &&
-      normalizeProjectPath(draft.directoryOverride) === targetPath &&
-      !draft.pendingWorktreeRequestId &&
-      !draft.bootstrapPendingDirectory
-    )
-  }
-  const known = knownSessionIds(previousSessionId)
-  let token = createDispatchToken()
-  const unsubscribe = useSessionUIStore.subscribe((state) => {
-    token = reduceDispatchToken(token, state.currentSessionId, known)
-  })
-
-  const currentView = () => {
-    const current = useSessionUIStore.getState()
-    return { sessionId: current.currentSessionId, draftOpen: current.newSessionDraft.open }
-  }
-
-  try {
-    await useConfigStore.getState().activateDirectory(targetDirectory)
-
-    // Activation yields to the composer, which may have closed, replaced or retargeted the draft.
-    if (token.superseded || token.createdSessionId || useSessionUIStore.getState().currentSessionId || !ownsDraft()) {
-      throw new Error("superseded")
+    return {
+      ok: false,
+      reason: "created",
+      sessionId,
+      label: labelForCreatedSession(sessionId, input.prompt),
+      directory,
     }
-
-    const config = useConfigStore.getState()
-    if (!config.currentProviderId || !config.currentModelId) {
-      throw new Error("no-model")
-    }
-
-    sendStarted = true
-    await useSessionUIStore
-      .getState()
-      .sendMessage(
-        input.prompt,
-        config.currentProviderId,
-        config.currentModelId,
-        config.currentAgentName?.trim() ? config.currentAgentName : undefined,
-        undefined,
-        undefined,
-        undefined,
-        config.currentVariant,
-        undefined,
-        { fromNewSessionDraft: true, draftRevision },
-      )
-
-    const completion = planQuickDispatchCompletion({
-      openAfter: input.openAfter,
-      createdSessionId: token.createdSessionId,
-      showingAttempt: dispatchStillShowingAttempt(token, currentView()),
-    })
-    if (completion.type === "open") {
-      openSupervisedSession({
-        sessionId: completion.sessionId,
-        projectId: input.project.id,
-        directory: useSessionUIStore.getState().getDirectoryForSession(completion.sessionId) ?? targetDirectory,
-      })
-    } else if (completion.type === "restore") {
-      await restorePreviousView()
-    }
-    return { ok: true }
-  } catch (error) {
-    const failure = planQuickDispatchFailure({
-      noModel: error instanceof Error && error.message === "no-model",
-      createdSessionId: token.createdSessionId,
-      superseded: token.superseded || (!sendStarted && !ownsDraft()),
-      currentSessionId: useSessionUIStore.getState().currentSessionId,
-    })
-    if (failure.restore) await restorePreviousView().catch(() => {})
-    if (failure.report === "created" && token.createdSessionId) {
-      const sessionId = token.createdSessionId
-      return {
-        ok: false,
-        reason: "created",
-        sessionId,
-        label: labelForCreatedSession(sessionId, input.prompt),
-        directory: useSessionUIStore.getState().getDirectoryForSession(sessionId) ?? targetDirectory,
-      }
-    }
-    if (!token.createdSessionId) await discardUnusedWorktree()
-    if (failure.report === "no-model") return { ok: false, reason: "no-model" }
-    return { ok: false, reason: "failed" }
-  } finally {
-    unsubscribe()
   }
+  return { ok: true, sessionId, directory }
 }
 
 export const QuickDispatchDialog: React.FC = () => {
@@ -261,8 +221,6 @@ export const QuickDispatchDialog: React.FC = () => {
   const activeProjectId = useProjectsStore((state) => state.activeProjectId)
   const rows = useSupervisionRows()
   const sessions = useAllLiveSessions()
-  const currentModelId = useConfigStore((state) => state.currentModelId)
-  const activeDirectoryKey = useConfigStore((state) => state.activeDirectoryKey)
 
   const [projectId, setProjectId] = React.useState<string | null>(null)
   const [filter, setFilter] = React.useState("")
@@ -270,8 +228,26 @@ export const QuickDispatchDialog: React.FC = () => {
   const [openAfter, setOpenAfter] = React.useState(false)
   const [isolateWorktree, setIsolateWorktree] = React.useState(true)
   const [starting, setStarting] = React.useState(false)
-  const startingRef = React.useRef(false)
+  // The generation that owns the running dispatch, if any: a reopened dialog may start its own, and a late finish
+  // from an older generation must not clear the new generation's starting state.
+  const startingGenerationRef = React.useRef<number | null>(null)
   const promptRef = React.useRef<HTMLTextAreaElement>(null)
+  // Counts every open and close. A dispatch may only close or navigate for the dialog it was started from: one
+  // dismissed and opened again belongs to the next prompt.
+  const openGenerationRef = React.useRef(0)
+  React.useEffect(() => {
+    openGenerationRef.current += 1
+    if (startingGenerationRef.current !== openGenerationRef.current) setStarting(false)
+  }, [open])
+  // "Open the session" stays editable while a dispatch runs; its finish reads the box as it is then.
+  const openAfterRef = React.useRef(openAfter)
+  React.useEffect(() => {
+    openAfterRef.current = openAfter
+  }, [openAfter])
+  const [previewAgents, setPreviewAgents] = React.useState<{
+    path: string
+    agents: readonly ActivationAgent[] | null
+  } | null>(null)
 
   React.useEffect(() => {
     if (!open) return
@@ -340,6 +316,26 @@ export const QuickDispatchDialog: React.FC = () => {
   const [probeFailedPath, setProbeFailedPath] = React.useState<string | null>(null)
   const [probeAttempt, setProbeAttempt] = React.useState(0)
   const selectedPath = selectedProject?.path ?? null
+  // The model this dispatch will use, for any project whose providers are known; a cold project resolves on Start.
+  const selectedIsActive = useConfigStore((state) =>
+    selectedPath ? isActiveConfigDirectory(state, selectedPath) : false,
+  )
+  const selectedAgents = previewAgents && previewAgents.path === selectedPath ? previewAgents.agents : null
+  // The model this dispatch will use, worked out the way Start works it out.
+  const dispatchModelId = useConfigStore((state) =>
+    selectedPath ? (resolveDirectorySendSelection(state, selectedPath, selectedAgents)?.modelID ?? null) : null,
+  )
+  React.useEffect(() => {
+    // Another project's selection depends on its providers and agents, which this run may not have read yet.
+    if (!open || !selectedPath || selectedIsActive) return
+    let cancelled = false
+    void loadProjectSelectionInputs(selectedPath).then((agents) => {
+      if (!cancelled) setPreviewAgents({ path: selectedPath, agents })
+    })
+    return () => {
+      cancelled = true
+    }
+  }, [open, selectedPath, selectedIsActive])
   React.useEffect(() => {
     if (!open || !selectedPath || knownGitRepo !== null) return
     let cancelled = false
@@ -370,51 +366,72 @@ export const QuickDispatchDialog: React.FC = () => {
 
   const start = React.useCallback(async () => {
     // The keyboard shortcut reaches here without the disabled button, so the repository check is enforced again.
-    if (!selectedProject || !prompt.trim() || startingRef.current || gitRepoState === null) return
+    const generation = openGenerationRef.current
+    if (!selectedProject || !prompt.trim() || startingGenerationRef.current === generation || gitRepoState === null)
+      return
     const project = selectedProject
-    startingRef.current = true
+    // Dismissing the dialog while the dispatch ran is leaving it, and reopening it starts another: a late finish then
+    // neither closes the dialog nor takes the view.
+    const stillWaiting = () =>
+      useSupervisionStore.getState().quickDispatchOpen && openGenerationRef.current === generation
+    startingGenerationRef.current = generation
     setStarting(true)
     try {
       const result = await startQuickDispatch({
         project,
         prompt: prompt.trim(),
-        openAfter,
         isolateWorktree: effectiveIsolateWorktree,
       })
       if (result.ok) {
+        if (!stillWaiting()) return
         setQuickDispatchOpen(false)
+        if (openAfterRef.current) {
+          openSupervisedSession({ sessionId: result.sessionId, projectId: project.id, directory: result.directory })
+        }
         return
       }
-      if (result.reason === "no-model") {
-        toast.error(t("chat.chatInput.toast.noModelSelected"))
-        return
-      }
-      if (result.reason === "worktree-failed") {
-        toast.error(t("supervision.dispatch.worktreeFailed"))
-        return
-      }
-      if (result.reason === "created") {
-        toast.error(t("supervision.dispatch.createdFailed", { title: result.label }), {
-          action: {
-            label: t("supervision.dispatch.openCreated"),
-            onClick: () => {
-              openSupervisedSession({
-                sessionId: result.sessionId,
-                projectId: project.id,
-                directory: result.directory,
-              })
+      switch (result.reason) {
+        case "no-model":
+          toast.error(t("chat.chatInput.toast.noModelSelected"))
+          return
+        case "providers-loading":
+          toast.error(t("supervision.dispatch.providersLoading"))
+          return
+        case "worktree-failed":
+          toast.error(t("supervision.dispatch.worktreeFailed"))
+          return
+        case "refused":
+          toast.error(result.message)
+          return
+        case "create-unknown":
+          toast.error(t("supervision.dispatch.createUnknown", { path: result.worktreePath }))
+          return
+        case "created":
+          toast.error(t("supervision.dispatch.createdFailed", { title: result.label }), {
+            action: {
+              label: t("supervision.dispatch.openCreated"),
+              onClick: () => {
+                openSupervisedSession({
+                  sessionId: result.sessionId,
+                  projectId: project.id,
+                  directory: result.directory,
+                })
+              },
             },
-          },
-        })
-        setQuickDispatchOpen(false)
-        return
+          })
+          if (stillWaiting()) setQuickDispatchOpen(false)
+          return
+        case "failed":
+          toast.error(t("session.githubIssuePicker.toast.startSessionFailed"))
+          return
       }
-      toast.error(t("session.githubIssuePicker.toast.startSessionFailed"))
     } finally {
-      startingRef.current = false
-      setStarting(false)
+      if (startingGenerationRef.current === generation) {
+        startingGenerationRef.current = null
+        setStarting(false)
+      }
     }
-  }, [effectiveIsolateWorktree, gitRepoState, openAfter, prompt, selectedProject, setQuickDispatchOpen, t])
+  }, [effectiveIsolateWorktree, gitRepoState, prompt, selectedProject, setQuickDispatchOpen, t])
 
   const jumpTo = (item: (typeof recent)[number]) => {
     openSupervisedSession({
@@ -426,12 +443,13 @@ export const QuickDispatchDialog: React.FC = () => {
   }
 
   const sendToRecent = async (item: (typeof recent)[number]) => {
-    if (startingRef.current) return
+    const generation = openGenerationRef.current
+    if (startingGenerationRef.current === generation) return
+    // As in `start`: a send that finishes after the dialog was dismissed and reopened leaves the new dialog alone.
+    const stillWaiting = () =>
+      useSupervisionStore.getState().quickDispatchOpen && openGenerationRef.current === generation
     const content = prompt.trim()
-    if (!content) {
-      jumpTo(item)
-      return
-    }
+    if (!content) return
 
     const choice = useSessionUIStore.getState().getLastUserChoice(item.sessionId)
     const config = useConfigStore.getState()
@@ -452,7 +470,7 @@ export const QuickDispatchDialog: React.FC = () => {
       variant: (choice?.variant ?? config.currentVariant) || undefined,
     }
 
-    startingRef.current = true
+    startingGenerationRef.current = generation
     setStarting(true)
     try {
       if (rows.some((row) => row.sessionId === item.sessionId && row.state === "running")) {
@@ -466,15 +484,18 @@ export const QuickDispatchDialog: React.FC = () => {
           axCodeClient.sendMessage({ id: item.sessionId, text: content, ...sendConfig }),
         )
       }
-      if (openAfter) {
+      if (!stillWaiting()) return
+      if (openAfterRef.current) {
         openSupervisedSession({ sessionId: item.sessionId, projectId: item.projectId, directory: item.directory })
       }
       setQuickDispatchOpen(false)
     } catch {
       toast.error(t("session.githubIssuePicker.toast.startSessionFailed"))
     } finally {
-      startingRef.current = false
-      setStarting(false)
+      if (startingGenerationRef.current === generation) {
+        startingGenerationRef.current = null
+        setStarting(false)
+      }
     }
   }
 
@@ -565,8 +586,8 @@ export const QuickDispatchDialog: React.FC = () => {
               {effectiveIsolateWorktree ? (
                 <p data-dispatch-fail-closed-hint>{t("supervision.dispatch.failClosedHint")}</p>
               ) : null}
-              {currentModelId && activeDirectoryKey === selectedProject.path ? (
-                <p>{t("supervision.dispatch.targetModel", { model: currentModelId })}</p>
+              {dispatchModelId ? (
+                <p>{t("supervision.dispatch.targetModel", { model: dispatchModelId })}</p>
               ) : null}
             </div>
           ) : null}
@@ -639,24 +660,33 @@ export const QuickDispatchDialog: React.FC = () => {
           <div className="flex flex-col gap-1 border-t border-border/40 pt-3">
             <span className="typography-micro text-muted-foreground">{t("supervision.dispatch.recent")}</span>
             <p className="typography-micro text-muted-foreground">{t("supervision.dispatch.recentHint")}</p>
+            {/* A row only opens its session. Sending is its own button, so a click meant to check on a session never
+                starts or queues the prompt still typed above (G UX-06). */}
             {recent.map((item) => (
-              <button
-                key={item.sessionId}
-                type="button"
-                className="flex min-w-0 flex-col items-start rounded-lg px-2 py-1.5 text-left hover:bg-interactive-hover"
-                disabled={starting}
-                onClick={() => void sendToRecent(item)}
-              >
-                <span className="truncate typography-ui-label text-foreground">{item.title}</span>
-                {prompt.trim() ? (
-                  <span className="typography-micro text-muted-foreground">
-                    {t("supervision.dispatch.sendToRecent")}
-                  </span>
-                ) : null}
-                {item.projectLabel ? (
-                  <span className="truncate typography-micro text-muted-foreground">{item.projectLabel}</span>
-                ) : null}
-              </button>
+              <div key={item.sessionId} className="flex min-w-0 items-center gap-2" data-dispatch-recent={item.sessionId}>
+                <button
+                  type="button"
+                  className="flex min-w-0 flex-1 flex-col items-start rounded-lg px-2 py-1.5 text-left hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--interactive-focus-ring)]"
+                  onClick={() => jumpTo(item)}
+                >
+                  <span className="max-w-full truncate typography-ui-label text-foreground">{item.title}</span>
+                  {item.projectLabel ? (
+                    <span className="max-w-full truncate typography-micro text-muted-foreground">{item.projectLabel}</span>
+                  ) : null}
+                </button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  className="shrink-0"
+                  disabled={starting || !prompt.trim()}
+                  aria-label={`${t("supervision.dispatch.sendToRecent")} · ${item.title}`}
+                  onClick={() => void sendToRecent(item)}
+                  data-dispatch-send-recent
+                >
+                  {t("supervision.dispatch.sendToRecent")}
+                </Button>
+              </div>
             ))}
           </div>
         ) : null}

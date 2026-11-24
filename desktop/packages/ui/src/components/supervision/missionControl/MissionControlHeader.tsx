@@ -3,7 +3,6 @@ import React from "react"
 import { Icon } from "@/components/icon/Icon"
 import { Button } from "@/components/ui/button"
 import { useI18n } from "@/lib/i18n"
-import { HIGH_TOUCH_SOFT_LIMIT } from "@/lib/supervision/sessionState"
 import { cn } from "@/lib/utils"
 import { selectUnreadActivityCount, useActivityFeedStore } from "@/stores/useActivityFeedStore"
 import type { BoardGroupBy, SupervisionDensity, WorkingSet } from "@/stores/useSupervisionStore"
@@ -13,7 +12,7 @@ export interface MissionControlHeaderProps {
   onGroupByChange: (groupBy: BoardGroupBy) => void
   density: SupervisionDensity
   onDensityChange: (density: SupervisionDensity) => void
-  wip: { needsYou: number; running: number; overSoftLimit: boolean }
+  wip: { needsYou: number; running: number }
   mode: "live" | "recent"
   workingSets: readonly WorkingSet[]
   activeWorkingSetId: string | null
@@ -111,11 +110,6 @@ export const MissionControlHeader: React.FC<MissionControlHeaderProps> = ({
         <span className="shrink-0 typography-micro text-muted-foreground">
           {t("supervision.missionControl.wipSummary", { needsYou: wip.needsYou, running: wip.running })}
         </span>
-        {wip.overSoftLimit ? (
-          <span className="normal-case shrink-0 rounded-full border border-[var(--status-warning)]/40 px-2 py-0.5 typography-micro text-[var(--status-warning)]">
-            {t("supervision.missionControl.overLimit", { limit: HIGH_TOUCH_SOFT_LIMIT })}
-          </span>
-        ) : null}
         <div className="ml-auto flex shrink-0 items-center gap-2">
           <button
             type="button"

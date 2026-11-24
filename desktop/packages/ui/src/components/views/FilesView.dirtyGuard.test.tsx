@@ -4,13 +4,22 @@ import { afterEach, beforeEach, describe, expect, test, vi } from "vitest"
 import { I18nProvider } from "@/lib/i18n"
 import { dict } from "@/lib/i18n/messages/en"
 
-const { tabsState, uiState, writeFile, readFile, setMainTabGuard, toastError } = vi.hoisted(() => {
+const { tabsState, otherTabsState, directoryState, uiState, writeFile, readFile, setMainTabGuard, toastError } =
+  vi.hoisted(() => {
   const tabsState = {
     openPaths: ["/repo/a.txt"],
     selectedPath: "/repo/a.txt" as string | null,
     expandedPaths: [] as string[],
     touchedAt: 0,
   }
+  // The Files tabs of a second project, shown after a session in that project is opened.
+  const otherTabsState = {
+    openPaths: ["/other/c.txt"],
+    selectedPath: "/other/c.txt" as string | null,
+    expandedPaths: [] as string[],
+    touchedAt: 0,
+  }
+  const directoryState = { current: "/repo" }
   const setActiveMainTab = vi.fn()
   const setMainTabGuard = vi.fn()
   type PendingNavigation = { path: string; line: number; column?: number }
@@ -45,6 +54,8 @@ const { tabsState, uiState, writeFile, readFile, setMainTabGuard, toastError } =
   }
   return {
     tabsState,
+    otherTabsState,
+    directoryState,
     uiState,
     writeFile: vi.fn(async () => ({ success: true })),
     readFile: vi.fn(),
@@ -54,12 +65,16 @@ const { tabsState, uiState, writeFile, readFile, setMainTabGuard, toastError } =
   }
 })
 
-const fileContents: Record<string, string> = { "/repo/a.txt": "alpha\n", "/repo/b.txt": "beta\n" }
+const fileContents: Record<string, string> = {
+  "/repo/a.txt": "alpha\n",
+  "/repo/b.txt": "beta\n",
+  "/other/c.txt": "gamma\n",
+}
 
 const runtimeAPIs = {
   files: {
     writeFile: (...args: unknown[]) => writeFile(...(args as [])),
-    readFile: (path: string) => readFile(path),
+    readFile: (path: string, options?: unknown) => readFile(path, options),
     statFile: vi.fn(async () => ({ size: 6, mtimeMs: 1 })),
     listDirectory: vi.fn(async () => ({ entries: [] })),
     createDirectory: vi.fn(),
@@ -74,7 +89,7 @@ vi.mock("@/hooks/useRuntimeAPIs", () => ({ useRuntimeAPIs: () => runtimeAPIs }))
 vi.mock("@/components/ui", () => ({
   toast: { error: toastError, success: vi.fn(), message: vi.fn(), warning: vi.fn() },
 }))
-vi.mock("@/hooks/useEffectiveDirectory", () => ({ useEffectiveDirectory: () => "/repo" }))
+vi.mock("@/hooks/useEffectiveDirectory", () => ({ useEffectiveDirectory: () => directoryState.current }))
 vi.mock("@/lib/device", () => ({
   useDeviceInfo: () => ({ isMobile: false, isTablet: false, screenWidth: 1400, hasTouchInput: false }),
 }))
@@ -105,9 +120,11 @@ vi.mock("@/hooks/useDebouncedValue", () => ({ useDebouncedValue: (value: unknown
 // The editor is the only way to make the buffer dirty, so the mock keeps its latest
 // `onChange` (FilesView passes `setDraftContent`) for the test to call.
 let editorOnChange: ((value: string) => void) | null = null
+let editorValue: string | null = null
 vi.mock("@/components/ui/CodeMirrorEditor", () => ({
-  CodeMirrorEditor: (props: { onChange?: (value: string) => void }) => {
+  CodeMirrorEditor: (props: { value?: string; onChange?: (value: string) => void }) => {
     editorOnChange = props.onChange ?? null
+    editorValue = props.value ?? null
     return null
   },
 }))
@@ -138,7 +155,8 @@ vi.mock("@/stores/useConfigStore", () => ({
 vi.mock("@/stores/useFilesViewTabsStore", () => ({
   useFilesViewTabsStore: stubStore({
     get byRoot() {
-      return { "/repo": tabsState }
+      // "/" stands for a project that contains this one, so the same absolute path is open under both.
+      return { "/repo": tabsState, "/other": otherTabsState, "/": otherTabsState }
     },
     pendingFileFocusPath: null,
     pendingFileNavigation: null,
@@ -147,8 +165,8 @@ vi.mock("@/stores/useFilesViewTabsStore", () => ({
     removeOpenPath: vi.fn(),
     removeOpenPathsByPrefix: vi.fn(),
     removeUnselectedOpenPath: vi.fn(),
-    setSelectedPath: (_root: string, path: string | null) => {
-      tabsState.selectedPath = path
+    setSelectedPath: (root: string, path: string | null) => {
+      ;(root === "/repo" ? tabsState : otherTabsState).selectedPath = path
     },
     toggleExpandedPath: vi.fn(),
     expandPaths: vi.fn(),
@@ -158,6 +176,7 @@ vi.mock("@/stores/useFilesViewTabsStore", () => ({
 }))
 
 const { FilesView } = await import("./FilesView-impl")
+const { useStrandedFilesDraftStore } = await import("./strandedFilesDraft")
 
 describe("FilesView unsaved-changes guard", () => {
   let container: HTMLDivElement
@@ -176,9 +195,15 @@ describe("FilesView unsaved-changes guard", () => {
     root = createRoot(container)
     tabsState.openPaths = ["/repo/a.txt"]
     tabsState.selectedPath = "/repo/a.txt"
+    otherTabsState.selectedPath = "/other/c.txt"
+    directoryState.current = "/repo"
+    fileContents["/repo/a.txt"] = "alpha\n"
+    useStrandedFilesDraftStore.setState({ drafts: [] })
+    showFiles = true
     uiState.pendingFileNavigation = null
     uiState.mainTabGuard = null
     editorOnChange = null
+    editorValue = null
     writeFile.mockClear()
     readFile.mockClear()
     setMainTabGuard.mockClear()
@@ -190,14 +215,12 @@ describe("FilesView unsaved-changes guard", () => {
     container.remove()
   })
 
+  // The Files panel can close with a session switch (the context panel drops it when the new project has no tabs).
+  let showFiles = true
   function Harness() {
     const [, setTick] = React.useState(0)
     bump = () => setTick((tick) => tick + 1)
-    return (
-      <I18nProvider>
-        <FilesView />
-      </I18nProvider>
-    )
+    return <I18nProvider>{showFiles ? <FilesView /> : null}</I18nProvider>
   }
 
   const render = async () => {
@@ -339,5 +362,220 @@ describe("FilesView unsaved-changes guard", () => {
       writeFile.mockImplementation(async () => ({ success: true }))
     }
   })
-})
 
+  describe("opening a session in another project", () => {
+    const banner = () => document.querySelector<HTMLElement>('[role="status"]')
+    const bannerButton = (label: string) => {
+      const found = Array.from(banner()?.querySelectorAll("button") ?? []).find((entry) => entry.textContent === label)
+      if (!found) throw new Error(`banner button not found: ${label}`)
+      return found
+    }
+    const switchProject = async () => {
+      directoryState.current = "/other"
+      await act(async () => {
+        bump()
+      })
+      await act(async () => {})
+    }
+    const editAndSwitch = async () => {
+      await render()
+      await act(async () => {
+        editorOnChange?.("alpha edited\n")
+      })
+      await switchProject()
+    }
+
+    test("keeps the unsaved draft and saves it to the file it came from", async () => {
+      await editAndSwitch()
+
+      // The editor moved on to the other project's file; the draft was not written anywhere on the way.
+      expect(readFile.mock.calls.map((call) => call[0])).toContain("/other/c.txt")
+      expect(writeFile).not.toHaveBeenCalled()
+      expect(banner()?.textContent).toContain(
+        dict["filesView.stranded.message"].replace("{file}", "a.txt").replace("{project}", "repo"),
+      )
+
+      await act(async () => bannerButton(dict["filesView.unsaved.saveChanges"]).click())
+      await act(async () => {})
+
+      // Read and written scoped to the project the file belongs to: the server would check it against /other otherwise.
+      expect(readFile).toHaveBeenCalledWith("/repo/a.txt", { allowOutsideWorkspace: false, directory: "/repo" })
+      expect(writeFile).toHaveBeenCalledWith("/repo/a.txt", "alpha edited\n", {
+        allowOutsideWorkspace: false,
+        directory: "/repo",
+      })
+      expect(banner()).toBeNull()
+    })
+
+    test("discarding drops the draft without writing", async () => {
+      await editAndSwitch()
+
+      await act(async () => bannerButton(dict["filesView.unsaved.discard"]).click())
+
+      expect(writeFile).not.toHaveBeenCalled()
+      expect(banner()).toBeNull()
+    })
+
+    test("a failed save keeps the draft on screen", async () => {
+      writeFile.mockImplementationOnce(async () => ({ success: false }))
+      await editAndSwitch()
+
+      await act(async () => bannerButton(dict["filesView.unsaved.saveChanges"]).click())
+      await act(async () => {})
+
+      expect(toastError).toHaveBeenCalledWith(dict["filesView.toast.writeFileFailed"])
+      expect(banner()?.textContent).toContain("a.txt")
+    })
+
+    test("the same file open under the enclosing project is read again for that project", async () => {
+      // A project and a project nested in it can both have the same absolute path open.
+      otherTabsState.openPaths = ["/repo/a.txt"]
+      otherTabsState.selectedPath = "/repo/a.txt"
+      try {
+        await render()
+        await act(async () => {
+          editorOnChange?.("alpha edited\n")
+        })
+        directoryState.current = "/"
+        await act(async () => {
+          bump()
+        })
+        await act(async () => {})
+
+        // The editor shows the file as read for the enclosing project; the nested project's draft waits in the notice.
+        expect(editorValue).toBe("alpha\n")
+        expect(banner()?.textContent).toContain("a.txt")
+        expect(writeFile).not.toHaveBeenCalled()
+      } finally {
+        otherTabsState.openPaths = ["/other/c.txt"]
+      }
+    })
+
+    test("a buffer with no edits leaves nothing behind", async () => {
+      await render()
+      await switchProject()
+
+      expect(banner()).toBeNull()
+    })
+
+    test("a file that changed on disk since is not overwritten from the notice", async () => {
+      await editAndSwitch()
+      fileContents["/repo/a.txt"] = "alpha changed by the agent\n"
+
+      await act(async () => bannerButton(dict["filesView.unsaved.saveChanges"]).click())
+      await act(async () => {})
+
+      expect(writeFile).not.toHaveBeenCalled()
+      expect(toastError).toHaveBeenCalledWith(dict["filesView.stranded.conflict"].replace("{file}", "a.txt"))
+      expect(banner()?.textContent).toContain("a.txt")
+    })
+
+    test("a draft an earlier save already wrote is cleared without writing again", async () => {
+      await editAndSwitch()
+      // An autosave of the same text landed after the switch.
+      fileContents["/repo/a.txt"] = "alpha edited\n"
+
+      await act(async () => bannerButton(dict["filesView.unsaved.saveChanges"]).click())
+      await act(async () => {})
+
+      expect(writeFile).not.toHaveBeenCalled()
+      expect(banner()).toBeNull()
+    })
+
+    test("going back to the project puts the draft back in its editor", async () => {
+      await editAndSwitch()
+      directoryState.current = "/repo"
+      await act(async () => {
+        bump()
+      })
+      await act(async () => {})
+
+      expect(editorValue).toBe("alpha edited\n")
+      // One copy only: the notice no longer holds it, so it cannot overwrite a later save from the editor.
+      expect(banner()).toBeNull()
+    })
+
+    test("an editor that closes with the switch still keeps the draft", async () => {
+      await render()
+      await act(async () => {
+        editorOnChange?.("alpha edited\n")
+      })
+      showFiles = false
+      directoryState.current = "/other"
+      await act(async () => {
+        bump()
+      })
+
+      expect(useStrandedFilesDraftStore.getState().drafts).toMatchObject([
+        { root: "/repo", path: "/repo/a.txt", draftContent: "alpha edited\n" },
+      ])
+
+      // Files opens again in the other project: the notice offers the draft there.
+      showFiles = true
+      await act(async () => {
+        bump()
+      })
+      await act(async () => {})
+      expect(banner()?.textContent).toContain("a.txt")
+    })
+
+    test("a save prompt open when the session moves is closed, not left to write into the next file", async () => {
+      await render()
+      await act(async () => {
+        editorOnChange?.("alpha edited\n")
+      })
+      tabsState.selectedPath = "/repo/b.txt"
+      await act(async () => {
+        bump()
+      })
+      await act(async () => {})
+      expect(document.body.textContent).toContain(dict["filesView.unsaved.description"])
+
+      await switchProject()
+
+      expect(document.body.textContent).not.toContain(dict["filesView.unsaved.description"])
+      expect(useStrandedFilesDraftStore.getState().drafts).toMatchObject([{ path: "/repo/a.txt" }])
+    })
+
+    test("a prompt's save that finishes after the session moved leaves the next project's edits alone", async () => {
+      let finishWrite: () => void = () => {}
+      writeFile.mockImplementation((() =>
+        new Promise<{ success: boolean }>((resolve) => {
+          finishWrite = () => resolve({ success: true })
+        })) as unknown as () => Promise<{ success: boolean }>)
+      try {
+        await render()
+        await act(async () => {
+          editorOnChange?.("alpha edited\n")
+        })
+        tabsState.selectedPath = "/repo/b.txt"
+        await act(async () => {
+          bump()
+        })
+        await act(async () => {})
+        await clickByText(dict["filesView.unsaved.saveChanges"])
+
+        // The write is still in flight when the session moves and the next project's file is edited.
+        await switchProject()
+        await act(async () => {
+          editorOnChange?.("gamma edited\n")
+        })
+        await act(async () => {
+          finishWrite()
+        })
+        await act(async () => {})
+
+        // The old prompt neither navigated the next project nor forgot its edits: closing the panel keeps them.
+        expect(otherTabsState.selectedPath).toBe("/other/c.txt")
+        expect(editorValue).toBe("gamma edited\n")
+        showFiles = false
+        await act(async () => {
+          bump()
+        })
+        expect(useStrandedFilesDraftStore.getState().drafts.map((draft) => draft.path)).toContain("/other/c.txt")
+      } finally {
+        writeFile.mockImplementation(async () => ({ success: true }))
+      }
+    })
+  })
+})

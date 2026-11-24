@@ -5,6 +5,7 @@ import { Icon } from "@/components/icon/Icon"
 import { cn } from "@/lib/utils"
 import { ScrollableOverlay } from "@/components/ui/ScrollableOverlay"
 import { formatRelativeAge } from "@/lib/supervision/relativeAge"
+import { openSupervisedSession } from "@/lib/supervision/openSession"
 
 const NotificationEntry: React.FC<{ item: NotificationItem }> = React.memo(function NotificationEntry({ item }) {
   const { t } = useI18n()
@@ -16,13 +17,12 @@ const NotificationEntry: React.FC<{ item: NotificationItem }> = React.memo(funct
     return formatRelativeAge(Date.now() - item.timestamp, t)
   }, [item.timestamp, t])
 
-  return (
-    <div
-      className={cn(
-        "group flex gap-3 rounded-lg border border-transparent px-3 py-2.5 transition-colors",
-        !item.read && "bg-interactive-hover/30",
-      )}
-    >
+  const rowClassName = cn(
+    "group flex w-full gap-3 rounded-lg border border-transparent px-3 py-2.5 text-left transition-colors",
+    !item.read && "bg-interactive-hover/30",
+  )
+  const content = (
+    <>
       <div className={cn("mt-0.5 flex-shrink-0", typeColor)}>
         <Icon name={typeIcon} className="h-4 w-4" />
       </div>
@@ -32,8 +32,32 @@ const NotificationEntry: React.FC<{ item: NotificationItem }> = React.memo(funct
           <span className="flex-shrink-0 typography-micro text-muted-foreground">{timeLabel}</span>
         </div>
         <p className="line-clamp-2 typography-micro text-muted-foreground">{item.message}</p>
+        {item.projectLabel ? (
+          <p className="truncate typography-micro text-muted-foreground">{item.projectLabel}</p>
+        ) : null}
       </div>
-    </div>
+    </>
+  )
+
+  const sessionId = item.sessionId
+  if (!sessionId) return <div className={rowClassName}>{content}</div>
+
+  // A follow-up row opens the session it is about (G UX-02).
+  const open = () => {
+    useNotificationStore.getState().setOpen(false)
+    openSupervisedSession({ sessionId, projectId: item.projectId ?? null, directory: item.directory ?? null })
+  }
+  return (
+    <button
+      type="button"
+      className={cn(
+        rowClassName,
+        "hover:bg-interactive-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary",
+      )}
+      onClick={open}
+    >
+      {content}
+    </button>
   )
 })
 

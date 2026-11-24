@@ -16,11 +16,16 @@ const fixtures = vi.hoisted(() => ({
     { id: "session-b", directory: "/work/team-b/shared", time: { created: 1, updated: 2 } },
   ],
   statuses: {}, permissions: new Set<string>(),
+  newSessionDraft: null as { pendingWorktreeRequestId?: string | null } | null,
 }))
 vi.mock("@/stores/useProjectsStore", () => ({ useProjectsStore: (select: (state: typeof fixtures) => unknown) => select(fixtures) }))
 vi.mock("@/stores/useDirectoryStore", () => ({ useDirectoryStore: (select: (state: { homeDirectory: string }) => unknown) => select({ homeDirectory: "/work" }) }))
 vi.mock("@/stores/useUIStore", () => ({ useUIStore: (select: (state: typeof fixtures) => unknown) => select(fixtures) }))
-vi.mock("@/sync/session-ui-store", () => ({ useSessionUIStore: (select: (state: typeof fixtures) => unknown) => select(fixtures) }))
+vi.mock("@/sync/session-ui-store", () => ({
+  useSessionUIStore: Object.assign((select: (state: typeof fixtures) => unknown) => select(fixtures), {
+    getState: () => fixtures,
+  }),
+}))
 vi.mock("@/sync/sync-context", () => ({
   useAllLiveSessions: () => fixtures.sessions, useAllSessionStatuses: () => fixtures.statuses,
   usePendingPermissionSessionIds: () => fixtures.permissions,
@@ -50,6 +55,7 @@ beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, "getClientRects").mockReturnValue([{}] as unknown as DOMRectList)
   fixtures.projects.forEach(project => { project.label = "Shared"; project.pinned = false })
   fixtures.activeProjectId = "a"
+  fixtures.newSessionDraft = null
   vi.clearAllMocks()
   container = document.createElement("div")
   document.body.appendChild(container)
@@ -77,7 +83,7 @@ const clickNative = (name: string) => {
 test("duplicate card names retain distinct paths and open their exact project", () => {
   render()
   for (const [id, path] of [["b", "~/team-b/shared"], ["a", "~/team-a/shared"]]) {
-    clickNative(`Shared · ${path}`)
+    clickNative(`Shared · ${path}, 1 needs you`)
     expect(open).toHaveBeenLastCalledWith(id)
     expect(fixtures.setActiveProject).toHaveBeenLastCalledWith(id)
   }
@@ -101,9 +107,20 @@ test("pin and draft actions carry project context and do not also open the card"
   expect(fixtures.setProjectPinned).toHaveBeenLastCalledWith("b", false)
 })
 
+test("a draft whose worktree is still being created keeps its project: rows neither activate nor retarget", () => {
+  // Activating the project first moved the app's directory away from a draft that stayed on its pending worktree.
+  fixtures.newSessionDraft = { pendingWorktreeRequestId: "worktree_req_1" }
+  render()
+  clickNative("Shared · ~/team-b/shared, 1 needs you")
+  clickNative("New session · Shared · ~/team-b/shared")
+  expect(fixtures.setActiveProject).not.toHaveBeenCalled()
+  expect(open).not.toHaveBeenCalled()
+  expect(draft).not.toHaveBeenCalled()
+})
+
 test("compact attention controls remain named and open their own session without card navigation", () => {
   render(true)
-  clickNative("1 need you · Shared · ~/team-b/shared")
+  clickNative("1 needs you · Shared · ~/team-b/shared")
   expect(fixtures.setCurrentSession).toHaveBeenLastCalledWith("session-b", "/work/team-b/shared")
   expect(fixtures.setActiveProject).toHaveBeenLastCalledWith("b")
   expect(fixtures.setActiveMainTab).toHaveBeenLastCalledWith("chat")
@@ -114,20 +131,21 @@ test("unique titles stay concise and a label colliding with another rendered pat
   fixtures.projects[0].label = "Unique"
   fixtures.projects[1].label = ""
   render()
-  expect(card("~/team-a/shared").getAttribute("aria-label")).toBe("Unique")
+  // The status is part of the row's name; the dot beside it is hidden from assistive tech (G UX-05).
+  expect(card("~/team-a/shared").getAttribute("aria-label")).toBe("Unique, 1 needs you")
   fixtures.projects[0].label = "~/team-b/shared"
   fixtures.projects = [...fixtures.projects]
   render()
-  expect(card("~/team-a/shared").getAttribute("aria-label")).toBe("~/team-b/shared · ~/team-a/shared")
-  expect(card("~/team-b/shared").getAttribute("aria-label")).toBe("~/team-b/shared · ~/team-b/shared")
+  expect(card("~/team-a/shared").getAttribute("aria-label")).toBe("~/team-b/shared · ~/team-a/shared, 1 needs you")
+  expect(card("~/team-b/shared").getAttribute("aria-label")).toBe("~/team-b/shared · ~/team-b/shared, 1 needs you")
 })
 
 test("labels that differ only by collapsed display whitespace keep distinct native names", () => {
   fixtures.projects[0].label = "Shared  project"
   fixtures.projects[1].label = "Shared project"
   render()
-  clickNative("Shared project · ~/team-a/shared")
+  clickNative("Shared project · ~/team-a/shared, 1 needs you")
   expect(open).toHaveBeenLastCalledWith("a")
-  clickNative("Shared project · ~/team-b/shared")
+  clickNative("Shared project · ~/team-b/shared, 1 needs you")
   expect(open).toHaveBeenLastCalledWith("b")
 })

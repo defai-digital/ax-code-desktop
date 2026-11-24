@@ -35,6 +35,7 @@ import { useDeviceInfo } from "@/lib/device"
 import { isDesktopShell, isWebRuntime } from "@/lib/desktop"
 import { useI18n } from "@/lib/i18n"
 import { isPlainRecord } from "@/lib/record"
+import { parseRoute } from "@/lib/router"
 import { Icon } from "@/components/icon/Icon"
 import { reloadAxCodeConfiguration } from "@/stores/useAgentsStore"
 import {
@@ -65,10 +66,16 @@ function clampSettingsNavWidth(width: number): number {
 }
 
 type MobileStage = "nav" | "page-sidebar" | "page-content"
+type SkillsPane = "installed" | "catalog"
 type SettingsDetailHistoryEntry = {
   page: SettingsPageSlug
   stage: "page-content"
+  /** The Skills pane the detail showed; the catalog and an installed skill share one page. */
+  skillsPane: SkillsPane
+  /** The installed skill the detail showed. The selection is shared, so a later pick would otherwise replace it. */
+  skillName: string | null
 }
+type PageSidebarSelection = { skillsPane?: SkillsPane }
 
 interface SettingsViewProps {
   onClose?: () => void
@@ -105,8 +112,47 @@ function getSettingsDetailHistoryEntry(state: unknown): SettingsDetailHistoryEnt
   }
 
   const resolvedPage = resolveSettingsSlug(page)
-  return { page: resolvedPage, stage }
+  return {
+    page: resolvedPage,
+    stage,
+    skillsPane: detail.skillsPane === "catalog" ? "catalog" : "installed",
+    skillName: typeof detail.skillName === "string" ? detail.skillName : null,
+  }
 }
+
+/**
+ * Record what a split page's mobile detail shows. The router pushes an entry for every page change, so Back from a
+ * sibling page reaches this entry on its own; a detail entry already on top is updated instead of stacked.
+ */
+function recordSplitDetailHistory(slug: SettingsPageSlug, pane: SkillsPane): void {
+  if (typeof window === "undefined") {
+    return
+  }
+
+  const state = getCurrentHistoryState()
+  const currentDetail = getSettingsDetailHistoryEntry(state)
+  const skillName = pane === "installed" ? useSkillsStore.getState().selectedSkillName : null
+  if (currentDetail?.page === slug && currentDetail.skillsPane === pane && currentDetail.skillName === skillName) {
+    return
+  }
+
+  const detail: SettingsDetailHistoryEntry = { page: slug, stage: "page-content", skillsPane: pane, skillName }
+  const next = { ...state, [SETTINGS_DETAIL_HISTORY_KEY]: detail }
+  if (currentDetail?.page === slug) {
+    window.history.replaceState(next, "", window.location.href)
+    return
+  }
+  window.history.pushState(next, "", window.location.href)
+}
+
+function mobileStageForPage(slug: SettingsPageSlug): MobileStage {
+  const def = getSettingsPageMeta(slug)
+  if (!def || def.slug === "home") {
+    return "nav"
+  }
+  return def.kind === "split" ? "page-sidebar" : "page-content"
+}
+
 
 function getCurrentHistoryState(): Record<string, unknown> {
   if (typeof window === "undefined" || !isPlainRecord(window.history.state)) {
@@ -213,7 +259,7 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
   const autoNavSlugRef = React.useRef<string | null>(null)
   const [navQuery, setNavQuery] = React.useState("")
   const navId = React.useId()
-  const [skillsPane, setSkillsPane] = React.useState<"installed" | "catalog">("installed")
+  const [skillsPane, setSkillsPane] = React.useState<SkillsPane>("installed")
 
   const [navWidth, setNavWidth] = React.useState(216)
   const [hasManuallyResized, setHasManuallyResized] = React.useState(false)
@@ -345,12 +391,7 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
       if (!isMobile) {
         return
       }
-      const def = getSettingsPageMeta(slug)
-      if (!def || def.slug === "home") {
-        setMobileStage("nav")
-        return
-      }
-      setMobileStage(def.kind === "split" ? "page-sidebar" : "page-content")
+      setMobileStage(mobileStageForPage(slug))
     },
     [isMobile, setSettingsPage],
   )
@@ -450,7 +491,10 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
     )
   }, [t])
 
-  const renderPageSidebar = React.useCallback((slug: SettingsPageSlug, opts: { onItemSelect?: () => void }) => {
+  const renderPageSidebar = React.useCallback((
+    slug: SettingsPageSlug,
+    opts: { onItemSelect?: (selection?: PageSidebarSelection) => void },
+  ) => {
     switch (slug) {
       case "projects":
         return <ProjectsSidebar onItemSelect={opts.onItemSelect} />
@@ -467,11 +511,11 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
           <SkillsSidebar
             onItemSelect={() => {
               setSkillsPane("installed")
-              opts.onItemSelect?.()
+              opts.onItemSelect?.({ skillsPane: "installed" })
             }}
             onOpenCatalog={() => {
               setSkillsPane("catalog")
-              opts.onItemSelect?.()
+              opts.onItemSelect?.({ skillsPane: "catalog" })
             }}
           />
         )
@@ -507,7 +551,18 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
         case "hooks":
           return <HooksPage />
         case "skills.installed":
-          return <SkillsPage view={skillsPane} onShowInstalled={() => setSkillsPane("installed")} />
+          return (
+            <SkillsPage
+              view={skillsPane}
+              onShowInstalled={() => {
+                setSkillsPane("installed")
+                // The catalog's own Back button: the detail entry on top now shows the installed pane.
+                if (isMobile && getSettingsDetailHistoryEntry(getCurrentHistoryState())?.page === "skills.installed") {
+                  recordSplitDetailHistory("skills.installed", "installed")
+                }
+              }}
+            />
+          )
         case "providers":
           return <ProvidersPage />
         case "git":
@@ -524,7 +579,7 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
           return <SettingsHome onOpen={openPage} />
       }
     },
-    [axCodeSectionBySlug, openPage, renderUnavailable, runtimeCtx, skillsPane],
+    [axCodeSectionBySlug, isMobile, openPage, renderUnavailable, runtimeCtx, skillsPane],
   )
 
   // Mobile: if opened via deep-link / palette to a non-home page, jump into it once.
@@ -559,32 +614,67 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
       ? t("settings.view.actions.backToSettings")
       : t("settings.view.actions.closeSettings")
 
-  const pushMobileSplitDetailHistory = React.useCallback((slug: SettingsPageSlug) => {
-    if (typeof window === "undefined") {
-      return
-    }
+  const handleMobilePageSidebarItemSelect = React.useCallback(
+    (selection?: PageSidebarSelection) => {
+      setMobileStage("page-content")
+      if (settingsSlug === "skills.installed") {
+        // Other sidebars may hand their click event through; only an explicit catalog selection names that pane.
+        recordSplitDetailHistory(settingsSlug, selection?.skillsPane === "catalog" ? "catalog" : "installed")
+      }
+    },
+    [settingsSlug],
+  )
 
-    const currentDetail = getSettingsDetailHistoryEntry(window.history.state)
-    if (currentDetail?.page === slug && currentDetail.stage === "page-content") {
-      return
-    }
-
-    window.history.pushState(
-      {
-        ...getCurrentHistoryState(),
-        [SETTINGS_DETAIL_HISTORY_KEY]: { page: slug, stage: "page-content" },
-      },
-      "",
-      window.location.href,
-    )
-  }, [])
-
-  const handleMobilePageSidebarItemSelect = React.useCallback(() => {
+  // Each restore and each unmount or layout change moves this on, so a list load that settles later acts only for the
+  // restore that started it, in the view that started it.
+  const restoreRunRef = React.useRef(0)
+  React.useEffect(
+    () => () => {
+      restoreRunRef.current += 1
+    },
+    [isMobile],
+  )
+  const restoreSkillsDetail = React.useCallback((detail: SettingsDetailHistoryEntry) => {
+    const run = ++restoreRunRef.current
+    // The deep-link jump compares against this; a stale sibling slug would bounce "Back to Settings" into Skills.
+    autoNavSlugRef.current = "skills.installed"
+    setSkillsPane(detail.skillsPane)
     setMobileStage("page-content")
-    if (settingsSlug === "skills.installed") {
-      pushMobileSplitDetailHistory(settingsSlug)
+    if (detail.skillsPane !== "installed") {
+      return
     }
-  }, [pushMobileSplitDetailHistory, settingsSlug])
+    // The entry names the selection it showed, an empty one included; the shared selection may have moved since.
+    const skillName = detail.skillName
+    useSkillsStore.getState().setSelectedSkill(skillName)
+    if (!skillName) {
+      return
+    }
+    // Only a list that loaded can say the skill is gone: a list still loading or one that failed to load cannot.
+    void useSkillsStore
+      .getState()
+      .loadSkills()
+      .catch(() => false)
+      .then((loaded) => {
+        if (run !== restoreRunRef.current) {
+          return
+        }
+        const skills = useSkillsStore.getState()
+        // A new skill exists only as its draft until it is saved.
+        if (!loaded || skills.getSkillByName(skillName) || skills.skillDraft?.name === skillName) {
+          return
+        }
+        const current = getSettingsDetailHistoryEntry(getCurrentHistoryState())
+        if (current?.page !== "skills.installed" || current.skillName !== skillName) {
+          return
+        }
+        // Show the list in its place, and turn the entry into the list's so Back does not land on it again.
+        skills.setSelectedSkill(null)
+        setMobileStage("page-sidebar")
+        const state = { ...getCurrentHistoryState() }
+        delete state[SETTINGS_DETAIL_HISTORY_KEY]
+        window.history.replaceState(state, "", window.location.href)
+      })
+  }, [])
 
   const handleBack = React.useCallback(() => {
     if (backButtonTargetsPageSidebar) {
@@ -607,25 +697,53 @@ const SettingsViewContent: React.FC<SettingsViewProps> = ({ onClose, isWindowed 
 
     const handlePopState = (event: PopStateEvent) => {
       const detail = getSettingsDetailHistoryEntry(event.state)
-      // Back from a sibling page lands on a skill's detail entry while this still holds the sibling's slug.
-      if (settingsSlug !== "skills.installed" && detail?.page !== "skills.installed") {
-        return
-      }
-
       if (detail?.page === "skills.installed") {
         setSettingsPage(detail.page)
-        setMobileStage("page-content")
+        restoreSkillsDetail(detail)
         return
       }
 
-      setMobileStage((stage) => (stage === "page-content" ? "page-sidebar" : stage))
+      // Any other entry is a page itself. The router opens the page in the URL; it starts at that page's first stage,
+      // not at whatever stage the page being left was on. This view's slug is still the page being left, so it only
+      // stands in when the URL names no page.
+      const destination = parseRoute().settingsPath
+      const slug = destination ? resolveSettingsSlug(destination) : settingsSlug
+      autoNavSlugRef.current = slug
+      setMobileStage(mobileStageForPage(slug))
     }
 
     window.addEventListener("popstate", handlePopState)
     return () => {
       window.removeEventListener("popstate", handlePopState)
     }
-  }, [isMobile, setSettingsPage, settingsSlug])
+  }, [isMobile, restoreSkillsDetail, setSettingsPage, settingsSlug])
+
+  // The router reopens a closed Settings from the URL when history returns to a detail entry; this view mounted after
+  // that popstate, so it reads the entry it landed on.
+  React.useEffect(() => {
+    if (!isMobile) {
+      return
+    }
+    const detail = getSettingsDetailHistoryEntry(getCurrentHistoryState())
+    if (detail?.page === "skills.installed" && settingsSlug === "skills.installed") {
+      restoreSkillsDetail(detail)
+    }
+    // Only on mount: later arrivals on a detail entry come through popstate.
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- read once, when the view mounts
+  }, [])
+
+  // The detail entry follows what the installed pane shows, so history returns to it even after a save renames the
+  // skill or the list selects another one.
+  const selectedSkillName = useSkillsStore((state) => state.selectedSkillName)
+  React.useEffect(() => {
+    if (!isMobile || mobileStage !== "page-content" || settingsSlug !== "skills.installed" || skillsPane !== "installed") {
+      return
+    }
+    const detail = getSettingsDetailHistoryEntry(getCurrentHistoryState())
+    if (detail?.page === "skills.installed" && selectedSkillName && detail.skillName !== selectedSkillName) {
+      recordSplitDetailHistory("skills.installed", "installed")
+    }
+  }, [isMobile, mobileStage, selectedSkillName, settingsSlug, skillsPane])
 
   const handleOpenPageSidebar = React.useCallback(() => {
     setMobileStage("page-sidebar")

@@ -45,6 +45,10 @@ const { useTraySync } = await import("./useTraySync")
 const { useGitStore } = await import("@/stores/useGitStore")
 const { useGlobalSessionsStore } = await import("@/stores/useGlobalSessionsStore")
 const { useSyncNotificationStore } = await import("@/sync/notification-store")
+const { useSupervisionStore } = await import("@/stores/useSupervisionStore")
+
+const needsYouRow = (sessionId: string, state: string) =>
+  ({ sessionId, directory: "/repo", state }) as unknown as ReturnType<typeof useSupervisionStore.getState>["rows"][number]
 
 type InvokeCall = [string, Record<string, unknown>]
 
@@ -60,6 +64,7 @@ describe("useTraySync", () => {
     document.body.appendChild(container)
     root = createRoot(container)
     invokeDesktopMock.mockReset().mockResolvedValue(null)
+    useSupervisionStore.setState({ rows: [] })
     isDesktopShellMock.mockReturnValue(true)
     syncSessions.length = 0
     syncSessions.push({ id: "root-1", title: "Tray session", time: { created: 1, updated: 2 } })
@@ -212,6 +217,7 @@ describe("useTraySync", () => {
   test("flushes again when a subscribed store changes", async () => {
     vi.useFakeTimers()
     try {
+      useSupervisionStore.setState({ rows: [needsYouRow("root-1", "permission")] })
       await render()
       invokeDesktopMock.mockClear()
 
@@ -234,8 +240,29 @@ describe("useTraySync", () => {
       expect(trayCall).toBeTruthy()
       const snapshot = trayCall?.[1] as { dockBadgeCount: number; sessions: Array<{ id: string; unseen: number }> }
       expect(snapshot.sessions.find((session) => session.id === "root-1")?.unseen).toBe(3)
-      // The badge counts decisions waiting for the person (one pending permission here), not unread activity.
+      // The badge counts sessions waiting for the person (one here), not unread activity.
       expect(snapshot.dockBadgeCount).toBe(1)
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  test("the dock badge follows the sessions that need you, as the titlebar pill does", async () => {
+    vi.useFakeTimers()
+    try {
+      await render()
+      invokeDesktopMock.mockClear()
+
+      // A blocked goal has no request to answer and still needs you.
+      await React.act(async () => {
+        useSupervisionStore.setState({ rows: [needsYouRow("root-1", "goal"), needsYouRow("root-2", "running")] })
+      })
+      await React.act(async () => {
+        await vi.advanceTimersByTimeAsync(600)
+      })
+
+      const badge = invokeCalls().find((call) => call[0] === "desktop_set_badge_count")
+      expect(badge?.[1]).toEqual({ count: 1 })
     } finally {
       vi.useRealTimers()
     }

@@ -168,7 +168,7 @@ describe("Mission Control grouped board", () => {
     useSupervisionStore.setState({ rows })
     render(<MissionControl />)
     const alpha = within(screen.getByRole("rowgroup", { name: "Alpha" }))
-    expect(alpha.getByText("1 need you · 1 running")).toBeTruthy()
+    expect(alpha.getByText("1 need you · 1 working")).toBeTruthy()
     expect(alpha.getByText("~/alpha").getAttribute("title")).toBe("/home/me/alpha")
     // The full summary is screen-reader text; the coloured numbers are decorative.
     expect(alpha.getByText("+6 −4 · 2 files").className).toContain("sr-only")

@@ -13,12 +13,14 @@ import {
   needsYouReason,
   rankFollowUpEntries,
   rankNeedsYouEntries,
+  autoOnceDeadlines,
   listNeedsYouSessions,
   orderSwitcherSessionIds,
   propagateAttentionToAncestors,
   selectNeedsYouSession,
   type NeedsYouSessionInput,
 } from "./needsYou"
+import type { NeedsYouEntry } from "./needsYou"
 import type { SessionGoalSnapshot } from "./supervision/goal"
 
 const goalSnapshot = (overrides: Partial<SessionGoalSnapshot> = {}): SessionGoalSnapshot => ({
@@ -118,6 +120,7 @@ describe("needs-you queue", () => {
       directory: null,
       title: sessionId,
       goal: null,
+      waitingSince: 0,
     })
     const ranked = rankNeedsYouEntries([
       entry("a", "goal"),
@@ -126,6 +129,53 @@ describe("needs-you queue", () => {
       entry("d", "permission"),
     ])
     expect(ranked.map((item) => item.sessionId)).toEqual(["b", "d", "a", "c"])
+  })
+
+  test("waits longest first inside a tier, and a session the runtime will answer by itself comes first", () => {
+    const entry = (sessionId: string, reason: NeedsYouEntry["reason"], waitingSince: number): NeedsYouEntry => ({
+      sessionId,
+      projectId: null,
+      reason,
+      directory: null,
+      title: sessionId,
+      goal: null,
+      waitingSince,
+    })
+    const entries = [
+      entry("recent", "permission", 300),
+      entry("old", "question", 100),
+      entry("goal", "goal", 50),
+      entry("countdown-late", "permission", 400),
+      entry("countdown-soon", "permission", 500),
+    ]
+    // Without a countdown: decisions oldest first, then the goal.
+    expect(rankNeedsYouEntries(entries).map((item) => item.sessionId)).toEqual([
+      "old",
+      "recent",
+      "countdown-late",
+      "countdown-soon",
+      "goal",
+    ])
+    // An auto-allow countdown lifts its session above the three visible rows, soonest deadline first (G UX-03).
+    const deadlines = new Map([
+      ["countdown-late", 90_000],
+      ["countdown-soon", 30_000],
+    ])
+    expect(rankNeedsYouEntries(entries, deadlines).map((item) => item.sessionId).slice(0, 3)).toEqual([
+      "countdown-soon",
+      "countdown-late",
+      "old",
+    ])
+  })
+
+  test("takes each session's earliest auto-allow deadline, from permissions only", () => {
+    const deadlines = autoOnceDeadlines([
+      { kind: "permission", sessionId: "a", request: { id: "1", autoOnceAt: 9_000 } },
+      { kind: "permission", sessionId: "a", request: { id: "2", autoOnceAt: 4_000 } },
+      { kind: "permission", sessionId: "b", request: { id: "3" } },
+      { kind: "question", sessionId: "c", request: { id: "4" } },
+    ] as unknown as Parameters<typeof autoOnceDeadlines>[0])
+    expect(Object.fromEntries(deadlines)).toEqual({ a: 4_000 })
   })
 
   test("a goal that needs a person is a decision, and a pending request outranks it", () => {

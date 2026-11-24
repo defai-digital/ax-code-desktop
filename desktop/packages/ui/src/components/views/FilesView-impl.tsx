@@ -18,6 +18,8 @@ import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip
 import { CodeMirrorEditor } from "@/components/ui/CodeMirrorEditor"
 import { GoToLineDialog } from "./GoToLineDialog"
 import { PreviewToggleButton } from "./PreviewToggleButton"
+import { StrandedFilesDraftBanner } from "./StrandedFilesDraftBanner"
+import { strandedDraftFileLabel, useStrandedFilesDraftStore, type StrandedFilesDraft } from "./strandedFilesDraft"
 import { JsonTreeView } from "@/components/ui/JsonTreeView"
 import { SimpleMarkdownRenderer } from "@/components/chat/MarkdownRenderer"
 import { languageByExtension, loadLanguageByExtension } from "@/lib/codemirror/languageByExtension"
@@ -729,6 +731,8 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full", active = tr
   const [desktopImageSrc, setDesktopImageSrc] = React.useState<string>("")
 
   const [loadedFilePath, setLoadedFilePath] = React.useState<string | null>(null)
+  // The Files root the loaded text file belongs to; a session switch moves the root before the draft is reset.
+  const loadedFileRootRef = React.useRef<string | null>(null)
 
   const [draftContent, setDraftContent] = React.useState("")
   const [isSaving, setIsSaving] = React.useState(false)
@@ -1558,6 +1562,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full", active = tr
       // was deleted or renamed from the sidebar must not be resurrected (a
       // later save would recreate the deleted path).
       isPathWithinRoot(loadedFilePath, root) &&
+      loadedFileRootRef.current === root &&
       openPaths.includes(loadedFilePath),
   )
   // Keeps the reset effect from wiping the draft while the prompt is open,
@@ -1581,6 +1586,66 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full", active = tr
     setIsSaving(false)
   }, [selectedFile?.path, reset, setMainTabGuard])
 
+  // Opening a session in another project moves the Files root, and the editor then reset to that project's file,
+  // dropping the unsaved draft with no prompt (C UX-01). The last dirty buffer is remembered whenever it changes;
+  // when the root moves, or this editor closes with it, it is kept in the stranded-draft store, outside the editor,
+  // until the person saves, copies or discards it, or opens the file again. Navigation is never blocked, so every path
+  // that switches sessions is covered.
+  const keepStrandedDraft = useStrandedFilesDraftStore((state) => state.keep)
+  const dirtySnapshotRef = React.useRef<StrandedFilesDraft | null>(null)
+  React.useLayoutEffect(() => {
+    const previous = dirtySnapshotRef.current
+    if (previous && previous.root !== root) {
+      dirtySnapshotRef.current = null
+      keepStrandedDraft(previous)
+      // A prompt opened under the old root has no draft behind it any more: its Save would write the old text into
+      // whatever this root loads next.
+      holdDraftForPromptRef.current = false
+      pendingSelectFileRef.current = null
+      pendingTabRef.current = null
+      pendingClosePathRef.current = null
+      skipDirtyOnceRef.current = false
+      setConfirmDiscardOpen(false)
+      return
+    }
+    dirtySnapshotRef.current =
+      isDirty && root && loadedFilePath && loadedFileRootRef.current === root
+        ? {
+            root,
+            path: loadedFilePath,
+            draftContent,
+            displayedContent,
+            loadedContent: fileContent,
+            lineEnding: loadedFileLineEnding,
+            allowOutsideWorkspace: selectedFileReadOptions.allowOutsideWorkspace,
+          }
+        : null
+  }, [
+    root,
+    isDirty,
+    loadedFilePath,
+    draftContent,
+    displayedContent,
+    fileContent,
+    loadedFileLineEnding,
+    selectedFileReadOptions.allowOutsideWorkspace,
+    keepStrandedDraft,
+  ])
+
+  // A session switch can close the Files panel altogether, with the draft still in it.
+  const strandedNoticeRef = React.useRef(t)
+  strandedNoticeRef.current = t
+  React.useEffect(
+    () => () => {
+      const snapshot = dirtySnapshotRef.current
+      if (!snapshot) return
+      dirtySnapshotRef.current = null
+      useStrandedFilesDraftStore.getState().keep(snapshot)
+      toast.message(strandedNoticeRef.current("filesView.stranded.kept", { file: strandedDraftFileLabel(snapshot) }))
+    },
+    [],
+  )
+
   const saveDraft = React.useCallback(async () => {
     if (!selectedFile || !files.writeFile) {
       toast.error(t("filesView.toast.savingNotSupported"))
@@ -1593,7 +1658,10 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full", active = tr
 
     // The draft belongs to the loaded file, which can differ from the store
     // selection when a link switched the tab before the prompt was answered.
-    const savedPath = loadedFilePath ?? selectedFile.path
+    // With no file of this root loaded, the text is not this editor's to write:
+    // it may be another root's draft while the next file is still loading.
+    if (!loadedFilePath || loadedFileRootRef.current !== root) return false
+    const savedPath = loadedFilePath
     const savedDraftContent = draftContent
     // The write below is async — if the user switches to a different file before it
     // resolves (e.g. via the "discard changes" flow), this closure's `selectedFile`/
@@ -1800,6 +1868,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full", active = tr
       if (!runtime.isDesktop && selectedIsImage && !isSvg) {
         setFileContent("")
         setDraftContent("")
+        loadedFileRootRef.current = root
         setLoadedFilePath(node.path)
         setFileLoading(false)
         return
@@ -1819,11 +1888,24 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full", active = tr
           const editorContent = normalizeEditorLineEndings(content)
           setLoadedFileLineEnding(detectFileLineEnding(content))
           setFileContent(editorContent)
+          // A draft kept when this file's editor closed or its session moved away comes back into the editor, as long
+          // as the file did not change on disk since. Otherwise it stays in the notice, which never overwrites it.
+          const strandedDrafts = useStrandedFilesDraftStore.getState()
+          const restored =
+            root &&
+            strandedDrafts.drafts.some(
+              (draft) => draft.root === root && draft.path === node.path && draft.loadedContent === editorContent,
+            )
+              ? strandedDrafts.take(root, node.path)
+              : null
           setDraftContent(
-            editorContent.length > MAX_VIEW_CHARS
-              ? `${editorContent.slice(0, MAX_VIEW_CHARS)}\n\n… truncated …`
-              : editorContent,
+            restored
+              ? restored.draftContent
+              : editorContent.length > MAX_VIEW_CHARS
+                ? `${editorContent.slice(0, MAX_VIEW_CHARS)}\n\n… truncated …`
+                : editorContent,
           )
+          loadedFileRootRef.current = root
           setLoadedFilePath(node.path)
           void readFileStat(node.path, readOptions)
             .then((stat) => {
@@ -2051,6 +2133,8 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full", active = tr
 
     setConfirmDiscardOpen(false)
     holdDraftForPromptRef.current = false
+    // The tab switch below can close this editor in the same commit as the revert, before the snapshot catches up.
+    dirtySnapshotRef.current = null
 
     // Discard draft by reverting back to last loaded content
     setDraftContent(displayedContent)
@@ -2103,7 +2187,11 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full", active = tr
     const nextTab = pendingTabRef.current
     const closePath = pendingClosePathRef.current
 
+    const promptRoot = rootRef.current
     const saved = await saveDraft()
+    // The session may have moved to another root while the write was in flight. The root change already closed this
+    // prompt and kept nothing of it to act on; clearing or navigating now would act on the other root's editor.
+    if (rootRef.current !== promptRoot) return
     if (!saved) {
       skipDirtyOnceRef.current = false
       return
@@ -2112,6 +2200,8 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full", active = tr
     pendingSelectFileRef.current = null
     pendingTabRef.current = null
     pendingClosePathRef.current = null
+    // Saved: nothing is left to keep if the step below closes this editor.
+    dirtySnapshotRef.current = null
 
     setConfirmDiscardOpen(false)
     holdDraftForPromptRef.current = false
@@ -2903,6 +2993,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full", active = tr
         .then((src) => {
           if (!cancelled) {
             setDesktopImageSrc(src)
+            loadedFileRootRef.current = root
             setLoadedFilePath(selectedFile.path)
           }
         })
@@ -2925,7 +3016,7 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full", active = tr
     return () => {
       cancelled = true
     }
-  }, [files, isSelectedImage, isSelectedSvg, runtime.isDesktop, selectedFile?.path, selectedFileReadOptions, t])
+  }, [files, isSelectedImage, isSelectedSvg, root, runtime.isDesktop, selectedFile?.path, selectedFileReadOptions, t])
 
   const handleCloseDialog = React.useCallback(() => setActiveDialog(null), [])
 
@@ -3906,36 +3997,40 @@ export const FilesView: React.FC<FilesViewProps> = ({ mode = "full", active = tr
   )
 
   return (
-    <div className="flex h-full min-h-0 overflow-hidden bg-background relative">
-      <Dialogs
-        activeDialog={activeDialog}
-        dialogData={dialogData}
-        dialogInputValue={dialogInputValue}
-        onDialogInputChange={setDialogInputValue}
-        isDialogSubmitting={isDialogSubmitting}
-        onDialogSubmit={handleDialogSubmit}
-        onClose={handleCloseDialog}
-        inputRef={dialogInputRef}
-      />
-      {fullscreenViewer}
-      {isMobile ? (
-        showMobilePageContent ? (
-          fileViewer
-        ) : (
-          treePanel
-        )
-      ) : mode === "editor-only" ? (
-        <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
-          <div className="flex-1 min-h-0 min-w-0 overflow-hidden bg-background">{fileViewer}</div>
-        </div>
-      ) : (
-        <div className="flex flex-1 min-h-0 min-w-0 gap-3 px-3 pb-3 pt-2">
-          {screenWidth >= 700 && <div className="w-72 flex-shrink-0 min-h-0 overflow-hidden">{treePanel}</div>}
-          <div className="flex-1 min-h-0 min-w-0 overflow-hidden rounded-xl border border-border/60 bg-background">
-            {fileViewer}
+    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-background relative">
+      <StrandedFilesDraftBanner readFile={files.readFile} writeFile={files.writeFile} />
+      {/* Relative, so the fullscreen editor covers the editor area but not the notice above it. */}
+      <div className="relative flex min-h-0 flex-1 overflow-hidden">
+        <Dialogs
+          activeDialog={activeDialog}
+          dialogData={dialogData}
+          dialogInputValue={dialogInputValue}
+          onDialogInputChange={setDialogInputValue}
+          isDialogSubmitting={isDialogSubmitting}
+          onDialogSubmit={handleDialogSubmit}
+          onClose={handleCloseDialog}
+          inputRef={dialogInputRef}
+        />
+        {fullscreenViewer}
+        {isMobile ? (
+          showMobilePageContent ? (
+            fileViewer
+          ) : (
+            treePanel
+          )
+        ) : mode === "editor-only" ? (
+          <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
+            <div className="flex-1 min-h-0 min-w-0 overflow-hidden bg-background">{fileViewer}</div>
           </div>
-        </div>
-      )}
+        ) : (
+          <div className="flex flex-1 min-h-0 min-w-0 gap-3 px-3 pb-3 pt-2">
+            {screenWidth >= 700 && <div className="w-72 flex-shrink-0 min-h-0 overflow-hidden">{treePanel}</div>}
+            <div className="flex-1 min-h-0 min-w-0 overflow-hidden rounded-xl border border-border/60 bg-background">
+              {fileViewer}
+            </div>
+          </div>
+        )}
+      </div>
     </div>
   )
 }

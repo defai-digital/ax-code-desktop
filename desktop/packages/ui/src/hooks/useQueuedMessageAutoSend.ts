@@ -38,14 +38,30 @@ const hasRecentAbort = (sessionId: string): boolean => {
   return Date.now() - abortRecord.timestamp < RECENT_ABORT_WINDOW_MS
 }
 
-// QueuedMessageChips renders exactly this state as a red "Held" label: an
-// unseen error notification means the queue is being withheld until the user
-// looks at what went wrong. Auto-send must honor the same state — otherwise
-// the next busy→idle edge fires the "held" message into the errored session
-// while the UI claims it is parked. Manual send from the chip stays
-// available, and viewing the session clears the flag (markSessionViewed).
+// QueuedMessageChips renders exactly this state as a red "Held" label. An error in the session holds its queue
+// (heldQueues, set from the session.error event) until the user presses Resume queue; opening the session to read the
+// error releases nothing (C UX-04). An unseen error notification holds as well, for a queue added after the error.
+// Auto-send must honor the same state, or the next busy -> idle edge fires the "held" message into the errored
+// session while the UI claims it is parked. Manual send from the chip stays available.
 export const isQueuedAutoSendHeld = (sessionId: string): boolean =>
+  useMessageQueueStore.getState().heldQueues[sessionId] === true ||
   useSyncNotificationStore.getState().sessionHasError(sessionId)
+
+// Entries this window is sending now. An entry marked sending that is not listed here is unconfirmed: another window
+// is sending it, or the app quit before its send returned.
+const inFlightQueuedEntries = new Set<string>()
+
+export const isQueuedEntryInFlight = (queuedMessageId: string): boolean => inFlightQueuedEntries.has(queuedMessageId)
+
+/** Record a send of a queued entry made by hand from the composer, so its chip offers nothing that sends it again. */
+export const markQueuedEntryInFlight = (queuedMessageId: string, inFlight: boolean): void => {
+  if (inFlight) inFlightQueuedEntries.add(queuedMessageId)
+  else inFlightQueuedEntries.delete(queuedMessageId)
+}
+
+/** The head entry is being sent or unconfirmed: nothing behind it may go first, and it is not sent again by itself. */
+const isQueueHeadSending = (sessionId: string): boolean =>
+  useMessageQueueStore.getState().getQueueForSession(sessionId)[0]?.delivery === "sending"
 
 export const buildQueuedAutoSendPayload = (queue: QueuedMessage[]) => {
   const queued = queue[0]
@@ -242,11 +258,15 @@ export function decideQueuedDispatchAfterClaim(input: {
   return { action: "dispatch", messageId, assignMessageId: !input.currentMessageId }
 }
 
+/**
+ * After a failed send the entry, still saved and marked sending, goes back to the queue for a retry under the same
+ * id. One that is gone was removed by the user while it was in flight and stays gone.
+ */
 export function decideQueuedDispatchOnFailure(input: { queueHasEntry: boolean }): {
   releaseClaim: boolean
-  restoreEntry: boolean
+  returnToQueue: boolean
 } {
-  return { releaseClaim: true, restoreEntry: !input.queueHasEntry }
+  return { releaseClaim: true, returnToQueue: input.queueHasEntry }
 }
 
 /**
@@ -274,6 +294,8 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
   // index here. Viewing a session clears only the notification store: without this subscription the
   // effect never runs again to spend the busy -> idle edge kept armed while the hold was up.
   const unseenErrorBySession = useSyncNotificationStore((state) => state.index.session.unseenHasError)
+  // Likewise for Resume queue: releasing a hold must re-run the pass that spends the armed edge.
+  const heldQueues = useMessageQueueStore((state) => state.heldQueues)
 
   const inFlightSessionsRef = React.useRef<Set<string>>(new Set())
   const previousStatusRef = React.useRef<Map<string, SessionStatusType>>(new Map())
@@ -299,6 +321,7 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
       inFlightSessionsRef.current.has(sessionId) ||
       hasRecentAbort(sessionId) ||
       isQueuedAutoSendHeld(sessionId) ||
+      isQueueHeadSending(sessionId) ||
       // A session whose status is not tracked (its project is not the active one,
       // or the store has not seen it yet) may still be working: hold the edge
       // instead of spending it, so the queue fires on a confirmed busy -> idle.
@@ -422,15 +445,14 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
       }
 
       inFlightSessionsRef.current.add(sessionId)
+      inFlightQueuedEntries.add(payload.queuedMessageId)
 
-      // Take the entry out before the send: the chip stays interactive while the
-      // prompt is in flight, and sending it by hand would deliver it twice.
-      const dispatchedEntry = useMessageQueueStore
-        .getState()
-        .getQueueForSession(sessionId)
-        .find((message) => message.id === payload.queuedMessageId)
-      useMessageQueueStore.getState().removeFromQueue(sessionId, payload.queuedMessageId)
+      // Keep the entry saved, marked as sending, until the send returns: taking it out first lost the prompt when
+      // the app quit mid-send (C UX-02). A sending entry offers no manual send and is not folded into a composer
+      // send, so it cannot be delivered twice from here.
+      useMessageQueueStore.getState().setDelivery(sessionId, payload.queuedMessageId, "sending")
 
+      let sent = false
       try {
         await sendQueuedAutoSendPayload(
           sessionId,
@@ -443,6 +465,7 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
           },
           dispatchMessageId,
         )
+        sent = true
       } catch (error) {
         console.warn("[queue] queued auto-send failed:", error)
         // The entry is restored below and waits for a manual retry from the
@@ -451,29 +474,24 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
         toast.error(queuedAutoSendFailureMessage(error, useI18nStore.getState().dictionary), {
           id: "queued-auto-send-failed",
         })
-        // Let this or another window try again.
+        // Let this or another window try again. The in-flight mark goes first, so the chip that re-renders on the
+        // store change below already reads the entry as queued.
+        inFlightQueuedEntries.delete(payload.queuedMessageId)
         const onFailure = decideQueuedDispatchOnFailure({
-          queueHasEntry: dispatchedEntry
-            ? useMessageQueueStore
-                .getState()
-                .getQueueForSession(sessionId)
-                .some((message) => message.id === dispatchedEntry.id)
-            : false,
+          queueHasEntry: useMessageQueueStore
+            .getState()
+            .getQueueForSession(sessionId)
+            .some((message) => message.id === payload.queuedMessageId),
         })
         if (onFailure.releaseClaim) releaseQueuedDispatchClaim(payload.queuedMessageId)
-        if (dispatchedEntry && onFailure.restoreEntry) {
-          // Restore the message so a failed send does not lose it.
-          useMessageQueueStore.setState((state) => {
-            const queue = state.queuedMessages[sessionId] ?? []
-            if (queue.some((message) => message.id === dispatchedEntry.id)) return state
-            return {
-              queuedMessages: { ...state.queuedMessages, [sessionId]: [dispatchedEntry, ...queue] },
-            }
-          })
+        if (onFailure.returnToQueue) {
+          useMessageQueueStore.getState().setDelivery(sessionId, payload.queuedMessageId, undefined)
         }
       } finally {
+        inFlightQueuedEntries.delete(payload.queuedMessageId)
         inFlightSessionsRef.current.delete(sessionId)
       }
+      if (sent) useMessageQueueStore.getState().removeFromQueue(sessionId, payload.queuedMessageId)
     }
 
     const statusRecord = sessionStatusRecord ?? {}
@@ -538,5 +556,5 @@ export function useQueuedMessageAutoSend(enabledOrOptions?: boolean | { enabled?
         abortWakeupTimerRef.current = null
       }
     }
-  }, [enabled, queuedMessages, sessionStatusRecord, unseenErrorBySession, abortWakeupTick])
+  }, [enabled, queuedMessages, sessionStatusRecord, unseenErrorBySession, heldQueues, abortWakeupTick])
 }

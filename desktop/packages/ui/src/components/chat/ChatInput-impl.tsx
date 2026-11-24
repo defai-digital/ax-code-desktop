@@ -5,6 +5,7 @@ import { useConfigStore } from "@/stores/useConfigStore"
 import { useAgentsStore } from "@/stores/useAgentsStore"
 import { useUIStore } from "@/stores/useUIStore"
 import {
+  isQueuedMessageSendable,
   MESSAGE_QUEUE_MAX_PER_SESSION,
   useMessageQueueStore,
   type QueuedMessage,
@@ -66,7 +67,8 @@ import { useNudgeDismissedAt, useSessionRunEndedAt } from "@/sync/run-state-stor
 import { useGlobalSessionStatus, useSessionPermissions } from "@/sync/sync-context"
 import { useChatSurfaceMode } from "./useChatSurfaceMode"
 import { useCurrentSessionActivity } from "@/hooks/useSessionActivity"
-import { isQueuedAutoSendHeld } from "@/hooks/useQueuedMessageAutoSend"
+import { isQueuedAutoSendHeld, markQueuedEntryInFlight } from "@/hooks/useQueuedMessageAutoSend"
+import { draftSendNeedsModel, draftSetup, draftTargetState } from "@/lib/draftSetup"
 import { toast } from "@/components/ui"
 import { Button } from "@/components/ui/button"
 import { isDesktopShell } from "@/lib/desktop"
@@ -159,6 +161,9 @@ import {
 import type { Message, Part } from "@defai-digital/ax-code-sdk/v2/client"
 import { normalizePathSeparators } from "@/lib/pathValues"
 import { normalizeProjectPath } from "@/lib/projectResolution"
+
+/** Select value of a draft target that is gone; never a real directory (C UX-03). */
+const LOST_DRAFT_TARGET_PREFIX = "lost-target:"
 
 /** The mode the chip shows. A send carries it as request data; the send path never reads the chip. */
 const composerWorkModeForSend = (): WorkModeId =>
@@ -690,6 +695,8 @@ type ComposerActionButtonsProps = {
   sendIconSizeClass: string
   stopIconSizeClass: string
   canSend: boolean
+  /** Why a draft cannot be sent yet; shown beside the composer and named by the disabled Send. */
+  blockedReason: string | null
   canAbort: boolean
   hasContent: boolean
   currentSessionId: string | null
@@ -707,6 +714,7 @@ const ComposerActionButtons = React.memo(
       sendIconSizeClass,
       stopIconSizeClass,
       canSend,
+      blockedReason,
       canAbort,
       hasContent,
       currentSessionId,
@@ -739,6 +747,8 @@ const ComposerActionButtons = React.memo(
             : "bg-[var(--surface-muted)] text-muted-foreground opacity-60",
         )}
         aria-label={t("chat.chatInput.actions.sendMessageAria")}
+        aria-describedby={blockedReason ? "composer-send-blocked-reason" : undefined}
+        title={blockedReason ?? undefined}
       >
         <Icon name="arrow-up" className={cn(sendIconSizeClass)} />
       </button>
@@ -787,6 +797,7 @@ const ComposerActionButtons = React.memo(
     prev.sendIconSizeClass === next.sendIconSizeClass &&
     prev.stopIconSizeClass === next.stopIconSizeClass &&
     prev.canSend === next.canSend &&
+    prev.blockedReason === next.blockedReason &&
     prev.canAbort === next.canAbort &&
     prev.hasContent === next.hasContent &&
     prev.currentSessionId === next.currentSessionId &&
@@ -1016,6 +1027,15 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
 
   const currentProviderId = useConfigStore((state) => state.currentProviderId)
   const currentModelId = useConfigStore((state) => state.currentModelId)
+  const providersReady = useConfigStore((state) => state.isInitialized)
+  const loadedProviders = useConfigStore((state) => state.providers)
+  const draftModelStep = draftSetup({
+    projectCount: 1,
+    providersReady,
+    providers: loadedProviders,
+    currentProviderId,
+    currentModelId,
+  }).modelStep
   const currentVariant = useConfigStore((state) => state.currentVariant)
   const currentAgentName = useConfigStore((state) => state.currentAgentName)
   const setAgent = useConfigStore((state) => state.setAgent)
@@ -1292,7 +1312,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     ),
   )
   const addToQueue = useMessageQueueStore((state) => state.addToQueue)
-  const clearQueue = useMessageQueueStore((state) => state.clearQueue)
   const removeFromQueue = useMessageQueueStore((state) => state.removeFromQueue)
 
   // Inline comment drafts
@@ -1419,8 +1438,21 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   }, [pendingInputText, consumePendingInputText, currentSessionId])
 
   const hasContent = message.trim().length > 0 || sendableAttachedFiles.length > 0 || hasDrafts
-  const hasQueuedMessages = queuedMessages.length > 0
-  const canSend = !workSendDisabled && (hasContent || hasQueuedMessages)
+  // An entry being sent, or whose send is unconfirmed, is not folded into a composer send: the runtime may already
+  // have it (C UX-02). Its chip offers its own Send again.
+  const hasQueuedMessages = React.useMemo(() => queuedMessages.some(isQueuedMessageSendable), [queuedMessages])
+  // A draft with no model to run on cannot become a session: Send says so up front instead of a toast after it
+  // (C UX-05). The draft's setup steps above the composer offer the fix; the typed prompt stays.
+  const draftSendBlockedReason = draftSendNeedsModel({
+    currentSessionId,
+    draftOpen: newSessionDraftOpen,
+    modelStep: draftModelStep,
+  })
+    ? t("chat.chatInput.sendNeedsModel")
+    : null
+  const canSend = !workSendDisabled && !draftSendBlockedReason && (hasContent || hasQueuedMessages)
+  // Set where the draft target is derived, further down; Submit reads it because Enter does not go through Send.
+  const draftTargetBlockedReasonRef = React.useRef<string | null>(null)
 
   const canAbort = sessionPhase !== "idle"
 
@@ -1652,6 +1684,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       toast.error(WORK_SESSION_SEND_DISABLED)
       return
     }
+    // Enter and modified Enter reach here without the disabled Send button; nothing is consumed (C UX-03).
+    if (!currentSessionId && draftTargetBlockedReasonRef.current) {
+      toast.error(draftTargetBlockedReasonRef.current)
+      return
+    }
     if (pendingPastedAttachmentReadsRef.current.size > 0) {
       await Promise.all([...pendingPastedAttachmentReadsRef.current])
       // The composer may have switched sessions while the pasted files were being
@@ -1676,13 +1713,21 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     // A paste read may have settled while the submit waited for it; this render's
     // closure predates that, so the submit's own attachments come from the live store.
     const liveAttachments = useInputStore.getState().attachedFiles
-    const queuedMessagesToSend = queuedMessageId
-      ? queuedMessages.filter((message) => message.id === queuedMessageId)
+    // The queue is read live for the same reason: while the submit waited, the auto-sender may have started sending
+    // the head entry, and folding it in from this render's copy would deliver it twice.
+    const liveQueuedMessages = currentSessionId
+      ? useMessageQueueStore.getState().getQueueForSession(currentSessionId)
       : queuedMessages
+    const queuedMessagesToSend = queuedMessageId
+      ? liveQueuedMessages.filter((message) => message.id === queuedMessageId)
+      : liveQueuedMessages.filter(isQueuedMessageSendable)
 
     if (queuedOnly) {
       if (queuedMessagesToSend.length === 0 || !currentSessionId) return
-    } else if ((!inputSnapshot.hasContent && !hasQueuedMessages) || (!currentSessionId && !newSessionDraftOpen)) {
+    } else if (
+      (!inputSnapshot.hasContent && queuedMessagesToSend.length === 0) ||
+      (!currentSessionId && !newSessionDraftOpen)
+    ) {
       return
     }
 
@@ -1873,9 +1918,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     const consumedQueueIndex = queuedMessageId
       ? Math.max(
           0,
-          queuedMessages.findIndex((message) => message.id === queuedMessageId),
+          liveQueuedMessages.findIndex((message) => message.id === queuedMessageId),
         )
-      : 0
+      : Math.max(0, liveQueuedMessages.findIndex(isQueuedMessageSendable))
     const consumedInputSnapshot = !queuedOnly && inputSnapshot.hasContent ? inputSnapshot.message : ""
     // The @-mention confirmations this submit clears. A failed send restores them with the
     // text; without them a top-level mention that relied on confirmation (@LICENSE, @src)
@@ -1883,11 +1928,15 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     const consumedConfirmedMentions = new Set(confirmedMentionsRef.current)
 
     // Clear queue and input
+    // A single entry sent by hand stays saved, marked as sending, until its send returns: taking it out first lost the
+    // prompt when the app quit mid-send (C UX-02). Its chip offers nothing that sends it again meanwhile.
+    const manualQueuedEntryId = consumesQueue && currentSessionId && queuedMessageId ? queuedMessageId : null
     if (consumesQueue) {
-      if (currentSessionId && queuedMessageId) {
-        removeFromQueue(currentSessionId, queuedMessageId)
-      } else if (currentSessionId && hasQueuedMessages) {
-        clearQueue(currentSessionId)
+      if (currentSessionId && manualQueuedEntryId) {
+        markQueuedEntryInFlight(manualQueuedEntryId, true)
+        useMessageQueueStore.getState().setDelivery(currentSessionId, manualQueuedEntryId, "sending")
+      } else if (currentSessionId) {
+        for (const message of queuedMessagesToSend) removeFromQueue(currentSessionId, message.id)
       }
     }
     if (!queuedOnly) {
@@ -2361,6 +2410,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
 
     void sendPromise
       .then(() => {
+        if (currentSessionId && manualQueuedEntryId) {
+          markQueuedEntryInFlight(manualQueuedEntryId, false)
+          useMessageQueueStore.getState().removeFromQueue(currentSessionId, manualQueuedEntryId)
+        }
         // Remember free-form prompts for the recent chips (skip slash commands).
         if (primaryText.trim() && !primaryText.trimStart().startsWith("/")) {
           recordRecentPrompt(primaryText)
@@ -2381,6 +2434,14 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
         const normalized = rawMessage.toLowerCase()
 
         console.error("Message send failed:", rawMessage || error)
+
+        // Back to what it was before this send: queued, or still unconfirmed when it was a Send again.
+        if (currentSessionId && manualQueuedEntryId) {
+          markQueuedEntryInFlight(manualQueuedEntryId, false)
+          useMessageQueueStore
+            .getState()
+            .setDelivery(currentSessionId, manualQueuedEntryId, consumedQueueSnapshot[0]?.delivery)
+        }
 
         const { failedSessionId, viewingFailedSession } = restoreConsumedInput(error)
 
@@ -3946,6 +4007,40 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     selectedDraftDirectory,
   ])
 
+  const worktreeListingReadyPaths = useSessionUIStore((state) => state.worktreeListingReadyPaths)
+  const draftTargetStatus = draftTargetState({
+    draftOpen: newSessionDraftOpen,
+    currentSessionId,
+    selectedDirectory: selectedDraftDirectory,
+    projectRoot: selectedDraftProjectPath,
+    listed:
+      projectRootBranchOption?.value === selectedDraftDirectory ||
+      worktreeBranchOptions.some((option) => option.value === selectedDraftDirectory),
+    keepUnlisted: shouldKeepMissingSelectedDraftDirectory,
+    discoveringBranches: isDiscoveringDraftBranches,
+    worktreeListingReady: selectedDraftProjectPath ? worktreeListingReadyPaths.has(selectedDraftProjectPath) : false,
+    lost: Boolean(
+      selectedDraftDirectory && normalizePath(newSessionDraft?.lostTargetDirectory ?? null) === selectedDraftDirectory,
+    ),
+  })
+  // Confirmed loss is recorded on the draft, so a later failed or stale listing cannot make the target sendable
+  // again; only choosing a target clears it.
+  React.useEffect(() => {
+    if (draftTargetStatus === "missing" && selectedDraftDirectory) {
+      useSessionUIStore.getState().markDraftTargetLost(selectedDraftDirectory)
+    }
+  }, [draftTargetStatus, selectedDraftDirectory])
+  // The lost entry gets its own value, so picking the same worktree again (once it is listed) is a change.
+  const draftSelectValueForLost =
+    draftTargetStatus === "missing" && selectedDraftDirectory ? `${LOST_DRAFT_TARGET_PREFIX}${selectedDraftDirectory}` : null
+  const draftTargetBlockedReason =
+    draftTargetStatus === "missing" && selectedDraftDirectory
+      ? t("chat.chatInput.sendNeedsTarget", { name: formatDirectoryName(selectedDraftDirectory) })
+      : null
+  draftTargetBlockedReasonRef.current = draftTargetBlockedReason
+  const sendBlockedReason = draftSendBlockedReason ?? draftTargetBlockedReason
+  const canSendComposer = canSend && !draftTargetBlockedReason
+
   const draftBranchItems = React.useMemo(() => {
     const baseItems: Array<{ value: string; label: string }> = []
     if (projectRootBranchOption) {
@@ -3959,19 +4054,24 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     if (baseItems.some((option) => option.value === selectedDraftDirectory)) {
       return baseItems
     }
-    if (!shouldKeepMissingSelectedDraftDirectory) {
-      return baseItems
-    }
-    return [...baseItems, { value: selectedDraftDirectory, label: formatDirectoryName(selectedDraftDirectory) }]
-  }, [projectRootBranchOption, selectedDraftDirectory, shouldKeepMissingSelectedDraftDirectory, worktreeBranchOptions])
+    // The chosen target stays in the list while it is unlisted, so the person can see where the prompt would go.
+    const name = formatDirectoryName(selectedDraftDirectory)
+    const label =
+      draftTargetStatus === "missing" ? t("chat.chatInput.target.notFound", { name }) : name
+    return [...baseItems, { value: selectedDraftDirectory, label }]
+  }, [draftTargetStatus, projectRootBranchOption, selectedDraftDirectory, t, worktreeBranchOptions])
 
   const selectedDraftBranchLabel = React.useMemo(() => {
     const selectedValue = selectedDraftDirectory ?? draftBranchItems[0]?.value ?? null
     if (!selectedValue) {
       return null
     }
+    if (draftTargetStatus === "missing") {
+      // Also when a stale listing still shows it: the draft recorded it as gone.
+      return t("chat.chatInput.target.notFound", { name: formatDirectoryName(selectedValue) })
+    }
     return draftBranchItems.find((item) => item.value === selectedValue)?.label ?? formatDirectoryName(selectedValue)
-  }, [draftBranchItems, selectedDraftDirectory])
+  }, [draftBranchItems, draftTargetStatus, selectedDraftDirectory, t])
 
   const chatSurfaceMode = useChatSurfaceMode()
   const isMiniChatSurface = chatSurfaceMode === "mini-chat"
@@ -4012,6 +4112,10 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
   ])
 
   const shouldShowDraftBranchSelector = React.useMemo(() => {
+    // A chosen worktree stays visible while branches load or after it is gone, so it can be seen and replaced (C UX-03).
+    if (draftTargetStatus !== "ok") {
+      return true
+    }
     if (selectedDraftProjectIsGitRepo !== true) {
       return false
     }
@@ -4022,7 +4126,13 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
       return true
     }
     return worktreeBranchOptions.length > 0
-  }, [isDiscoveringDraftBranches, projectRootBranchOption, selectedDraftProjectIsGitRepo, worktreeBranchOptions.length])
+  }, [
+    draftTargetStatus,
+    isDiscoveringDraftBranches,
+    projectRootBranchOption,
+    selectedDraftProjectIsGitRepo,
+    worktreeBranchOptions.length,
+  ])
 
   const handleDraftProjectChange = React.useCallback(
     (projectId: string) => {
@@ -4050,6 +4160,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
 
   const handleDraftDirectoryChange = React.useCallback(
     (directory: string) => {
+      if (directory.startsWith(LOST_DRAFT_TARGET_PREFIX)) {
+        return
+      }
       const draft = useSessionUIStore.getState().newSessionDraft
       if (draft?.pendingWorktreeRequestId || draft?.bootstrapPendingDirectory || draft?.preserveDirectoryOverride) {
         return
@@ -4142,42 +4255,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
     void openProjectFolder({ t })
   }, [t])
 
-  React.useEffect(() => {
-    if (!showDraftTargetSelectors || !selectedDraftProject || !selectedDraftDirectory) {
-      return
-    }
-    if (
-      newSessionDraft?.pendingWorktreeRequestId ||
-      newSessionDraft?.bootstrapPendingDirectory ||
-      newSessionDraft?.preserveDirectoryOverride
-    ) {
-      return
-    }
-    const valid = draftBranchItems.some((option) => option.value === selectedDraftDirectory)
-    if (valid) {
-      return
-    }
-    // A target the branch list no longer offers is re-pointed at the project root. That is a
-    // correction of a stale target, not the user switching project, so it does not reset the chip.
-    // The mode is stored per directory, so a correction that changes directory shows the corrected
-    // directory's own saved mode; a correction that stays in it keeps the mode the user set.
-    setNewSessionDraftTarget(
-      {
-        projectId: selectedDraftProject.id,
-        directoryOverride: selectedDraftProject.path,
-      },
-      { preserveWorkMode: true },
-    )
-  }, [
-    draftBranchItems,
-    newSessionDraft?.bootstrapPendingDirectory,
-    newSessionDraft?.pendingWorktreeRequestId,
-    newSessionDraft?.preserveDirectoryOverride,
-    selectedDraftDirectory,
-    selectedDraftProject,
-    setNewSessionDraftTarget,
-    showDraftTargetSelectors,
-  ])
+  // A target missing from the options is no longer re-pointed at the project root here (C UX-03): the draft keeps
+  // the target the person chose, shows it, and Send waits for an explicit choice once the target is confirmed gone.
 
   const footerPaddingClass = isMobile ? "px-1.5 py-1.5" : "px-2.5 py-1.5"
   const buttonSizeClass = isMobile ? "h-8 w-8" : "h-7 w-7"
@@ -4252,6 +4331,15 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
           <div className="chat-input-column mb-3 rounded-md border border-status-warning/40 bg-status-warning/10 px-3 py-2 text-center typography-meta text-status-warning">
             {WORK_SESSION_SEND_DISABLED}
           </div>
+        ) : null}
+        {sendBlockedReason ? (
+          <p
+            id="composer-send-blocked-reason"
+            data-send-blocked-reason
+            className="chat-input-column mb-2 text-right typography-meta text-muted-foreground"
+          >
+            {sendBlockedReason}
+          </p>
         ) : null}
         {newSessionDraftOpen && !isDesktopExpanded && !isMobile && !isMiniChatSurface ? (
           // Left-aligned header row: the question on the left, project knowledge on the right.
@@ -4521,6 +4609,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
               {shouldShowDraftBranchSelector ? (
                 <Select
                   value={
+                    draftSelectValueForLost ??
                     selectedDraftDirectory ??
                     draftBranchItems[0]?.value ??
                     normalizePath(selectedDraftProject.path) ??
@@ -4573,8 +4662,11 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                         </SelectItem>
                       ))}
                     </SelectGroup>
-                    {selectedDraftDirectory && !selectedDraftBranchIsKnown ? (
-                      <SelectItem value={selectedDraftDirectory} className="max-w-[24rem] truncate">
+                    {selectedDraftDirectory && (!selectedDraftBranchIsKnown || draftSelectValueForLost) ? (
+                      <SelectItem
+                        value={draftSelectValueForLost ?? selectedDraftDirectory}
+                        className="max-w-[24rem] truncate"
+                      >
                         {selectedDraftBranchLabel}
                       </SelectItem>
                     ) : null}
@@ -4838,7 +4930,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                           footerIconButtonClass={footerIconButtonClass}
                           sendIconSizeClass={sendIconSizeClass}
                           stopIconSizeClass={stopIconSizeClass}
-                          canSend={canSend}
+                          canSend={canSendComposer}
+                          blockedReason={sendBlockedReason}
                           canAbort={canAbort}
                           hasContent={!!hasContent}
                           currentSessionId={currentSessionId}
@@ -4896,7 +4989,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                       footerIconButtonClass={footerIconButtonClass}
                       sendIconSizeClass={sendIconSizeClass}
                       stopIconSizeClass={stopIconSizeClass}
-                      canSend={canSend}
+                      canSend={canSendComposer}
+                      blockedReason={sendBlockedReason}
                       canAbort={canAbort}
                       hasContent={!!hasContent}
                       currentSessionId={currentSessionId}

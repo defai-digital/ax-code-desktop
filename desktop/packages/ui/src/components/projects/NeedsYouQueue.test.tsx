@@ -40,6 +40,8 @@ vi.mock("@/components/supervision/SupervisionGoalLine", () => ({ SupervisionGoal
 vi.mock("@/components/supervision/RequestActionCard", () => ({ RequestActionCard: () => null }))
 
 import { viewKeyFor } from "@/lib/webMcpViewKey"
+import { useSupervisionStore } from "@/stores/useSupervisionStore"
+import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 import { NeedsYouQueue } from "./NeedsYouQueue"
 
 let root: Root
@@ -93,18 +95,36 @@ test("unlabelled projects fall back to their directory while unique labels stay 
   expect(rows()[1].textContent).not.toContain("/team-b/shared")
 })
 
-test("home header includes waiting pages alongside queue rows and when the queue is empty", () => {
-  fixtures.pages = [
-    { key: viewKeyFor("/waiting", "ses_waiting"), sessionID: "ses_waiting", waiting: true, visible: false },
-  ]
-  render()
-  expect(container.querySelector("h2")?.nextElementSibling?.textContent).toBe("3")
-  const projects = fixtures.projects
-  fixtures.projects = []
+test("the home heading shows the count the titlebar pill and the dock badge show", () => {
+  type Row = ReturnType<typeof useSupervisionStore.getState>["rows"][number]
+  type Views = ReturnType<typeof useWebMcpBrowserStore.getState>["views"]
+  const waitingPage = { browserId: "b1", directory: "/waiting", sessionID: "ses_waiting", waiting: true, visible: false }
+  fixtures.pages = [{ key: viewKeyFor("/waiting", "ses_waiting"), sessionID: "ses_waiting", waiting: true, visible: false }]
   try {
+    act(() => {
+      useSupervisionStore.setState({
+        rows: [
+          { sessionId: "session-a", directory: "/work/team-a/shared", state: "question" },
+          { sessionId: "session-b", directory: "/work/team-b/shared", state: "question" },
+        ] as unknown as Row[],
+      })
+      useWebMcpBrowserStore.setState({ views: { [viewKeyFor("/waiting", "ses_waiting")]: waitingPage } as unknown as Views })
+    })
     render()
-    expect(container.querySelector("h2")?.nextElementSibling?.textContent).toBe("1")
+    // Two sessions and a waiting page.
+    expect(container.querySelector("h2")?.nextElementSibling?.textContent).toBe("3")
+    const projects = fixtures.projects
+    fixtures.projects = []
+    try {
+      act(() => useSupervisionStore.setState({ rows: [] }))
+      render()
+      // With no session waiting, the page alone keeps the section and its count.
+      expect(container.querySelector("h2")?.nextElementSibling?.textContent).toBe("1")
+    } finally {
+      fixtures.projects = projects
+    }
   } finally {
-    fixtures.projects = projects
+    useSupervisionStore.setState({ rows: [] })
+    useWebMcpBrowserStore.setState({ views: {} })
   }
 })

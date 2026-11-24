@@ -10,6 +10,9 @@ import { getAllSyncSessions, getSyncChildStores } from "@/sync/sync-refs"
 import { aggregateLiveSessionStatuses } from "@/sync/live-aggregate"
 import { getPermissionAlwaysPatterns } from "@/lib/permissions/permissionPayload"
 import { canAlwaysAllow, requestRiskRank } from "@/lib/supervision/requestRisk"
+import { countNeedsYou } from "@/lib/supervision/needsYouCount"
+import { useSupervisionStore } from "@/stores/useSupervisionStore"
+import { useWebMcpBrowserStore } from "@/stores/useWebMcpBrowserStore"
 
 /**
  * Streams a compact session/approval snapshot to the Electron tray (macOS menu
@@ -166,6 +169,7 @@ const buildTraySnapshotFromStores = (): TraySnapshot => {
     approvals: collectApprovals(sessions),
     branchByDirectory: buildBranchMap(),
     usage: buildUsage(),
+    needsYouCount: countNeedsYou(useSupervisionStore.getState().rows, useWebMcpBrowserStore.getState().views),
   })
 }
 
@@ -224,6 +228,8 @@ export function useTraySync(enabled = true): void {
       useSyncNotificationStore.subscribe(schedule),
       useQuotaStore.subscribe(schedule),
       useGitStore.subscribe(schedule),
+      useSupervisionStore.subscribe(schedule),
+      useWebMcpBrowserStore.subscribe(schedule),
     ]
     const pollTimer = setInterval(schedule, POLL_INTERVAL_MS)
 

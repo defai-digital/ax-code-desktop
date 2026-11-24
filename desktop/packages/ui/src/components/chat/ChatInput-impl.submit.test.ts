@@ -6,6 +6,7 @@ import { describe, expect, test, vi } from "vitest"
 import { parseChatSlashCommand } from "./chatInputSlashCommand"
 import { isQueueableMessage } from "./queuedMessageRouting"
 import { promptTextToRemember } from "@/lib/promptHistoryRecall"
+import { isQueuedMessageSendable, type QueuedMessage } from "@/stores/messageQueueStore"
 
 type LoadedHandler = (options?: { queuedOnly?: boolean; queuedMessageId?: string }) => Promise<void>
 
@@ -67,6 +68,7 @@ function createHarness(command: string, options: HarnessOptions = {}) {
   const storedDrafts = new Map<string | null, string>()
   const messageRef = { current: options.message ?? `/${command}` }
   const sent = vi.fn().mockResolvedValue(undefined)
+  const queuedInFlight = new Set<string>()
   const renderMagicPrompt = vi.fn().mockResolvedValue("Generated prompt")
   const toastError = vi.fn()
   const getGlobalSyncSessionStatus = vi.fn((): { type: string } | undefined => ({ type: "idle" }))
@@ -103,6 +105,7 @@ function createHarness(command: string, options: HarnessOptions = {}) {
   }
   const dependencies = {
     workSendDisabled: false,
+    draftTargetBlockedReasonRef: { current: null as string | null },
     toast: { error: toastError },
     t: (key: string) => key,
     getCurrentInputSnapshot: () => ({
@@ -110,7 +113,12 @@ function createHarness(command: string, options: HarnessOptions = {}) {
       hasContent: Boolean(messageRef.current) || state.attachedFiles.length > 0,
     }),
     queuedMessages: queueEntries,
-    hasQueuedMessages: queueEntries.length > 0,
+    hasQueuedMessages: queueEntries.some((entry) => isQueuedMessageSendable(entry as unknown as QueuedMessage)),
+    isQueuedMessageSendable,
+    markQueuedEntryInFlight: (id: string, inFlight: boolean) => {
+      if (inFlight) queuedInFlight.add(id)
+      else queuedInFlight.delete(id)
+    },
     currentSessionId: state.currentSessionId,
     newSessionDraftOpen: draft.open,
     newSessionDraft: draft,
@@ -191,6 +199,18 @@ function createHarness(command: string, options: HarnessOptions = {}) {
             [sessionId]: currentQueue.filter((message) => message.id !== queuedMessageId),
           }
         },
+        setDelivery: (sessionId: string, queuedMessageId: string, delivery: string | undefined) => {
+          const currentQueue = queueState.queuedMessages[sessionId] ?? []
+          queueState.queuedMessages = {
+            ...queueState.queuedMessages,
+            [sessionId]: currentQueue.map((message) => {
+              if (message.id !== queuedMessageId) return message
+              const { delivery: _previous, ...rest } = message
+              void _previous
+              return delivery ? { ...rest, delivery } : rest
+            }),
+          }
+        },
       }),
       setState: (updater: (value: typeof queueState) => typeof queueState) => {
         const next = updater(queueState)
@@ -240,6 +260,7 @@ function createHarness(command: string, options: HarnessOptions = {}) {
     toastError,
     addToQueue,
     queueState,
+    queuedInFlight,
     files,
     handleSubmitRef: dependencies.handleSubmitRef,
     getGlobalSyncSessionStatus,
@@ -376,6 +397,28 @@ describe("magic-command submit races", () => {
   })
 })
 
+describe("a draft whose worktree is confirmed gone (C UX-03)", () => {
+  test("Enter refuses with the reason and keeps the prompt and attachments", async () => {
+    const h = createHarness("", { message: "fix the flaky test" })
+    h.dependencies.draftTargetBlockedReasonRef.current = "Worktree feature is no longer available."
+    const submit = await loadSubmit(h.dependencies)
+    await submit()
+
+    expect(h.toastError).toHaveBeenCalledWith("Worktree feature is no longer available.")
+    expect(h.sent).not.toHaveBeenCalled()
+    expect(h.messageRef.current).toBe("fix the flaky test")
+    expect(h.state.attachedFiles).toEqual(h.files)
+  })
+
+  test("an existing session is not held by a draft's target", async () => {
+    const h = createHarness("", { message: "continue", sessionId: "session-1", draftOpen: false, attachments: [] })
+    h.dependencies.draftTargetBlockedReasonRef.current = "Worktree feature is no longer available."
+    const submit = await loadSubmit(h.dependencies)
+    await submit()
+    await vi.waitFor(() => expect(h.sent).toHaveBeenCalledOnce())
+  })
+})
+
 describe("a Council or Arena send refused for its model", () => {
   const refusedSend = async (reason: "cliLead" | "noToolCalling") => {
     const h = createHarness("", { sessionId: "session-1", draftOpen: false, attachments: [] })
@@ -488,6 +531,48 @@ describe("the work mode a send is committed under", () => {
     await submit()
 
     expect(sentMode(h)).toBe("agent")
+  })
+
+  test("an entry being sent, or unconfirmed, is not folded into a composer send or cleared by it", async () => {
+    // The runtime may already have that prompt (C UX-02); folding it in would deliver it twice.
+    const h = createHarness("", {
+      sessionId: "session-1",
+      draftOpen: false,
+      attachments: [],
+      queueEntries: [
+        { id: "queued-1", content: "already handed over", createdAt: 1, messageId: "msg_1", delivery: "sending" },
+        { id: "queued-2", content: "still waiting", createdAt: 2 },
+      ],
+    })
+    h.messageRef.current = "and one more thing"
+    const submit = await loadSubmit(h.dependencies)
+    await submit()
+
+    const payload = JSON.stringify(h.sent.mock.calls[0])
+    expect(payload).toContain("still waiting")
+    expect(payload).toContain("and one more thing")
+    expect(payload).not.toContain("already handed over")
+    expect((h.queueState.queuedMessages["session-1"] ?? []).map((entry) => entry.id)).toEqual(["queued-1"])
+  })
+
+  test("reads the queue as it is when the send goes out, not as this render saw it", async () => {
+    // The auto-sender may have started sending the head while the submit waited for a pasted file.
+    const h = createHarness("", {
+      sessionId: "session-1",
+      draftOpen: false,
+      attachments: [],
+      queueEntries: [{ id: "queued-1", content: "picked up meanwhile", createdAt: 1 }],
+    })
+    h.queueState.queuedMessages["session-1"] = [
+      { id: "queued-1", content: "picked up meanwhile", createdAt: 1, messageId: "msg_1", delivery: "sending" },
+    ]
+    h.messageRef.current = "composer text"
+    const submit = await loadSubmit(h.dependencies)
+    await submit()
+
+    const payload = JSON.stringify(h.sent.mock.calls[0])
+    expect(payload).toContain("composer text")
+    expect(payload).not.toContain("picked up meanwhile")
   })
 
   test("an attachment alone does not take a queued Council entry out of its mode", async () => {
@@ -737,5 +822,61 @@ describe("manual queue dispatch keeps its retry id", () => {
     expect(h.sent.mock.calls[0][9]).toMatchObject({ messageId: "msg_test" })
     await vi.waitFor(() => expect(h.queueState.queuedMessages["session-a"]).toHaveLength(1))
     expect(h.queueState.queuedMessages["session-a"][0].messageId).toBe("msg_test")
+  })
+
+  test("keeps the entry saved as sending while it is sent by hand, and removes it once sent", async () => {
+    // Taking it out before the send lost the prompt when the app quit mid-send (C UX-02).
+    const h = createHarness("explore", {
+      message: "",
+      sessionId: "session-a",
+      draftOpen: false,
+      queueEntries: [{ id: "queued-1", content: "queued prompt", createdAt: 1 }],
+    })
+    let finish: () => void = () => {}
+    h.sent.mockReturnValue(
+      new Promise<void>((resolve) => {
+        finish = resolve
+      }),
+    )
+    const submit = await loadSubmit(h.dependencies)
+    await submit({ queuedOnly: true, queuedMessageId: "queued-1" })
+
+    expect(h.queueState.queuedMessages["session-a"]).toMatchObject([{ id: "queued-1", delivery: "sending" }])
+    expect(h.queuedInFlight.has("queued-1")).toBe(true)
+
+    finish()
+    await vi.waitFor(() => expect(h.queueState.queuedMessages["session-a"]).toEqual([]))
+    expect(h.queuedInFlight.has("queued-1")).toBe(false)
+  })
+
+  test("a failed Send again leaves the entry unconfirmed, as it was", async () => {
+    const h = createHarness("explore", {
+      message: "",
+      sessionId: "session-a",
+      draftOpen: false,
+      queueEntries: [{ id: "queued-1", content: "queued prompt", createdAt: 1, messageId: "msg_1", delivery: "sending" }],
+    })
+    h.sent.mockRejectedValue(new Error("connection lost"))
+    const submit = await loadSubmit(h.dependencies)
+    await submit({ queuedOnly: true, queuedMessageId: "queued-1" })
+
+    expect(h.sent.mock.calls[0][9]).toMatchObject({ messageId: "msg_1" })
+    await vi.waitFor(() => expect(h.queuedInFlight.has("queued-1")).toBe(false))
+    expect(h.queueState.queuedMessages["session-a"]).toMatchObject([{ id: "queued-1", delivery: "sending" }])
+  })
+
+  test("a failed manual send returns a queued entry to the queue", async () => {
+    const h = createHarness("explore", {
+      message: "",
+      sessionId: "session-a",
+      draftOpen: false,
+      queueEntries: [{ id: "queued-1", content: "queued prompt", createdAt: 1 }],
+    })
+    h.sent.mockRejectedValue(new Error("connection lost"))
+    const submit = await loadSubmit(h.dependencies)
+    await submit({ queuedOnly: true, queuedMessageId: "queued-1" })
+
+    await vi.waitFor(() => expect(h.queuedInFlight.has("queued-1")).toBe(false))
+    expect(h.queueState.queuedMessages["session-a"]?.[0]?.delivery).toBeUndefined()
   })
 })

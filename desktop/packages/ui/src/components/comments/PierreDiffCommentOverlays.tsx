@@ -6,6 +6,7 @@ import { InlineCommentCard } from "./InlineCommentCard"
 import { InlineCommentInput } from "./InlineCommentInput"
 import { toPierreAnnotationId, type AnchoredReviewThread } from "./PierreDiffCommentUtils"
 import { ReviewThreadMarker } from "./ReviewThreadMarker"
+import type { PostRenderSignal } from "@/lib/postRenderSignal"
 
 interface PierreDiffCommentOverlaysProps {
   diffRootRef: React.RefObject<HTMLDivElement | null>
@@ -20,6 +21,8 @@ interface PierreDiffCommentOverlaysProps {
   onDelete: (draft: InlineCommentDraft) => void
   threads?: readonly AnchoredReviewThread[]
   onResolveThread?: (threadId: string) => void
+  /** Fires after each render of the diff; without it targets are checked only when the expected ids change. */
+  postRenderSignal?: PostRenderSignal
 }
 
 const NO_THREADS: readonly AnchoredReviewThread[] = []
@@ -60,6 +63,7 @@ export function PierreDiffCommentOverlays(props: PierreDiffCommentOverlaysProps)
     onDelete,
     threads = NO_THREADS,
     onResolveThread,
+    postRenderSignal,
   } = props
 
   const [retryTick, setRetryTick] = React.useState(0)
@@ -104,32 +108,22 @@ export function PierreDiffCommentOverlays(props: PierreDiffCommentOverlaysProps)
     [diffRootRef],
   )
 
+
+  // Unsaved text of an open comment input, by portal key: when its line node is replaced the input mounts again and
+  // starts from this instead of losing what was typed. Entries go with their annotation.
+  const unsavedTextRef = React.useRef<Map<string, string>>(new Map())
   React.useEffect(() => {
-    if (expectedTargetIds.length === 0) return
-
-    let cancelled = false
-    let attempts = 0
-    const maxAttempts = 12
-
-    const checkTargets = () => {
-      if (cancelled) return
-      const allResolved = expectedTargetIds.every((id) => Boolean(resolveTarget(id)))
-      if (allResolved || attempts >= maxAttempts) {
-        return
-      }
-      attempts += 1
-      requestAnimationFrame(() => {
-        if (cancelled) return
-        setRetryTick((tick) => tick + 1)
-        checkTargets()
-      })
+    const live = new Set<string>()
+    if (selectionAnnotationId) live.add(selectionAnnotationId)
+    if (editingDraftId) live.add(`draft-edit-${editingDraftId}`)
+    for (const key of Array.from(unsavedTextRef.current.keys())) {
+      if (!live.has(key)) unsavedTextRef.current.delete(key)
     }
-
-    checkTargets()
-    return () => {
-      cancelled = true
-    }
-  }, [expectedTargetIds, resolveTarget])
+  }, [editingDraftId, selectionAnnotationId])
+  const unsavedTextProps = (key: string) => ({
+    initialText: unsavedTextRef.current.get(key) ?? commentText,
+    onTextChange: (text: string) => unsavedTextRef.current.set(key, text),
+  })
 
   React.useEffect(() => {
     const root = diffRootRef.current
@@ -183,6 +177,39 @@ export function PierreDiffCommentOverlays(props: PierreDiffCommentOverlaysProps)
     [diffRootRef, fallbackMaxWidth],
   )
 
+  // A comment's line may not be mounted yet: the diff is virtualized and mounts lines as they scroll in. Re-check the
+  // targets after every Pierre render and re-render only when one appeared, went away or was replaced, so a comment
+  // attaches whenever its line arrives instead of giving up after a few frames (G UX-14). The width is compared too:
+  // Pierre keeps the light-DOM target while its shadow slot leaves and returns, so a line scrolled back into view
+  // can have the same target with a new size.
+  const targetsRef = React.useRef<Map<string, { target: HTMLElement | null; width: number | undefined }>>(new Map())
+  React.useEffect(() => {
+    let frame: number | null = null
+    const check = () => {
+      frame = null
+      const previous = targetsRef.current
+      const next = new Map<string, { target: HTMLElement | null; width: number | undefined }>()
+      let changed = previous.size !== expectedTargetIds.length
+      for (const id of expectedTargetIds) {
+        const target = resolveTarget(id)
+        const width = target ? resolveTargetMaxWidth(target) : undefined
+        next.set(id, { target, width })
+        const before = previous.get(id)
+        if (before?.target !== target || before.width !== width) changed = true
+      }
+      targetsRef.current = next
+      if (changed) setRetryTick((tick) => tick + 1)
+    }
+    check()
+    const unsubscribe = postRenderSignal?.subscribe(() => {
+      if (frame === null) frame = requestAnimationFrame(check)
+    })
+    return () => {
+      unsubscribe?.()
+      if (frame !== null) cancelAnimationFrame(frame)
+    }
+  }, [expectedTargetIds, postRenderSignal, resolveTarget, resolveTargetMaxWidth])
+
   void retryTick
 
   return (
@@ -212,7 +239,7 @@ export function PierreDiffCommentOverlays(props: PierreDiffCommentOverlaysProps)
         if (draft.id === editingDraftId) {
           return createPortal(
             <InlineCommentInput
-              initialText={commentText}
+              {...unsavedTextProps(`draft-edit-${draft.id}`)}
               fileLabel={fileLabel}
               lineRange={{
                 start: draft.startLine,
@@ -251,7 +278,7 @@ export function PierreDiffCommentOverlays(props: PierreDiffCommentOverlaysProps)
 
           return createPortal(
             <InlineCommentInput
-              initialText={commentText}
+              {...unsavedTextProps(selectionAnnotationId)}
               fileLabel={fileLabel}
               lineRange={selection}
               isEditing={false}

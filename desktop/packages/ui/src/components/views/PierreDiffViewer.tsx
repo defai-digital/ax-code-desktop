@@ -39,6 +39,7 @@ import { applyReviewHunkHighlight, clearReviewHunkHighlight, syncReviewHunkHighl
 import { isApproximateDiff } from "./diffParseProtocol"
 import { usePublishReviewHunks } from "./usePublishReviewHunks"
 import { useFileDiff } from "./useFileDiff"
+import { createPostRenderSignal } from "@/lib/postRenderSignal"
 
 // Threshold (bytes) above which syntax highlighting is degraded for performance
 const LARGE_CONTENT_BYTES = 500_000
@@ -517,6 +518,9 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
     [original.length, modified.length],
   )
 
+  // Stable for the viewer's lifetime, so it never invalidates `options` and rebuilds the diff.
+  const [postRenderSignal] = React.useState(createPostRenderSignal)
+
   const options = useMemo(
     () => ({
       theme: {
@@ -540,6 +544,7 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
       onLineSelected: handleSelectionChange,
       unsafeCSS: WEBKIT_SCROLL_FIX_CSS,
       renderAnnotation,
+      onPostRender: () => postRenderSignal.emit(),
     }),
     [
       darkRegistrationId,
@@ -550,6 +555,7 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
       wrapLines,
       handleSelectionChange,
       renderAnnotation,
+      postRenderSignal,
     ],
   )
 
@@ -808,52 +814,30 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
     }
   }, [fileName, hunkFocus, hunkScope, modified, original])
 
-  // MutationObserver to trigger re-renders when annotation DOM nodes are added/removed
+  // After each Pierre render (lines scrolled into view included) keep the focused hunk's highlight in step. This
+  // replaced a MutationObserver that attached 100 ms after mount and re-rendered the whole viewer on every change;
+  // the comment overlays now follow the same signal themselves (G UX-14).
   useEffect(() => {
-    const container = diffContainerRef.current
-    if (!container) return
-
-    let observer: MutationObserver | null = null
     let rafId: number | null = null
-
-    const setupObserver = () => {
-      const diffsContainer = container.querySelector("diffs-container")
-      if (!(diffsContainer instanceof HTMLElement)) return
-
-      const shadowRoot = diffsContainer.shadowRoot
-
-      observer = new MutationObserver(() => {
-        if (rafId) cancelAnimationFrame(rafId)
-        rafId = requestAnimationFrame(() => {
-          forceUpdate()
-          const focus = hunkFocusRef.current
-          const host = diffContainerRef.current
-          const scope = hunkScopeRef.current
-          const anchor =
-            focus && scope && fileName ? getReviewHunkAnchors(scope.id, scope.directory, fileName)?.[focus.hunkIndex] : undefined
-          if (host && focus && anchor) {
-            syncReviewHunkHighlightFrame(host, { anchor, hunkIndex: focus.hunkIndex }, pendingHunkScrollRef)
-          }
-          rafId = null
-        })
+    const unsubscribe = postRenderSignal.subscribe(() => {
+      if (rafId !== null) return
+      rafId = requestAnimationFrame(() => {
+        rafId = null
+        const focus = hunkFocusRef.current
+        const host = diffContainerRef.current
+        const scope = hunkScopeRef.current
+        const anchor =
+          focus && scope && fileName ? getReviewHunkAnchors(scope.id, scope.directory, fileName)?.[focus.hunkIndex] : undefined
+        if (host && focus && anchor) {
+          syncReviewHunkHighlightFrame(host, { anchor, hunkIndex: focus.hunkIndex }, pendingHunkScrollRef)
+        }
       })
-
-      observer.observe(diffsContainer, { childList: true, subtree: true })
-      if (shadowRoot) {
-        observer.observe(shadowRoot, { childList: true, subtree: true })
-      }
-    }
-
-    const timeoutId = setTimeout(setupObserver, 100)
-
+    })
     return () => {
-      clearTimeout(timeoutId)
-      if (rafId) cancelAnimationFrame(rafId)
-      observer?.disconnect()
+      unsubscribe()
+      if (rafId !== null) cancelAnimationFrame(rafId)
     }
-    // Same inputs as the render effect: a rebuild replaces the element this observes, and an observer
-    // on the detached node reports nothing.
-  }, [diffReady, diffThemeKey, fileName, language, modified, options, original, sharedDiff])
+  }, [fileName, postRenderSignal])
 
   if (typeof window === "undefined") {
     return null
@@ -903,6 +887,7 @@ export const PierreDiffViewer: React.FC<PierreDiffViewerProps> = ({
       onDelete={deleteDraft}
       threads={anchoredThreads}
       onResolveThread={resolveThread}
+      postRenderSignal={postRenderSignal}
     />
   )
 

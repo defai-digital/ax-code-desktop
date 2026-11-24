@@ -6,6 +6,7 @@ import { createEventRoutingIndex } from "./event-routing"
 import { appendNotification, useSyncNotificationStore } from "./notification-store"
 import { takeSessionRunStartedAt } from "./run-start-tracker"
 import { handleEvent } from "./sync-context-impl"
+import { useMessageQueueStore } from "@/stores/messageQueueStore"
 
 const event = (type: string, properties: unknown): Event => ({ type, properties }) as Event
 
@@ -50,5 +51,27 @@ describe("a later completed run supersedes an unseen error", () => {
     seedError(60_000)
     send("session.idle", { sessionID: "ses_1" })
     expect(hasError()).toBe(true)
+  })
+})
+
+describe("an error stops the session's queue (C UX-04)", () => {
+  afterEach(() => {
+    useMessageQueueStore.getState().clearAllQueues()
+  })
+
+  test("a session error holds what is queued, even for the session being watched", () => {
+    // The watched session's error is stored as viewed, so the notification alone held nothing.
+    useMessageQueueStore.getState().addToQueue("ses_1", { content: "next step" })
+    send("session.status", { sessionID: "ses_1", status: { type: "busy" } })
+    send("session.error", { sessionID: "ses_1", error: { message: "boom" } })
+    send("session.idle", { sessionID: "ses_1" })
+    expect(useMessageQueueStore.getState().heldQueues).toEqual({ ses_1: true })
+  })
+
+  test("a turn that ends without an error holds nothing", () => {
+    useMessageQueueStore.getState().addToQueue("ses_1", { content: "next step" })
+    send("session.status", { sessionID: "ses_1", status: { type: "busy" } })
+    send("session.idle", { sessionID: "ses_1" })
+    expect(useMessageQueueStore.getState().heldQueues).toEqual({})
   })
 })

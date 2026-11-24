@@ -3,12 +3,14 @@ import { revealToolPart } from "@/lib/revealToolPart"
 import type { Message, Part, Session } from "@defai-digital/ax-code-sdk/v2"
 
 import { ChatInput } from "./ChatInput"
+import { DraftHomeAttention } from "./DraftHomeAttention"
+import { DraftSetupSteps } from "./DraftSetupSteps"
 import { ReturnToWorkRecapStrip } from "./ReturnToWorkRecapStrip"
 import { SessionVersionSeal } from "@/components/supervision/SessionVersionSeal"
 import { SinceYouLeftStrip } from "@/components/supervision/SinceYouLeftStrip"
 import { openBesideChat } from "@/lib/supervision/openBesideChat"
 import { readSessionRecap } from "@/lib/supervision/sessionRecap"
-import { shouldAutoOpenChatDraft } from "./chatDraftState"
+import { canRetargetDraftToProject, shouldAutoOpenChatDraft } from "./chatDraftState"
 import { DraftPresetChips } from "./DraftPresetChips"
 import { ActivityBreadcrumb } from "./ActivityBreadcrumb"
 import { HookActivityRows } from "./HookActivityRows"
@@ -17,7 +19,6 @@ import { useUIStore } from "@/stores/useUIStore"
 import { Skeleton } from "@/components/ui/skeleton"
 import ChatEmptyState from "./ChatEmptyState"
 import { ProjectsHome } from "@/components/projects/ProjectsHome"
-import { NeedsYouQueue } from "@/components/projects/NeedsYouQueue"
 import { useGlobalSyncStore } from "@/sync/global-sync-store"
 import MessageList, { type MessageListHandle } from "./MessageList"
 import { PinnedRequestDock } from "./PinnedRequestDock"
@@ -123,6 +124,7 @@ const shouldIgnoreChatNavigationForFocus = (
 const hasBlockingChatOverlay = (): boolean => {
   const {
     isAboutDialogOpen,
+    isAllProjectsOpen,
     isCommandPaletteOpen,
     isHelpDialogOpen,
     isImagePreviewOpen,
@@ -133,6 +135,7 @@ const hasBlockingChatOverlay = (): boolean => {
 
   return (
     isAboutDialogOpen ||
+    isAllProjectsOpen ||
     isCommandPaletteOpen ||
     isHelpDialogOpen ||
     isImagePreviewOpen ||
@@ -595,6 +598,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
   // Picking a project row retargets the open draft instead of leaving the composer.
   const switchDraftToProject = React.useCallback(
     (projectId: string) => {
+      if (!canRetargetDraftToProject(useSessionUIStore.getState().newSessionDraft)) return
       const project = useProjectsStore.getState().projects.find((entry) => entry.id === projectId)
       if (!project) return
       setNewSessionDraftTarget(
@@ -988,6 +992,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
                 )}
               </div>
             )}
+            <DraftSetupSteps className="mt-6 w-full max-w-md text-left" />
             <DraftPresetChips
               onSubmit={(text) => useInputStore.getState().requestPresetSubmit(text)}
               className="mt-8 max-w-md"
@@ -1008,8 +1013,9 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
             // Order is the reading and Tab order: composer, sessions that need a person, projects,
             // then bounded starter suggestions. The queue sits below the composer so arriving requests never move it.
             <div data-draft-home className="flex w-full flex-col items-center">
+              <DraftSetupSteps className="chat-input-column mb-6" />
               {promptReadOnly ? <ReadOnlyPromptBanner /> : <ChatInput scrollToBottom={resumeToLatestInstant} />}
-              <NeedsYouQueue className="chat-input-column mt-1" />
+              <DraftHomeAttention />
               {showDraftProjects ? (
                 <div className="chat-input-column mt-8">
                   <ProjectsHome

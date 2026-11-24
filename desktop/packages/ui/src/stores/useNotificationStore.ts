@@ -11,6 +11,11 @@ export type NotificationItem = {
   timestamp: number
   read: boolean
   sessionId?: string
+  /** Where the session lives, so the row can open it in its own project. */
+  projectId?: string
+  directory?: string
+  /** Shown on the row, so two sessions with the same title in different projects can be told apart. */
+  projectLabel?: string
 }
 
 type NotificationState = {

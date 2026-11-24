@@ -68,3 +68,40 @@ describe("command palette supervision pop-out entry", () => {
     expect(findEntry()).toBeNull()
   })
 })
+
+describe("command palette All projects entry", () => {
+  let container: HTMLDivElement
+  let root: Root
+
+  beforeEach(() => {
+    globalThis.IS_REACT_ACT_ENVIRONMENT = true
+    Element.prototype.scrollIntoView = vi.fn()
+    globalThis.ResizeObserver ??= class {
+      observe() {}
+      unobserve() {}
+      disconnect() {}
+    } as unknown as typeof ResizeObserver
+    useUIStore.setState({ isCommandPaletteOpen: true, isCommandPaletteSearchMode: false, isAllProjectsOpen: false })
+    container = document.createElement("div")
+    document.body.appendChild(container)
+    root = createRoot(container)
+  })
+
+  afterEach(() => {
+    act(() => root.unmount())
+    container.remove()
+    useUIStore.setState({ isCommandPaletteOpen: false, isAllProjectsOpen: false })
+  })
+
+  test("opens the project list, the one route to it when the sidebar is hidden", async () => {
+    act(() => root.render(<CommandPalette />))
+    const entries = Array.from(document.body.querySelectorAll('[cmdk-item], [role="option"]')).filter(
+      (item) => item.textContent?.trim() === "projects.all.title",
+    )
+    expect(entries).toHaveLength(1)
+    await act(async () => {
+      entries[0]!.dispatchEvent(new MouseEvent("click", { bubbles: true }))
+    })
+    expect(useUIStore.getState().isAllProjectsOpen).toBe(true)
+  })
+})

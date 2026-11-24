@@ -29,28 +29,6 @@ export function shouldShowSinceYouLeft(input: SinceYouLeftInput): boolean {
   return input.updatedAt > input.snapshot + SINCE_YOU_LEFT_GRACE_MS
 }
 
-/** i18n key suffix for the state label, without the `supervision.sinceYouLeft.state.` prefix. */
-export type SinceYouLeftStateLabel = "review" | "error" | "permission" | "question" | "idle" | "goal"
-
-export function sinceYouLeftStateLabel(state: SupervisionState): SinceYouLeftStateLabel | null {
-  switch (state) {
-    case "review":
-      return "review"
-    case "error":
-      return "error"
-    case "permission":
-      return "permission"
-    case "question":
-      return "question"
-    case "idle":
-      return "idle"
-    case "goal":
-      return "goal"
-    case "running":
-      return null
-  }
-}
-
 /** Blocked-hook count for the strip chip, or null when there is nothing to show. */
 export function sinceYouLeftHookBlocks(blockedCount: number): number | null {
   return blockedCount > 0 ? blockedCount : null

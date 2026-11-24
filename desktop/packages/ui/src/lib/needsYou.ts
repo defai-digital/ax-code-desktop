@@ -1,4 +1,5 @@
 import type { SessionGoalSnapshot } from "@/lib/supervision/goal"
+import type { PendingRequestEntry } from "@/sync/sync-context"
 
 /**
  * Sessions that need a human decision. "Needs you" means the runtime is stopped and only a person can let it
@@ -45,6 +46,8 @@ export interface NeedsYouEntry {
   directory: string | null
   title: string
   goal: SessionGoalSnapshot | null
+  /** The session's last activity, which for a blocked session is when it started waiting. */
+  waitingSince: number
 }
 
 export interface FollowUpEntry {
@@ -96,6 +99,7 @@ export function listNeedsYouSessions(sessions: readonly NeedsYouSessionInput[]):
       directory: session.directory ?? null,
       title: session.title?.trim() || session.id,
       goal: session.goal ?? null,
+      waitingSince: session.updatedAt ?? 0,
     })
   }
   return entries
@@ -142,17 +146,42 @@ export function rankFollowUpEntries(entries: readonly FollowUpEntry[]): FollowUp
 }
 
 /**
- * Most urgent first: a session blocked on a permission or a question, then a goal that needs a person.
- * Order inside each tier is preserved.
+ * A session the runtime will answer by itself first, soonest deadline first, so an auto-allow countdown is never
+ * hidden under "Show all". Then most urgent: blocked on a permission or a question, then a goal that needs a person;
+ * inside a tier the longest wait first, as the board orders waiting rows (G UX-03).
+ * `autoOnceAtBySession` holds, per session, the earliest auto-allow deadline (epoch ms) of its pending requests.
  */
-export function rankNeedsYouEntries(entries: readonly NeedsYouEntry[]): NeedsYouEntry[] {
+export function rankNeedsYouEntries(
+  entries: readonly NeedsYouEntry[],
+  autoOnceAtBySession: ReadonlyMap<string, number> = new Map(),
+): NeedsYouEntry[] {
   return entries
-    .map((entry, index) => ({ entry, index }))
-    .sort(
-      (left, right) =>
-        NEEDS_YOU_URGENCY[left.entry.reason] - NEEDS_YOU_URGENCY[right.entry.reason] || left.index - right.index,
-    )
+    .map((entry, index) => ({ entry, index, deadline: autoOnceAtBySession.get(entry.sessionId) ?? null }))
+    .sort((left, right) => {
+      if (left.deadline !== null || right.deadline !== null) {
+        if (left.deadline === null) return 1
+        if (right.deadline === null) return -1
+        if (left.deadline !== right.deadline) return left.deadline - right.deadline
+      }
+      return (
+        NEEDS_YOU_URGENCY[left.entry.reason] - NEEDS_YOU_URGENCY[right.entry.reason] ||
+        left.entry.waitingSince - right.entry.waitingSince ||
+        left.index - right.index
+      )
+    })
     .map(({ entry }) => entry)
+}
+
+/** The earliest auto-allow deadline of each session's pending permissions. */
+export function autoOnceDeadlines(requests: readonly PendingRequestEntry[]): Map<string, number> {
+  const deadlines = new Map<string, number>()
+  for (const entry of requests) {
+    const at = entry.kind === "permission" ? entry.request.autoOnceAt : undefined
+    if (typeof at !== "number" || !Number.isFinite(at)) continue
+    const current = deadlines.get(entry.sessionId)
+    if (current === undefined || at < current) deadlines.set(entry.sessionId, at)
+  }
+  return deadlines
 }
 
 /** Choosing a needs-you row selects that session. */

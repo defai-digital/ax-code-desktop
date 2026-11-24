@@ -2940,6 +2940,19 @@ describe("createWorktree through the runtime", () => {
     expect(listed).not.toContain(fs.realpathSync(bare))
   })
 
+  it("reports a listing that failed instead of answering no worktrees", async () => {
+    if (!canRunGit()) return
+    // A folder that is not a repository makes `git worktree list` fail; an empty answer would read as
+    // "every worktree is gone" to a draft aimed at one.
+    const plain = createTempDir()
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    try {
+      await expect(getWorktrees(plain)).rejects.toThrow()
+    } finally {
+      warn.mockRestore()
+    }
+  })
+
   it("runs no git worktree add itself", async () => {
     if (!canRunGit() || process.platform === "win32") return
     const repo = initWorktreeRepo()

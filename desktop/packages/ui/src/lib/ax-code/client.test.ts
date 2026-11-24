@@ -507,3 +507,49 @@ test("directory listing cache keeps literal roots and returned POSIX backslashes
   await axCodeClient.listLocalDirectory(plain)
   expect(listDirectory.mock.calls.map(([directory]) => directory)).toEqual([plain, spaced])
 })
+
+describe("explicit-directory requests", () => {
+  test("name the same normalized directory in the query or body as in the scoped client's header", async () => {
+    // withDirectory used to normalize; a raw trailing slash in the query while the header carried the normalized path
+    // could make the runtime answer for another directory key than the header names.
+    const originalFetch = globalThis.fetch
+    const perRequest: string[][] = []
+    globalThis.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : new Request(String(input), init)
+      const url = new URL(request.url)
+      const seen: string[] = []
+      const queryDirectory = url.searchParams.get("directory")
+      if (queryDirectory) seen.push(queryDirectory)
+      request.headers.forEach((value, name) => {
+        if (name.toLowerCase().includes("directory")) seen.push(decodeURIComponent(value))
+      })
+      if (request.method === "POST") {
+        const body = (await request.clone().json().catch(() => ({}))) as { directory?: string }
+        if (body.directory) seen.push(body.directory)
+        perRequest.push(seen)
+        return new Response(JSON.stringify({ id: "ses_1" }), { status: 200, headers: { "content-type": "application/json" } })
+      }
+      perRequest.push(seen)
+      const payload = url.pathname.endsWith("/config/providers") ? { providers: [], default: {} } : []
+      return new Response(JSON.stringify(payload), { status: 200, headers: { "content-type": "application/json" } })
+    }) as typeof fetch
+
+    try {
+      // An explicit directory wins over the shared current one, which it must neither use nor move.
+      axCodeClient.setDirectory("/repo/active")
+      await axCodeClient.listAgents("/repo/explicit/")
+      await axCodeClient.getProviders("/repo/explicit/")
+      await axCodeClient.createSessionInDirectory("/repo/explicit/")
+      await axCodeClient.listCommands("/repo/explicit/")
+
+      expect(perRequest).toHaveLength(4)
+      for (const seen of perRequest) {
+        expect(seen.length).toBeGreaterThan(0)
+        expect(new Set(seen)).toEqual(new Set(["/repo/explicit"]))
+      }
+      expect(axCodeClient.getDirectory()).toBe("/repo/active")
+    } finally {
+      globalThis.fetch = originalFetch
+    }
+  })
+})

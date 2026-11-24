@@ -592,8 +592,11 @@
 [data-density="compact"] .mission-control-row {
   padding-block: 0.5rem;
 }
-[data-density="compact"] .mission-activity,
-[data-density="compact"] .mission-activity-line {
+/* Compact keeps the activity line: it says what the agent is doing now and, first, that the text may be stale, which
+   is the point of scanning many sessions (G UX-04). It drops the branch and the age instead; the project stays, since
+   an ungrouped board has no other place that names it. */
+[data-density="compact"] .mission-branch,
+[data-density="compact"] .mission-age {
   display: none;
 }
 @container mission-board (min-width: 52rem) {

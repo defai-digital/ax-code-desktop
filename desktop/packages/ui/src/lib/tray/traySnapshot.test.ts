@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest"
 
-import { buildTraySnapshot, countPendingApprovals } from "./traySnapshot"
+import { buildTraySnapshot } from "./traySnapshot"
 
 const baseInput = {
   sessions: [
@@ -12,6 +12,7 @@ const baseInput = {
   statusBySession: { "root-1": "busy", "root-3": "retry" },
   unseenCountBySession: { "root-1": 2, "root-3": 1 },
   errorBySession: { "root-3": true },
+  needsYouCount: 0,
   approvals: [
     { kind: "permission" as const, id: "perm-1", sessionId: "root-1", title: "Bash", resource: "rm -rf build" },
     { kind: "question" as const, id: "q-1", sessionId: "root-3", title: "Which branch?" },
@@ -102,36 +103,20 @@ describe("buildTraySnapshot", () => {
     expect(snapshot.approvals.map((approval) => approval.directory)).toEqual(["/repo/app", "/repo/other"])
   })
 
-  test("the dock badge counts every pending decision, child sessions and requests past the menu limit included", () => {
-    const decisions = Array.from({ length: 7 }, (_, index) => ({
-      kind: (index % 2 ? "question" : "permission") as "question" | "permission",
+  test("the dock badge shows the needs-you count, not the number of requests in the menu", () => {
+    // Three requests in one session are one session that needs you, as on the titlebar pill (G UX-03).
+    const decisions = Array.from({ length: 3 }, (_, index) => ({
+      kind: "permission" as const,
       id: `req-${index}`,
-      sessionId: index === 0 ? "child-1" : "root-1",
+      sessionId: "root-1",
       title: "Bash",
     }))
-    const snapshot = buildTraySnapshot({ ...baseInput, approvals: [...decisions, decisions[0]], maxApprovals: 2 })
-    expect(snapshot.approvals).toHaveLength(2)
-    expect(snapshot.dockBadgeCount).toBe(7)
-    // A request listed twice (a session lingering in two stores) appears once in the menu, as the badge counts it.
-    const twice = buildTraySnapshot({ ...baseInput, approvals: [decisions[1], decisions[1]] })
-    expect(twice.approvals).toHaveLength(1)
-    expect(twice.dockBadgeCount).toBe(1)
-    // Unread activity alone no longer raises the badge; it has its own titlebar count.
-    expect(buildTraySnapshot({ ...baseInput, approvals: [] }).dockBadgeCount).toBe(0)
-  })
-
-  test("countPendingApprovals counts a request once and ignores rows without an identity", () => {
-    expect(
-      countPendingApprovals([
-        { kind: "permission", sessionId: "a", id: "1" },
-        { kind: "permission", sessionId: "a", id: "1" },
-        { kind: "question", sessionId: "a", id: "1" },
-        { kind: "permission", sessionId: "b", id: "1" },
-        { kind: "permission", sessionId: "", id: "2" },
-        { kind: "permission", sessionId: "a", id: null },
-        null,
-      ]),
-    ).toBe(3)
+    const snapshot = buildTraySnapshot({ ...baseInput, approvals: decisions, needsYouCount: 1 })
+    expect(snapshot.approvals).toHaveLength(3)
+    expect(snapshot.dockBadgeCount).toBe(1)
+    // A blocked goal has no request in the menu, and still raises the badge.
+    expect(buildTraySnapshot({ ...baseInput, approvals: [], needsYouCount: 1 }).dockBadgeCount).toBe(1)
+    expect(buildTraySnapshot({ ...baseInput, approvals: [], needsYouCount: 0 }).dockBadgeCount).toBe(0)
   })
 
   test("caps the menu rows and defaults the instance label", () => {

@@ -6,7 +6,6 @@ import {
   sinceYouLeftActivityAt,
   sinceYouLeftHookBlocks,
   sinceYouLeftRelativeParts,
-  sinceYouLeftStateLabel,
 } from "./sinceYouLeft"
 
 describe("shouldShowSinceYouLeft", () => {
@@ -56,17 +55,6 @@ describe("sinceYouLeftActivityAt", () => {
     expect(sinceYouLeftActivityAt(9000, { createdAt: 3000, updatedAt: 4000 })).toBe(9000)
     expect(sinceYouLeftActivityAt(1000, null)).toBe(1000)
     expect(sinceYouLeftActivityAt(1000, undefined)).toBe(1000)
-  })
-})
-
-describe("sinceYouLeftStateLabel", () => {
-  test("maps every non-running state and returns null for running", () => {
-    expect(sinceYouLeftStateLabel("review")).toBe("review")
-    expect(sinceYouLeftStateLabel("error")).toBe("error")
-    expect(sinceYouLeftStateLabel("permission")).toBe("permission")
-    expect(sinceYouLeftStateLabel("question")).toBe("question")
-    expect(sinceYouLeftStateLabel("idle")).toBe("idle")
-    expect(sinceYouLeftStateLabel("running")).toBeNull()
   })
 })
 
