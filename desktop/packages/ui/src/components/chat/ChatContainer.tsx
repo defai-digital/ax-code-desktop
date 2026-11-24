@@ -1005,8 +1005,7 @@ export const ChatContainer: React.FC<ChatContainerProps> = ({ autoOpenDraft = tr
           )}
         >
           {showDraftHome ? (
-            // Order is the reading and Tab order: composer, sessions that need a person, projects,
-            // then bounded starter suggestions. The queue sits below the composer so arriving requests never move it.
+            // Keep requests that need attention below the composer so arriving requests never move it.
             <div data-draft-home className="flex w-full flex-col items-center">
               <DraftSetupSteps className="chat-input-column mb-6" />
               {promptReadOnly ? <ReadOnlyPromptBanner /> : <ChatInput scrollToBottom={resumeToLatestInstant} />}
