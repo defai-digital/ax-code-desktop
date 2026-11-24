@@ -40,13 +40,16 @@ describe("AX Code layout", () => {
     for (const view of ['view: "terminal"', 'view: "plan"', 'view: "context"']) expect(rail).toContain(view)
   })
 
-  test("the header tracks the configured model and the canonical directory key", () => {
+  test("context usage tracks the configured model and the header keeps the directory key", () => {
     const header = source("layout/Header.tsx")
+    const usage = source("chat/UsageIndicator.tsx")
 
     // Subscribing to the store's stable getter did not re-render on a model switch, so the
-    // context limits and usage percentage stayed on the previous model.
-    expect(header).toContain("const currentModel = useConfigStore((state) => state.getCurrentModel())")
+    // context limits and usage percentage stayed on the previous model. The composer indicator
+    // owns that subscription now.
+    expect(usage).toContain("const currentModel = useConfigStore((s) => s.getCurrentModel())")
     expect(header).not.toContain("state.getCurrentModel)")
+    expect(usage).not.toContain("state.getCurrentModel)")
     // Header and ContextPanel must read the same keys the store writes.
     expect(header).toContain("normalizeContextPanelDirectoryKey as normalize")
   })

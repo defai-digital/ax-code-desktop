@@ -599,7 +599,7 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
     return (
       <div
         key={session.id}
-        className={cn("group relative flex items-center rounded-sm px-1.5 py-1", depth > 0 && "pl-[20px]")}
+        className={cn("group relative flex items-center rounded-sm px-1.5 py-0.5", depth > 0 && "pl-[20px]")}
       >
         <div className="flex min-w-0 flex-1 flex-col gap-0">
           <form
@@ -872,6 +872,12 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
       suppressNextSelectRef.current = true
     }
   }
+
+  const handleRowContextMenu = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (selectionModeEnabled) return
+    event.preventDefault()
+    setOpenSidebarMenuKey(menuInstanceKey)
+  }
   const menuLayout = sessionMenuLayout()
   const moreMenuActions = new Set<string>(menuLayout.more)
   const sessionMenuContent = (
@@ -900,7 +906,11 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
         )}
         {isPinnedSession ? t("sessions.sidebar.session.menu.unpin") : t("sessions.sidebar.session.menu.pin")}
       </DropdownMenuItem>
-      <DropdownMenuItem onClick={() => void copySessionId(session.id, t)} className="[&>svg]:mr-1">
+      <DropdownMenuItem
+        data-session-action="copy-id"
+        onClick={() => void copySessionId(session.id, t)}
+        className="[&>svg]:mr-1"
+      >
         <Icon name="file-copy" className="mr-1 h-4 w-4" />
         {t("sessions.sidebar.session.menu.copyId")}
       </DropdownMenuItem>
@@ -1104,8 +1114,9 @@ function SessionNodeItemComponent(props: Props): React.ReactNode {
           data-session-scope={sessionDirectory ?? ""}
           data-session-archived={archivedBucket ? "1" : "0"}
           data-session-display-mode={displayMode}
+          onContextMenu={handleRowContextMenu}
           className={cn(
-            "group relative my-0.5 flex items-center rounded-sm px-1.5 py-1",
+            "group relative my-0 flex items-center rounded-sm px-1.5 py-0.5",
             isMissingDirectory ? "opacity-75" : "",
             depth > 0 && "pl-[20px]",
             isRowSelected && "bg-primary/15",

@@ -47,7 +47,6 @@ import { appendQueuedContentToDraft } from "@/lib/messages/queuedMessageDraft"
 import { StatusRow } from "./StatusRow"
 import { PendingChangesBar } from "./PendingChangesBar"
 import { DoneNotCommittedNudge } from "./DoneNotCommittedNudge"
-import { RecentPromptChips } from "./RecentPromptChips"
 import { recordRecentPrompt } from "@/lib/recentPrompts"
 import { appendPromptHistory, listPromptHistory } from "@/lib/promptHistoryApi"
 import {
@@ -1094,7 +1093,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
 
   const isDesktopExpanded = isExpandedInput && !isMobile
   const chatInputRadius = "var(--radius-2xl)"
-  const useCompactChatPlaceholder = isMobile || isNarrowComposer
 
   React.useEffect(() => {
     const element = dropZoneRef.current
@@ -4582,15 +4580,6 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
               ) : null
             }
           />
-          {!message.trim() && !newSessionDraftOpen ? (
-            <RecentPromptChips
-              className="mb-1.5"
-              onSelect={(prompt) => {
-                useInputStore.getState().setPendingInputText(prompt, "replace")
-                textareaRef.current?.focus()
-              }}
-            />
-          ) : null}
           {showDraftTargetSelectors && selectedDraftProject ? (
             <div className="mb-1.5 flex min-w-0 items-center gap-1.5 px-0.5">
               {/* Searchable project switcher: a bordered chip that opens a popover with
@@ -4853,11 +4842,7 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                     currentSessionId || newSessionDraftOpen
                       ? inputMode === "shell"
                         ? t("chat.chatInput.placeholder.shell")
-                        : t(
-                            useCompactChatPlaceholder
-                              ? "chat.chatInput.placeholder.chatCompact"
-                              : "chat.chatInput.placeholder.chat",
-                          )
+                        : ""
                       : t("chat.chatInput.placeholder.selectSession")
                   }
                   disabled={!currentSessionId && !newSessionDraftOpen}
@@ -4870,8 +4855,8 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                     isDesktopExpanded && "flex-1 min-h-0",
                   )}
                   className={cn(
-                    "min-h-[52px] resize-none border-0 px-3 rounded-b-none appearance-none hover:border-transparent bg-transparent relative z-10",
-                    isDesktopExpanded ? "h-full min-h-0 py-4" : isMobile ? "py-2.5" : "pt-4 pb-2",
+                    "min-h-[36px] resize-none border-0 px-3 rounded-b-none appearance-none hover:border-transparent bg-transparent relative z-10",
+                    isDesktopExpanded ? "h-full min-h-0 py-4" : isMobile ? "py-2.5" : "py-2",
                     inputMode === "shell" && "font-mono",
                     highlightedComposerContent && "text-transparent caret-[var(--surface-foreground)]",
                   )}
@@ -4886,9 +4871,9 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
                 />
               </div>
             </div>
-            {/* Optional Coder/QA models sit above the footer so Send stays anchored bottom-right. */}
+            {/* Coder, QA and Suggest stay one click away, collapsed so the empty composer stays short. */}
             {!isMobile && inputMode !== "shell" && (currentSessionId || newSessionDraftOpen) ? (
-              <AgentTeamRow compact={isNarrowComposer} className="flex-shrink-0 px-2.5 pt-1" />
+              <ComposerAgentTeam compact={isNarrowComposer} />
             ) : null}
             <div
               className={cn(
@@ -5036,5 +5021,30 @@ const ChatInputComponent: React.FC<ChatInputProps> = ({ onOpenSettings, scrollTo
 }
 
 ChatInputComponent.displayName = "ChatInput"
+
+function ComposerAgentTeam({ compact }: { compact: boolean }) {
+  const { t } = useI18n()
+  const [open, setOpen] = React.useState(false)
+  const panelId = React.useId()
+  return (
+    <div className="flex-shrink-0 px-2.5 pt-1">
+      <button
+        type="button"
+        aria-expanded={open}
+        aria-controls={panelId}
+        onClick={() => setOpen((current) => !current)}
+        className="inline-flex min-h-7 items-center gap-1 rounded-md px-1.5 typography-micro text-muted-foreground hover:bg-interactive-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      >
+        <Icon name={open ? "arrow-down-s" : "arrow-right-s"} className="h-3.5 w-3.5" aria-hidden="true" />
+        {t("chat.agentTeam.groupLabel")}
+      </button>
+      {open ? (
+        <div id={panelId}>
+          <AgentTeamRow compact={compact} />
+        </div>
+      ) : null}
+    </div>
+  )
+}
 
 export const ChatInput = React.memo(ChatInputComponent)

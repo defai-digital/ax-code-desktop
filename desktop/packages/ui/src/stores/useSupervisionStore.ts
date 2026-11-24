@@ -24,6 +24,8 @@ type PersistedSupervision = {
   density: SupervisionDensity
   boardGroupBy: BoardGroupBy
   inspectorLabels: boolean
+  /** The right-hand Tools rail is fully collapsed. Secondary controls stay inside it. */
+  inspectorCollapsed: boolean
   recentSessionIds: string[]
   lastViewedAt: Record<string, number>
   workingSets: WorkingSet[]
@@ -35,6 +37,7 @@ export type SupervisionStore = PersistedSupervision & {
   setDensity: (density: SupervisionDensity) => void
   setBoardGroupBy: (boardGroupBy: BoardGroupBy) => void
   setInspectorLabels: (visible: boolean) => void
+  setInspectorCollapsed: (collapsed: boolean) => void
   rows: SupervisionRow[]
   setRows: (rows: SupervisionRow[]) => void
   /** Browser-style back/forward history of viewed sessions for this app run. */
@@ -76,6 +79,7 @@ const EMPTY: PersistedSupervision = {
   density: "comfortable",
   boardGroupBy: "project",
   inspectorLabels: false,
+  inspectorCollapsed: false,
   recentSessionIds: [],
   lastViewedAt: {},
   workingSets: [],
@@ -111,6 +115,7 @@ export const readPersistedSupervision = (storage: Storage): PersistedSupervision
       density: parsed.density === "compact" ? "compact" : "comfortable",
       boardGroupBy: parsed.boardGroupBy === "none" ? "none" : "project",
       inspectorLabels: parsed.inspectorLabels === true,
+      inspectorCollapsed: parsed.inspectorCollapsed === true,
       recentSessionIds: isStringArray(parsed.recentSessionIds) ? parsed.recentSessionIds.slice(0, RECENT_LIMIT) : [],
       lastViewedAt,
       workingSets,
@@ -129,6 +134,7 @@ const persist = (storage: Storage, state: PersistedSupervision): void => {
         density: state.density,
         boardGroupBy: state.boardGroupBy,
         inspectorLabels: state.inspectorLabels,
+        inspectorCollapsed: state.inspectorCollapsed,
         recentSessionIds: state.recentSessionIds,
         lastViewedAt: state.lastViewedAt,
         workingSets: state.workingSets,
@@ -161,6 +167,7 @@ export const useSupervisionStore = defineStore(
         density,
         boardGroupBy,
         inspectorLabels,
+        inspectorCollapsed,
         recentSessionIds,
         lastViewedAt,
         workingSets,
@@ -170,6 +177,7 @@ export const useSupervisionStore = defineStore(
         density,
         boardGroupBy,
         inspectorLabels,
+        inspectorCollapsed,
         recentSessionIds,
         lastViewedAt,
         workingSets,
@@ -181,6 +189,7 @@ export const useSupervisionStore = defineStore(
       setDensity: (density) => update({ density }),
       setBoardGroupBy: (boardGroupBy) => update({ boardGroupBy }),
       setInspectorLabels: (inspectorLabels) => update({ inspectorLabels }),
+      setInspectorCollapsed: (inspectorCollapsed) => update({ inspectorCollapsed }),
       rows: [],
       setRows: (rows) => set({ rows }),
       navHistory: [],

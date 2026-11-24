@@ -25,7 +25,7 @@ type SessionDisplayStore = {
 export const useSessionDisplayStore = create<SessionDisplayStore>()(
   persist(
     (set) => ({
-      displayMode: "default",
+      displayMode: "minimal",
       showRecentSection: true,
       showScheduledSection: true,
       scheduledSectionCollapsed: false,
