@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+### Changed
+
+- Use the AX Code bracket-and-slash mark in the macOS menu bar. A pulsing dot shows activity and a steady dot shows unread updates.
+
 ## [7.30.31] - 2026-11-24
 
 ### Fixed
