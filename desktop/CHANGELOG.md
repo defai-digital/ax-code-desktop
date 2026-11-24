@@ -4,9 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
 
+## [7.30.32] - 2026-11-24
+
 ### Changed
 
 - Use the AX Code bracket-and-slash mark in the macOS menu bar. A pulsing dot shows activity and a steady dot shows unread updates.
+- Hold the current scroll position while older chat messages load. Show context usage in the composer footer, and put Copy Session ID in the session menu and Changes and Open in Window in the inspector rail.
 
 ### Fixed
 
