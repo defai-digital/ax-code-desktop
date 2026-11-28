@@ -14,9 +14,13 @@ Upstream's SDK README defines the supported integration surfaces:
 | First-party desktop/native GUI                  | `@defai-digital/ax-code-sdk/grpc` (proto contract)     |
 | TypeScript/JavaScript over raw HTTP             | `@defai-digital/ax-code-sdk/http` with `ax-code serve` |
 
-This app uses the **headless** path: the web server launches the runtime via
-`startHeadlessBackend` (`packages/web/server/lib/ax-code/lifecycle.js`) and
-proxies its HTTP API to the frontend. On macOS/Linux it passes explicit
+This app uses the **headless** path for its local backend: in Electron desktop builds
+(and `pnpm run dev`), the Electron main process spawns and supervises the
+`ax-code` runtime directly (`packages/electron/src/axcode-runtime-supervisor.js`)
+and passes `AX_CODE_HOST` / `AX_CODE_PORT` to the web server. In standalone web
+mode (or when `AX_CODE_DESKTOP_SUPERVISE_RUNTIME=0`), the web server launches the
+runtime via `startHeadlessBackend` (`packages/web/server/lib/ax-code/lifecycle.js`)
+and proxies its HTTP API to the frontend. On macOS/Linux it passes explicit
 `binary` and `args` into the SDK so wrapper launches and custom binary names
 still use SDK-owned readiness, auth, diagnostics, and shutdown behavior. On
 Windows/WSL it falls back to spawning `ax-code serve` directly, which matches
@@ -41,7 +45,7 @@ states the transport "is not the dominant latency source for normal agent
 turns". Conclusion: migrating to the gRPC facade today changes API shape but
 not performance. Adopt it (incrementally, as future-proofing) once upstream
 ships the native gRPC server, or earlier only if measurements from
-`scripts/ax-code-perf-report.mjs` show pipeline overhead actually matters.
+`desktop/scripts/ax-code-perf-report.mjs` show pipeline overhead actually matters.
 
 ## Published SDK and runtime compatibility
 

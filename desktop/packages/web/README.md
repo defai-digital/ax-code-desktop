@@ -9,7 +9,7 @@ web runtime is primarily for local development and diagnostics.
 ## Prerequisites
 
 - AX Code CLI installed and signed in
-- Node.js 24
+- Node.js 26 or newer
 - pnpm 10.33.4
 
 ## Development Start

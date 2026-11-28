@@ -48,7 +48,7 @@ public key to `644`.
 
 For production release signing, the generated public key must match the pinned
 key above. If you intentionally rotate the release key, update the pinned key in
-`desktop/scripts/minisign-artifacts.sh`, `.github/workflows/desktop-release.yml`,
+`desktop/scripts/minisign-artifacts.sh`, `resources/keys/ax-minisign.pub`,
 `README.md`, and this document in the same change that updates the GitHub
 Actions secret.
 
@@ -164,18 +164,17 @@ minisign -V \
 
 ## GitHub Actions secrets
 
-The release workflow prefers these shared repository secrets before a release
-can be published:
+The shadow/release signing workflows (`.github/workflows/desktop-shadow.yml` and
+`desktop/scripts/sign-shadow-artifacts.sh`) use these repository secrets:
 
 ```text
-AX_CODE_MINISIGN_SECRET_KEY_B64
-AX_CODE_MINISIGN_PASSWORD
+AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64
+AX_CODE_DESKTOP_MINISIGN_PASSWORD
 ```
 
-`AX_CODE_MINISIGN_SECRET_KEY_B64` is the base64-encoded minisign secret key file
-that matches the pinned public key. `AX_CODE_MINISIGN_PASSWORD` unlocks that key
-during the signing job. The legacy `AX_CODE_DESKTOP_MINISIGN_*` secrets remain
-fallbacks during migration.
+`AX_CODE_DESKTOP_MINISIGN_SECRET_KEY_B64` is the base64-encoded minisign secret key
+file that matches the pinned public key. `AX_CODE_DESKTOP_MINISIGN_PASSWORD` unlocks
+that key during the signing job.
 
 ## macOS Keychain for local signing
 

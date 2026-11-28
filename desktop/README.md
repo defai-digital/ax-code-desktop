@@ -1,116 +1,123 @@
-# AX Code Desktop
+# AX Code Desktop workspace
 
-AX Code Desktop is the desktop UI for [AX Code](https://github.com/defai-digital/ax-code). It gives AX Code users a workspace for chat sessions, file review, diffs, Git operations, terminals, project notes, and multi-agent workflows.
+This directory holds the source for AX Code Desktop, the desktop UI for [AX Code](https://github.com/defai-digital/ax-code):
+chat sessions, supervision across projects, file review, diffs, Git, terminals, scheduled tasks and project notes.
 
-Install, update, and platform support for the signed app are in the repository [README](../README.md).
+> [!NOTE]
+> To install, update or check platform support for the signed app, see the [repository README](../README.md).
+> To set up a development checkout, see [CONTRIBUTING.md](./CONTRIBUTING.md).
 
-```bash
-curl -fsSL https://download.automatosx.com/ax-code-desktop/install | bash
-```
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -Command "irm https://download.automatosx.com/ax-code-desktop/install.ps1 | iex"
-```
-
-The macOS and Ubuntu command is the same. Windows uses the PowerShell command and supports x64 only.
-The signed app includes the pinned AX Code runtime. Close **AX Code** before installing. User data
-and credentials are kept.
-
-Releases are published from this repository as `v*` tags:
-[defai-digital/ax-code-desktop](https://github.com/defai-digital/ax-code-desktop/releases).
-
-## First run
-
-1. Open **AX Code**.
-2. Add a project folder.
-3. Start or select a chat session.
-4. Use the Git, Files, Diff, Terminal, and Plan views as needed.
-
-The app runs sessions on the current machine and can open a mini-chat window for an active session.
-Install the AX Code CLI only when you also want the terminal UI.
-
-## Updates
-
-**AX Code → Check for Updates** on macOS, or **AX Code → Check for Updates** in the application menu
-on Windows and Linux. The check uses the newest stable `v*` release and waits for you to download
-and install.
-
-You can also run the install command again. Close the app first.
-
-## What you can do
+## Features
 
 ### Chat and sessions
 
 - Run AX Code chat sessions in a full workspace UI.
-- Branch, fork, undo, and redo conversation turns.
+- Branch, fork, undo and redo conversation turns.
 - Queue messages and keep long-running sessions visible.
 - Use plan/build workflows and project notes.
-- Open mini-chat windows for focused work.
+- Open mini-chat windows for focused work on one session.
+
+### Supervision and navigation
+
+- **Workspace** opens the current conversation.
+- **Portfolio** opens Mission Control over the existing project and session state, showing what needs you. Mission
+  Control can also pop out into its own window.
+- **Session views** offers the session grid; **Review changes** opens the current project's changes.
+- The new-session page lists Projects before starter suggestions. Three starters show at first; **Show more** reveals
+  the rest, including project starters.
+- Sidebar directory labels add distinguishing suffixes when names collide; the full path is available on hover and in
+  accessible action names.
+- A **Retrying** state on a supervision row reflects a retry reported by the runtime. It does not change the run's
+  urgency or count as a new approval request.
+
+The right project sidebar and the inspector share space: opening the sidebar temporarily hides the inspector but keeps
+its editor; opening a tool reveals the inspector again. In narrow windows the tool takes the full content width and
+**Back to conversation** returns through the unsaved-file guard. Wider windows also offer **Focus panel** and
+**Restore split view**. None of these display changes discard the current message draft.
 
 ### Git and GitHub
 
-- Stage files, commit, push, pull, merge, and rebase.
+- Stage files, commit, push, pull, merge and rebase.
 - Review diffs with inline or stacked views.
 - Manage branches and worktrees.
 - Create pull requests with generated descriptions.
 - Recover from merge/rebase conflicts with guided UI state.
-- Diffs, patches and partial commits stay inside the repository and the files you selected: a symlinked folder
-  that points outside the repository is not followed.
+- Diffs, patches and partial commits stay inside the repository and the files you selected; a symlinked folder that
+  points outside the repository is not followed.
 
 ### Files and terminal
 
 - Browse and edit workspace files.
 - Inspect large diffs without loading the whole workspace at once.
-- Run integrated terminal sessions by project directory. Deleting a session stops its shell, on Windows
-  too.
+- Run integrated terminal sessions per project directory. Deleting a session stops its shell, on Windows too.
 - Keep project actions and dev servers close to the chat context.
 
-### Desktop
+### Scheduled tasks
 
-- Native desktop shell for macOS Apple Silicon, Windows x64, and Ubuntu Desktop 24.04+ amd64/arm64.
-- Multi-window workflows.
-- Deep links and desktop menu actions.
-- Local runtime management for the web UI.
+Open **Scheduled** from the sidebar calendar button. An empty list explains scheduling and offers **New scheduled
+task**; with several projects, choose the project before editing.
 
-## Platform support
+- Each task shows its recurrence, timezone and next-run or stopped state, even while its actions are open.
+- **More actions** provides Run now, Pause/Resume, Edit, Run history and Delete, depending on the task's state.
+  Completed one-time tasks must be rescheduled rather than resumed.
+- The editor starts with the task name and prompt, then schedule and execution settings. Check **Schedule summary**
+  (wall-clock times, timezone, automatic-run state and missed-run policy) before saving.
+- Tasks run on this computer, which must be awake with AX Code running. Actual next-run times and history come from
+  the runtime; the summary describes the configured schedule.
+- An unchanged imported cron schedule is kept when only the prompt is edited.
+- Tasks saved by older Desktop versions move to the runtime at startup. If the runtime's task list cannot be read,
+  the move waits for the next start so no task is created twice.
 
-| Platform               | Support       | Install                                                         |
-| ---------------------- | ------------- | --------------------------------------------------------------- |
-| macOS Apple Silicon    | Supported     | Release installer or DMG                                        |
-| macOS Intel/x64        | Not supported | No current installer                                            |
-| Windows x64            | Supported     | Release installer, EXE, or portable ZIP                         |
-| Windows ARM64          | Not supported | No current installer                                            |
-| Ubuntu 24.04+ amd64    | Supported     | Release installer, `.deb`, or AppImage                          |
-| Ubuntu 24.04+ arm64    | Supported     | Release installer, `.deb`, or AppImage                          |
-| Mobile/tablet browsers | Not supported | Blocked to reduce data-leakage risk                            |
+### Desktop shell
 
-AX Engine local models run on eligible Apple Silicon Macs through the bundled runtime. Windows and
-Ubuntu sessions use hosted providers or an OpenAI-compatible endpoint.
+- Native windows on macOS Apple Silicon, Windows x64 and Ubuntu Desktop 24.04+ (amd64/arm64).
+- Multi-window workflows, deep links, tray and menu actions.
+- In-app updates through **AX Code → Check for Updates**.
+- Project browser with [WebMCP page tools](../docs/webmcp-page-tools.md) so the agent can use the web app you are
+  building.
 
-## Security notes
+## Architecture
 
-Install from the repository [README](../README.md) or the official
-[Releases page](https://github.com/defai-digital/ax-code-desktop/releases). Release assets include
-detached `.minisig` signatures that can be verified with this pinned public key:
+### Packages
 
-```text
-RWSlDu++afxCz01OqhYWhfo8+L8pVbSYXJBEb2zoWBuK0WACIzbGVZRO
+| Package               | Purpose                                                                          |
+| --------------------- | -------------------------------------------------------------------------------- |
+| `packages/ui`         | Shared React UI, stores, hooks and components (`@openchamber/ui`)                |
+| `packages/web`        | Vite entrypoints and the loopback Express server for local file/Git/terminal APIs |
+| `packages/electron`   | Electron main and preload processes, native integration and packaging            |
+| `packages/akitty-web` | In-app terminal library                                                          |
+| `packages/docs`       | User documentation source (MDX); not a workspace package                         |
+| `shared`              | Small cross-package contracts, catalogs and environment-neutral helpers          |
+| `scripts`             | Tools spanning desktop packages, including generators and docs validation        |
+
+Directory and test ownership rules are in [repository layout](../docs/repository-layout.md); import rules are in
+[project boundaries](./docs/PROJECT_BOUNDARIES.md).
+
+### Process model
+
+```mermaid
+flowchart LR
+  main["Electron main"] -->|spawns and supervises| runtime["ax-code runtime (loopback)"]
+  main -->|utility process| web["Web server (loopback)"]
+  renderer["Renderer (app://ax-code)"] -->|runtime-shaped paths| runtime
+  renderer -->|desktop-owned paths| web
+  web -->|external mode| runtime
 ```
 
-Windows installers are Authenticode-signed by **DEFAI Private Limited**. macOS releases are signed
-by Developer ID Application: DEFAI PRIVATE LIMITED (team `N5ZUZDUJS6`) and notarized. A missing,
-invalid, or unexpected publisher is a reason to stop.
+- The Electron main process spawns and supervises the ax-code runtime, in development and packaged builds alike, and
+  boots the web server in a utility process in parallel. The web server treats the runtime as external and never
+  spawns its own. Set `AX_CODE_DESKTOP_SUPERVISE_RUNTIME=0` to fall back to web-supervised mode.
+- Packaged renderers load from the privileged `app://ax-code` scheme. Its handler routes API calls with a
+  longest-prefix table (`packages/electron/src/api-prefix-router.js`): runtime-shaped paths go straight to the
+  runtime, desktop-owned paths go to the web server. In `pnpm run dev`, the Vite proxy uses the same table.
+- Every server binds to loopback only.
 
-The UI, managed server, SDK HTTP helpers, and native bridge servers are restricted to loopback
-addresses. SSH instance access, remote host switching, LAN binding, mDNS discovery, reverse-proxy
-deployment, and public tunnels are unsupported and disabled at runtime.
+How Desktop resolves and pins the runtime and SDK is in [AX Code integration](./docs/AX_CODE_INTEGRATION.md).
 
-## Development web UI
+## Standalone web runtime (development only)
 
-The web package is the local UI substrate used by development and desktop packaging. It is not a
-supported end-user distribution mode.
-
-From a development checkout, at the repository root:
+`packages/web` is the UI substrate for development and packaging. It also runs on its own for diagnostics, but it is
+not a supported end-user distribution. From the repository root:
 
 ```bash
 pnpm install
@@ -118,87 +125,19 @@ pnpm run build
 pnpm --filter ax-code-desktop run start -- --ui-password your-password
 ```
 
-The web UI prefers `http://localhost:3100` by default. If that port is busy, it scans upward and
-uses the next safe free port.
+It prefers `http://localhost:3100` and scans upward if that port is busy. CLI options are in the
+[web runtime README](./packages/web/README.md).
 
-## Development
+## Legacy names
 
-Run development commands from the repository root. Requirements and the development port range are in the
-repository [README](../README.md).
-
-```bash
-pnpm install
-pnpm run typecheck
-pnpm run lint
-pnpm run test
-pnpm run check:boundaries
-pnpm run build
-pnpm run dev
-```
-
-Package layout:
-
-| Package             | Purpose                                                     |
-| ------------------- | ----------------------------------------------------------- |
-| `packages/ui`       | Shared React UI, stores, hooks, and components              |
-| `packages/web`      | Local web runtime used by development and desktop packaging |
-| `packages/electron` | Desktop shell (Electron)                                    |
-| `packages/akitty-web` | In-app terminal library                                  |
-
-`packages/docs` contains user documentation source, not a workspace package. See the
-[documentation index](../docs/README.md) and [repository layout](../docs/repository-layout.md) for directory and
-test ownership.
-
-In `pnpm run dev`, the Electron main process spawns and supervises the ax-code runtime by default
-(`AX_CODE_DESKTOP_SUPERVISE_RUNTIME=0` restores web-supervised mode). The Vite dev server routes
-renderer API calls with the same longest-prefix table as the packaged `app://` handler:
-runtime-shaped paths go to the ax-code runtime, and desktop-owned paths go to the web server.
-See [CONTRIBUTING.md](./CONTRIBUTING.md#desktop-electron).
-
-## Legacy compatibility notes
-
-AX Code Desktop is the user-facing product name. The installed application name is **AX Code**.
-Some internal package names, storage keys, environment variables, endpoint paths, and config
-directories still use `openchamber` so existing installs and migrated data continue to work.
-
-Treat those names as legacy compatibility details, not as the public product identity for new
-docs, releases, or UI copy.
-
-## Contributing
-
-See [CONTRIBUTING.md](./CONTRIBUTING.md) for development setup and guidelines.
+The product name is **AX Code Desktop**; the installed application is **AX Code**. Some package names
+(`@openchamber/ui`), storage keys, endpoint paths, CLI aliases and config directories (`~/.config/openchamber`) still
+use `openchamber` so existing installs and migrated data keep working. Treat those as compatibility details, not as
+the public product identity in new docs, releases or UI copy.
 
 ## License
 
 [Apache License 2.0](./LICENSE). AX Code Desktop is maintained by DEFAI Private Limited.
 
-This project includes software derived from OpenChamber; those portions remain under the
-[MIT License](./LICENSE-MIT). Upstream attribution is kept in [NOTICE](./NOTICE).
-
-## Workspace navigation and layout
-
-Workspace opens the current conversation. Portfolio opens Mission Control over the existing project/session state;
-Session views offers the session grid, and Review changes opens the current project's changes.
-
-The right project sidebar and the inspector share space: opening the sidebar temporarily hides the inspector while
-preserving its editor. Opening a tool reveals the inspector again. Narrow workspaces give the tool the full content
-width; Back to conversation returns through the existing unsaved-file guard. Wider workspaces also offer Focus panel
-and Restore split view. These display choices preserve the current message draft.
-
-The new-session page places Projects before starter suggestions. Three starters appear initially; Show more reveals
-the rest, including project starters. Sidebar directory labels use distinguishing suffixes, with full paths available
-on hover and in accessible action names. Retrying on a supervision row reflects a reported runtime retry; it does not
-change the run's urgency or count as a new approval request.
-
-## Scheduled tasks
-
-Open Scheduled from the sidebar calendar button. An empty list explains scheduling and provides a labeled New scheduled
-task action; with multiple projects, choose the project before editing. A task's recurrence, timezone and next-run or
-stopped state stay visible while using its actions. More actions provides Run now, Pause/Resume, Edit, Run history and
-Delete according to the task's state. Completed one-time tasks must be rescheduled rather than resumed.
-
-The editor starts with the task name and prompt, followed by schedule and execution settings. Review Schedule summary
-for the wall-clock times, timezone, automatic-run state and missed-run policy before saving. Tasks run on this computer;
-it must be awake with AX Code running. Tasks saved by older Desktop versions move to the runtime at startup; if the
-runtime's task list cannot be read, the move waits for the next start so no task is created twice. The summary describes the configured schedule;
-actual next-run times and history come from the runtime. An unchanged imported cron schedule is retained when only the prompt is edited.
+Portions derived from OpenChamber remain under the [MIT License](./LICENSE-MIT). Upstream attribution is kept in
+[NOTICE](./NOTICE).

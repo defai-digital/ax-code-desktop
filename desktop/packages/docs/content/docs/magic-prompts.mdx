@@ -1,26 +1,15 @@
 ---
 title: Magic Prompts
-description: Customize the built-in prompts behind AX Code Desktop's automated flows.
+description: Built-in prompts behind AX Code Desktop's automated flows.
 ---
 
 # Magic Prompts
 
-AX Code Desktop uses built-in prompts behind the scenes whenever it does something automatically — writing a commit message, drafting a PR, reviewing an issue, resolving a conflict, summarizing a session. Magic Prompts is where you read and rewrite those prompts. Open it at **Settings → Magic Prompts**.
+AX Code Desktop uses built-in prompts behind the scenes whenever it runs an automated flow — writing a commit message, drafting a PR, reviewing an issue, resolving a conflict, or summarizing a session.
 
-You don't need this page for normal use. Reach for it when you want a flow to behave differently — say, commit messages in a particular style.
-
-## Edit a prompt
-
-1. Open **Settings → Magic Prompts**.
-2. Pick a prompt from the groups in the sidebar — Git, GitHub, Planning, and Session.
-3. Edit the text and save.
-
-Some prompts have a visible part (the message you'd see) and an instructions part (hidden guidance for the agent). Prompts can include `{{placeholders}}` that AX Code Desktop fills in, like the diff or the issue title — keep those in place.
-
-## Reset
-
-Changed your mind? Each prompt has **reset to default**, and there's a **reset all** if you want to start over everywhere.
+The **Settings → Magic Prompts** editor has been retired. Existing prompt overrides continue to work at runtime, while new customization is handled through [Commands](/commands-snippets/) and [Skills](/skills/).
 
 ## Related
 
-- [Git & GitHub Workflows](/git/) — many of these prompts power the git flows
+- [Git & GitHub Workflows](/git/) — automated git and PR flows
+- [Commands & Snippets](/commands-snippets/) — reusable slash commands for chat

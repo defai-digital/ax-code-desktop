@@ -24,9 +24,9 @@ If you set AX Code Desktop to use an existing server, double-check the setup fro
 
 ## Still failing
 
-- confirm Node.js is version `20` or newer
-- reinstall the latest CLI
-- open `http://localhost:3000` directly before testing any remote link
+- if running from a development checkout or standalone web CLI, confirm Node.js is version `26` or newer
+- check that your `ax-code` runtime is healthy (`ax-code --version` when using an override binary)
+- open `http://localhost:3100` directly on the same workstation when using the standalone web runtime
 
 ## Related
 

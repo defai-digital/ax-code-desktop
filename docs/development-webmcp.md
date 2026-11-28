@@ -1,70 +1,15 @@
-# Test the Desktop UI with WebMCP
+# Verify Desktop UI changes with WebMCP
 
-To verify the restored Dashboard and its Refresh action:
+AX Code Desktop can expose its own UI as native WebMCP tools in an explicitly enabled, unpackaged development
+instance. This is separate from [WebMCP page tools](webmcp-page-tools.md) (which let the agent use your web app in the
+project browser).
 
-```sh
-node desktop/packages/electron/scripts/e2e/dashboard-version-webmcp.mjs --artifacts /tmp/ax-dashboard-versions
-```
+These tools operate the rendered UI and its event handlers so agents can inspect controls, click them, fill ordinary
+fields and capture DOM state and screenshots.
 
-The disposable profile restores a Dashboard tab. It confirms a malformed runtime version uses the legacy route,
-then supplies a valid version and uses Refresh to select the current route for the same directory.
+## Quick start: isolated development lab
 
-To verify the renderer's Git remote capability and repository-scoped identity filtering:
-
-```sh
-node desktop/packages/electron/scripts/e2e/git-remote-capability-webmcp.mjs --artifacts /tmp/ax-git-remote-capability
-```
-
-The disposable repository uses controlled Git read responses. It confirms the real view requests its directory's
-remote URL and offers the matching identity in both themes, without selecting it or issuing Git mutations.
-
-To verify startup with malformed and stale persisted data:
-
-```sh
-node desktop/packages/electron/scripts/e2e/persistence-boundaries-webmcp.mjs --artifacts /tmp/ax-persistence-boundaries
-```
-
-This disposable profile seeds stale action fields, malformed preferences and obsolete navigation into local storage.
-It verifies startup, live Config methods and metadata, Settings pages, light/dark rendering and clean reload after a
-preference write. It does not run a model or approve permissions.
-
-To verify prompt editor derivation and Skills catalog read refusal:
-
-```sh
-node desktop/packages/electron/scripts/e2e/editor-catalog-boundaries-webmcp.mjs --artifacts /tmp/ax-editor-catalog
-```
-
-This isolated journey selects a command through the actual scheduled-task editor in both themes, checks catalog form
-rendering, and injects a malformed settings read followed by a successful controlled scan. It verifies refusal before
-any catalog write, uses fresh DOM/state plus screenshots, and creates no schedules, clones or model executions.
-
-To verify context-panel file identity and persisted tab state on POSIX hosts:
-
-```sh
-node desktop/packages/electron/scripts/e2e/context-panel-state-webmcp.mjs --artifacts /tmp/ax-context-panel-state
-```
-
-This isolated fixture registers distinct plain/trailing-space project roots and creates literal filenames under the
-spaced root, restores both tabs, selects and closes the
-spaced file through native WebMCP, verifies actual editor content and reload behavior, and records fresh state/DOM
-plus light/dark screenshots. It writes only disposable fixture files and executes no model.
-
-To verify scheduled-task startup failures and recovery:
-
-```sh
-node desktop/packages/electron/scripts/e2e/scheduled-startup-webmcp.mjs --artifacts /tmp/ax-scheduled-startup
-```
-
-This isolated fixture blocks the event stream and refuses scheduled-task reads, checks the initial loading row,
-advances the display clock beyond the startup grace period, and discovers Retry through native WebMCP. It verifies
-that a successful retry clears the error before any stream connection, with fresh DOM and light/dark screenshots.
-It does not execute a model or change user schedules.
-
-AX Code Desktop can expose its own UI as native WebMCP tools in an explicitly enabled, unpackaged development instance.
-This is separate from using website tools through the project browser. The tools operate the rendered UI and its event
-handlers, so agents can inspect controls, click them, fill ordinary fields and check the resulting screen.
-
-Build the renderer and shell, then start the isolated development lab:
+Build the renderer and shell, then start the isolated lab:
 
 ```sh
 pnpm --dir desktop/packages/web run build
@@ -72,8 +17,8 @@ pnpm run build
 pnpm run dev:webmcp
 ```
 
-The lab prints a connection-file path and keeps the window open. It uses a temporary project/profile and a stub AX Code
-runtime. No model account is required. In another terminal, use the printed path:
+The lab uses a temporary project/profile and a stub AX Code runtime (no model account required). It prints a
+connection-file path and keeps the window open. In another terminal:
 
 ```sh
 pnpm run dev:webmcp -- --connection /printed/path/ui-webmcp-connection.json list
@@ -83,312 +28,90 @@ pnpm run dev:webmcp -- --connection /printed/path/ui-webmcp-connection.json call
 pnpm run dev:webmcp -- --connection /printed/path/ui-webmcp-connection.json screenshot /tmp/desktop-ui.png
 ```
 
-Read the state first and use its exact control references. Every state read or successful action replaces those references.
-If `nextOffset` is non-null, pass it as `offset` to read the next page of controls. An action preserves the current control
-page. Open a select or menu and read again to discover its ARIA options/menu items. Read-only shortcut inputs support
-click-to-focus but cannot be filled. Ordinary email, URL, telephone and number inputs also support fill.
-Read again to verify asynchronous rendering; a successful click means the event was dispatched, not that the feature passed.
-Input values and chat content are omitted. Password, credential, payment and file fields cannot be filled. Hidden, disabled,
-removed or renamed controls cannot be acted on. Controls are bounded to 100 rendered items per page; this is not a full
-accessibility tree. Fill leaves focus in the edited field; click another control to test blur validation. Native select/OS
-pickers, shadow trees, trusted user gestures, live model execution and pixel accuracy require other checks.
-
-Run the repeatable native discovery/invocation check, with optional screenshots and logs:
-
-```sh
-pnpm run e2e:desktop:webmcp -- --artifacts /tmp/ax-desktop-ui-webmcp
-pnpm run e2e:desktop:settings-webmcp -- --artifacts /tmp/ax-desktop-settings-webmcp
-```
-
-For AX Trust provider setup with an empty runtime catalog, run:
-
-```sh
-node desktop/packages/electron/scripts/e2e/ax-trust-provider-webmcp.mjs --artifacts /tmp/ax-trust-provider
-```
-
-The isolated journey discovers the AX Trust category and setup action through native WebMCP, verifies its URL/token
-form in light and dark themes, and records fresh DOM/control snapshots and screenshots. It submits no credentials and
-does not qualify a live gateway connection. Component/API regressions cover the saved management metadata and endpoint reuse.
-
-For portfolio identity and navigation, run:
-
-```sh
-node desktop/packages/electron/scripts/e2e/portfolio-identity-webmcp.mjs --artifacts /tmp/ax-portfolio-identity
-```
-
-This seeds two temporary projects with identical labels and session titles. Native WebMCP discovers distinct Needs You
-actions and opens each project's fixture conversation. It also selects both conversations through the Live sidebar in
-default and minimal display modes, checking that a session exposes one working action. DOM and screenshot checks verify
-readable directory context at 800 and 600 CSS pixels, explicitly opening the responsive sidebar for its checks and
-including a light-theme check. The narrower emulated viewport is a rendering stress case, not a
-new native minimum-window-size promise. This is fixture-backed navigation verification, not concurrent provider execution.
-
-For same-name project headers and scheduled definitions, run:
-
-```sh
-node desktop/packages/electron/scripts/e2e/project-schedule-targets-webmcp.mjs --artifacts /tmp/ax-project-schedule-targets
-```
-
-This uses two projects with the same label and tasks with the same title/ID. It verifies project collapse isolation,
-opens each editor against a distinct fixture prompt, checks the new-task project picker, and records narrow/light/dark
-rendering. Editors are cancelled and the final receipt checks that no scheduled definitions were written. Runtime project
-IDs and Desktop registry IDs are separate; the journey joins their observed controls by directory.
-
-For Projects Home cards and child actions, run:
-
-```sh
-node desktop/packages/electron/scripts/e2e/project-home-webmcp.mjs --artifacts /tmp/ax-project-home
-```
-
-For switching projects while a conversation is open, run:
-
-```sh
-node desktop/packages/electron/scripts/e2e/project-switch-session-webmcp.mjs --artifacts /tmp/ax-project-switch-session
-```
-
-This seeds two projects, opens one project's Needs You conversation, switches the active project from the Settings project selector, and checks that the stale session is cleared. It then watches longer than one three-second external-session poll for transcript reads against the new directory, and reopens the original conversation to confirm its own directory still works. It does not execute a model turn or write project files.
-
-For large Markdown streaming and CRLF cache alignment, run after building:
-
-```sh
-node desktop/packages/electron/scripts/e2e/markdown-stream-webmcp.mjs --artifacts /tmp/ax-markdown-stream
-```
-
-Native WebMCP opens a fixture conversation. Renderer-only event injection then exercises the real Markdown Worker
-with a large CRLF message, an incremental append, and finalization. Fresh DOM checks require exactly 40 unique
-headings; Worker request/response receipts and light/dark screenshots are saved. No model call or runtime write
-occurs. Recorded Worker round trips include queueing and transfer and are diagnostic samples, not a performance SLA.
-
-For chat reader scroll intent, run after building:
-
-```sh
-node desktop/packages/electron/scripts/e2e/chat-reader-scroll-webmcp.mjs --artifacts /tmp/ax-chat-reader-scroll
-```
-
-Native WebMCP opens an isolated fixture conversation. Chromium wheel, Shift+Space and native scrollbar drag inputs
-then move its real scroll container while renderer fixture events append content. Fresh geometry reads verify that
-the reader's position holds beyond the re-pin grace period and that End restores following. Light/dark screenshots
-and a JSON receipt record each case. This uses actual browser layout and input handling without a live model account.
-
-To attribute large-Markdown cost before proposing parser changes, run after building:
-
-```sh
-node desktop/packages/electron/scripts/e2e/markdown-trace-webmcp.mjs --runs 3 --sizes 100000,300000,500000 --artifacts /tmp/ax-markdown-trace
-```
-
-Each run reloads and reopens the fixture conversation, so every sample is a cold document. It records time to the
-last painted heading, Worker parse round trips, main-thread long tasks, finalization, a light/dark re-theme, and JS
-heap; `--fence-size` sets the unterminated code fence used for ten append samples. Events are emitted from ordinary
-page tasks because work inside a CDP `Runtime.evaluate` is not reported to the long-task observer.
-
-For the project-wide Archive all action, run:
-
-```sh
-node desktop/packages/electron/scripts/e2e/project-archive-all-webmcp.mjs --artifacts /tmp/ax-project-archive-all
-```
-
-This seeds extra sessions in two same-label projects. Native WebMCP opens each project menu, checks the disabled state, cancels once without writes, then archives and undoes one project's exact membership and archives the other. The stub records every scoped session update, so the journey asserts one archive request per session in that project's directory, no cross-project writes, restored membership after Undo and the disabled empty-project state. It does not qualify a real runtime's durability or physical pointer access.
-
-This discovers same-name cards, checks project/draft selection and opens each project's attention conversation. It also
-pins one project, reads the isolated settings file, reloads to check persistence and unpins it. Screenshots include
-populated narrow/light/dark views. No prompt is submitted; profile changes stay within the harness's temporary directory.
-
-For shortcut capture and keyboard navigation, run:
-
-```sh
-node desktop/packages/electron/scripts/e2e/shortcut-capture-webmcp.mjs --artifacts /tmp/ax-shortcut-capture
-```
-
-WebMCP discovers/focuses the recorder and invokes save/reset/overwrite. CDP delivers keyboard events to the foreground
-test window. The journey checks Escape/Tab navigation, draft preservation, explicit Tab capture, conflict overwrite,
-saved-profile reload and restoration of both affected bindings. It does not add a keypress tool to the developer adapter.
-
-The smoke journey invokes all three native tools, opens Settings, filters its navigation through a WebMCP field fill,
-restores it, verifies the DOM and checks CSP and renderer errors. The Settings audit inventories all 15 tabs and paged
-controls, exercises select options, numeric editing/reset, reversible local preferences, shortcut search/focus and Hooks
-error/retry, and captures light/dark/narrow-window views. External login, downloads, native dialogs, destructive actions
-and all nested editors are not qualified by this audit. The client uses native `WebMCP.enable` / `WebMCP.invokeTool`; it does not call a JavaScript mock of the
-provider. The matching Node client is in `desktop/packages/electron/scripts/e2e/ui-webmcp-client.mjs` for additional journeys.
-
-Ctrl+C in the lab terminal (or quit its app) removes the temporary profile and stops that instance's processes. Normal
-startup leaves these UI tools off, and packaged applications always disable them. Developers can explicitly set
-`AX_CODE_DESKTOP_UI_WEBMCP=1` for their own unpackaged launch; that uses the launch's actual profile/runtime, so the isolated
-lab is the default development command. Do not point browser tools at an unrelated running Desktop instance.
-
-The nested configuration journey is available after build:
-
-```sh
-node desktop/packages/electron/scripts/e2e/config-editors-webmcp.mjs --artifacts /tmp/ax-config-editors
-```
-
-It uses the isolated profile to exercise scope labels, command selectors, required-template validation, agent numeric
-steps/editing/clamping/clearing, and narrow control bounds. It does not submit a valid configuration save. For blur-based
-validation, the journey brings its own window to the front and verifies `document.hasFocus()`: in an inactive Electron
-window, `activeElement` alone can change without the expected blur events. Do not treat that state as proof that the
-field's validation failed.
-
-For deferred MCP configuration saves across two projects:
-
-```sh
-node desktop/packages/electron/scripts/e2e/mcp-save-webmcp.mjs --artifacts /tmp/ax-mcp-save
-```
-
-This journey intercepts every MCP configuration HTTP method before opening the page, seeds disabled remote servers
-in memory, delays a save while native WebMCP selects another project, and verifies field/dirty-state readback after
-completion. It also checks successful unchanged saves, project return values and populated narrow light/dark views.
-The configuration writer receives no fixture mutation. This qualifies Desktop form handling, not actual disk writes,
-MCP execution, OAuth or durable runtime concurrency. Never disable interception while fixture writes remain pending.
-
-For edits made while creating an MCP server:
-
-```sh
-node desktop/packages/electron/scripts/e2e/mcp-create-webmcp.mjs --artifacts /tmp/ax-mcp-create
-```
-
-This fixture intercepts every MCP configuration HTTP method before opening Settings. It checks default/renamed creates,
-newer URL edits surviving inventory refresh and draft handoff, exact follow-up update targets, unchanged clean creation,
-and the translated unsaved notice. Name and scope stay fixed while creation is pending. Narrow light/dark captures
-include the unobscured unsaved action row before submission; delivered wheel input sets up that viewport. The pending
-configuration overlay is not accepted as visual proof of the controls behind it. Disabled remote `.invalid` fixture
-servers never reach the real configuration writer, MCP execution or OAuth; the last values reside only in the harness's
-in-memory inventory.
-
-For delayed MCP inventories and deletion across two projects:
-
-```sh
-node desktop/packages/electron/scripts/e2e/mcp-delete-webmcp.mjs --artifacts /tmp/ax-mcp-delete
-```
-
-This fixture holds the second project's inventory, verifies stale server actions and Add are unavailable, then checks
-failed-load retry and one exact deletion while preserving the first project. `--unselected` also starts without a selected
-server; `--replacement` reveals a same-name user-scope fallback and checks its detail fields and clean Save baseline.
-It captures populated narrow light/dark views. Every MCP configuration HTTP method is intercepted before opening
-Settings; disabled remote `.invalid` fixtures remain in memory. Browser tools are checked for discoverability only.
-These checks qualify rendered controls and semantic handlers, not real configuration writes, MCP/OAuth, physical
-pointer/keyboard access or runtime record identity.
-
-To verify configuration feedback and overlay observation:
-
-```sh
-node desktop/packages/electron/scripts/e2e/config-update-webmcp.mjs --artifacts /tmp/ax-config-update
-```
-
-Every UI snapshot includes `configurationOverlayVisible`. It observes the rendered configuration notice, including
-paging and action responses. A dismissed notice reports false while the underlying operation may still be pending.
-The flag does not certify a restart, completed write, cancellation, policy decision or visibility through every overlay.
-Semantic handlers remain available under the existing tool contract; they do not qualify physical pointer access
-through a full-screen notice. Check the flag and independently inspect DOM/hit testing or actual screenshots before
-claiming visible interaction.
-
-This fixture compares native observations with DOM/center-hit testing during delayed accepted/rejected/retried saves,
-checks action response metadata, and captures wide/narrow light/dark feedback. Configuration HTTP writes remain in
-memory; it does not restart a real worker. Timeout dismissal and overlapping-operation ownership use mounted fake-timer
-tests rather than a native timeout claim. Dismiss hides the current presentation cohort and does not complete its work.
-
-Snapshots include `documentFocused`; check it before qualifying focus/blur behavior and observe the actual result
-after the action. An inactive document can change activeElement without dispatching blur/focusout. Page.bringToFront
-alone may not activate a different Electron native window. The isolated comparison below uses the existing native
-main-window focus command for setup/restoration; that command is not exposed by the WebMCP UI tools:
-
-```sh
-node desktop/packages/electron/scripts/e2e/numeric-focus-webmcp.mjs --artifacts /tmp/ax-numeric-focus
-```
-
-It compares foreground/background event delivery with numeric read-back, independently checks documentFocused against
-the DOM, restores the unsaved draft and never submits a valid save. Historical failures without focus/event telemetry
-remain insufficient to attribute a numeric validation bug.
-
-For populated Hooks and same-name Settings project targets:
-
-```sh
-node desktop/packages/electron/scripts/e2e/hooks-targets-webmcp.mjs --artifacts /tmp/ax-hooks-targets
-```
-
-This isolated two-project journey checks path-bearing project choices, independent long-command expansion, scoped
-refresh, retained content after a refresh error, retry and a completed late response from the previous project.
-It captures wide/narrow and light/dark screenshots. It reads fixture Hooks data without executing commands or changing
-trust/configuration. Project menu transitions are checked through the specific selector's expanded state.
-
-For fixed Settings groups and the pages that share a navigation entry:
-
-```sh
-node desktop/packages/electron/scripts/e2e/settings-navigation-webmcp.mjs --artifacts /tmp/ax-settings-navigation
-```
-
-This journey checks group/item order through page changes, exact-group and response-style search, empty/clear states,
-close/reopen and narrow light/dark layouts. It verifies that filtering does not redirect the selected page and captures
-Hooks and Behavior, which share the Agents entry. It does not edit runtime behavior or activate hooks.
-
-For the nested agent permission editor:
-
-```sh
-node desktop/packages/electron/scripts/e2e/agent-permissions-webmcp.mjs --artifacts /tmp/agent-permissions
-```
-
-This journey adds, edits and resets unsaved rule overrides, restores the draft's global default, verifies clean state and
-checks custom-rule control bounds at 800px. It uses the isolated profile and never saves an agent configuration or changes
-runtime permission policy.
-
-For Mission Control, Workspace and repository review:
-
-```sh
-node desktop/packages/electron/scripts/e2e/supervision-workspace-webmcp.mjs --artifacts /tmp/ax-supervision-workspace
-```
-
-This isolated two-project journey creates disposable Git repositories with distinct changes. Native WebMCP exercises
-path search, status filters, hidden-attention recovery, Details disclosures, draft review and project/session navigation.
-It checks the rendered diff and effective directory, then captures populated light/dark layouts from 600 to 2800 CSS
-pixels. The narrow Review layout preserves the mounted chat while giving the inspector the full workspace. No model
-prompt is submitted and no user's repository is modified; fixture commits and files are removed with the harness profile.
-
-### Credential filtering and landing evidence
-
-Explicit credential contexts (Bearer and Basic schemes, Authorization headers, and credential-named
-parameters or keys including `code`, `token`, `sig`, `password`, `secret`, and `api_key`) are filtered
-regardless of value length. Use `status` rather than `code` for diagnostics that need a visible status value.
-
-The landing browser recap computes call totals, failures, and uncalled page tools over all messages
-and calls in the latest turn held by the transcript. Only the displayed step list is capped at the latest
-50 calls; this presentation limit does not exclude earlier calls from the evidence.
-
-For retained background content and renderer heap checkpoints:
-
-```sh
-node desktop/packages/electron/scripts/e2e/memory-retention-webmcp.mjs --artifacts /tmp/ax-memory-retention
-```
-
-This uses the isolated fixture runtime and native WebMCP to read the Debug Panel after a verified live-event
-warm-up and five batches of 200 completed background sessions. It asserts the retained-session budget and
-captures renderer heap after explicit garbage collection, DOM counters, fresh controls and a screenshot.
-It does not execute a model, change user projects, measure total application RSS or qualify a production soak.
-`AX_MEMORY_EXPECT_UNBOUNDED=1` is an investigation-only mode for running the same fixture on a pre-fix checkout;
-it expects cumulative retention instead of accepting a fixed build. Keep before/after source revisions separate.
-
-## Workspace layout and navigation
-
-Run `pnpm run e2e:desktop:workspace-ux -- --artifacts /tmp/ax-workspace-ux` after building.
-This isolated two-project journey checks Projects before the bounded starter list, starter disclosure, Files/sidebar
-handoffs, focused review and return, Portfolio, and light/dark layouts at 1280 and 800 CSS
-pixels. It verifies the same composer DOM node and unsent message after navigation. Screenshots accompany fresh native
-control inventories and pane measurements. The fixture does not call a provider or qualify live runtime capacity.
-
-Viewport fixtures foreground the native main window, select reduced motion, deliver a resize notification after DevTools metric changes, and wait for the
-left sidebar's rendered width to settle. These checks qualify settled layout; they do not qualify animation timing.
-
-## Scheduled task UX qualification
-
-After building, run `pnpm run e2e:desktop:scheduled-ux -- --artifacts /tmp/ax-scheduled-ux`. The isolated fixture
-qualifies loaded-empty guidance, task-intent field order, stable timing while actions are open, pause/resume, weekly
-multiple-time save/reopen and one-time confirmation, unchanged cron preservation, and narrow light/dark rendering.
-Runtime fixture readback independently checks every persisted member after actions; no provider work is executed.
-Use `scheduled-webmcp.mjs` for history retrieval/recovery and DST-gap refusal, and `scheduled-create-webmcp.mjs`
-(with and without `--lost-ack`) for partial-create and uncertain-write recovery.
-
-The identity journey also sends a repeated resize after manually reopening the sidebar. The panel must stay open;
-this checks the responsive controller's ordering rather than adding a second click to mask a lost action.
-
-The workspace fixture reads presented screenshots while polling visibility-gated diff content, then requires actual
-fixture code in the rendered diff before retaining its review screenshot. The default keyboard journey closes the
-supervision pop-out it created, explicitly focuses the native main window, and observes Settings open/ending state
-instead of awaiting an unbounded compositor callback. Needs You inspection selects its named dialog and waits for
-the requested goal revision, independently of retained Settings DOM.
+`Ctrl+C` in the lab terminal (or quitting its app) removes the temporary profile and stops its processes. Normal
+startup leaves UI WebMCP tools off, and packaged builds always disable them. You can set `AX_CODE_DESKTOP_UI_WEBMCP=1`
+for an unpackaged launch against your own profile/runtime, but the isolated lab is the default; never point browser
+tools at an unrelated running Desktop instance.
+
+## How the UI tools work
+
+- **Read state first** and use its exact control references; every state read or successful action replaces those
+  references.
+- **Pagination** — controls are bounded to 100 rendered items per page (this is not a full accessibility tree). If
+  `nextOffset` is non-null, pass it as `offset` to read the next page. An action preserves the current page.
+- **Menus and selects** — open a select or menu and read state again to discover its ARIA options/menu items.
+- **Input rules** — ordinary email, URL, telephone and number inputs support fill; read-only shortcut inputs support
+  click-to-focus only; password, credential, payment and file fields cannot be filled; hidden, disabled, removed or
+  renamed controls cannot be acted on. Fill leaves focus in the edited field; click another control to test blur
+  validation.
+- **Snapshots** include `configurationOverlayVisible` (reflects the rendered configuration notice; a dismissed notice
+  reports `false` even if the operation is still pending) and `documentFocused` (check this before qualifying
+  focus/blur behavior, as an inactive document can change `activeElement` without firing `blur`/`focusout`).
+- **Async verification** — a successful click means the event was dispatched, not that the feature passed; read state
+  again to verify asynchronous rendering. Native OS pickers, shadow trees, trusted user gestures, live model execution
+  and pixel accuracy require separate checks.
+- **Credential filtering** — Bearer/Basic schemes, `Authorization` headers and keys named `code`, `token`, `sig`,
+  `password`, `secret` or `api_key` are filtered regardless of length. Use `status` rather than `code` for visible
+  diagnostic status values.
+- **Landing recap** — computes call totals, failures and uncalled page tools over all messages and calls in the latest
+  turn; only the displayed step list is capped at 50 calls.
+
+## Repeatable verification journeys
+
+All journeys below run after `pnpm run build` using an isolated profile and stub/fixture runtime (no live model account
+required, no user files modified). The Node client for additional journeys lives in
+`desktop/packages/electron/scripts/e2e/ui-webmcp-client.mjs`.
+
+### Core smoke and navigation
+
+| Journey | Command | What it qualifies |
+| --- | --- | --- |
+| UI WebMCP smoke | `pnpm run e2e:desktop:webmcp -- --artifacts /tmp/ax-desktop-ui-webmcp` | Invokes all three native tools, opens Settings, filters navigation via WebMCP fill, verifies DOM, CSP and renderer errors. |
+| Settings audit | `pnpm run e2e:desktop:settings-webmcp -- --artifacts /tmp/ax-desktop-settings-webmcp` | Inventories all 15 Settings tabs and paged controls, selects, numeric editing/reset, reversible preferences, shortcut search/focus, Hooks error/retry, light/dark/narrow views. |
+| Workspace layout & navigation | `pnpm run e2e:desktop:workspace-ux -- --artifacts /tmp/ax-workspace-ux` | Projects before bounded starter list, starter disclosure, Files/sidebar handoffs, focused review and return, Portfolio, composer preservation, 1280/800px light/dark layouts. |
+| Portfolio identity | `node desktop/packages/electron/scripts/e2e/portfolio-identity-webmcp.mjs --artifacts /tmp/ax-portfolio-identity` | Two same-name projects: distinct Needs You actions, Live sidebar (default/minimal), responsive sidebar at 800/600px, light/dark. |
+| Projects Home | `node desktop/packages/electron/scripts/e2e/project-home-webmcp.mjs --artifacts /tmp/ax-project-home` | Same-name cards, project/draft selection, attention conversations, pin/reload persistence, narrow light/dark views. |
+| Project switch | `node desktop/packages/electron/scripts/e2e/project-switch-session-webmcp.mjs --artifacts /tmp/ax-project-switch-session` | Switching active project from Settings clears stale session, polls new directory, reopens original conversation. |
+| Supervision & review | `node desktop/packages/electron/scripts/e2e/supervision-workspace-webmcp.mjs --artifacts /tmp/ax-supervision-workspace` | Mission Control, Workspace and repo review across two disposable Git repos: search, filters, Details, narrow Review layout (600–2800px light/dark). |
+| Dashboard version routing | `node desktop/packages/electron/scripts/e2e/dashboard-version-webmcp.mjs --artifacts /tmp/ax-dashboard-versions` | Malformed runtime version uses legacy route; valid version + Refresh selects current route. |
+| Git remote capability | `node desktop/packages/electron/scripts/e2e/git-remote-capability-webmcp.mjs --artifacts /tmp/ax-git-remote-capability` | Requests directory remote URL and offers matching identity in light/dark themes without mutating Git. |
+
+### Settings, config and scheduled tasks
+
+| Journey | Command | What it qualifies |
+| --- | --- | --- |
+| Settings navigation | `node desktop/packages/electron/scripts/e2e/settings-navigation-webmcp.mjs --artifacts /tmp/ax-settings-navigation` | Group/item order, exact-group and response-style search, empty/clear states, close/reopen, Hooks & Behavior shared Agents entry, narrow light/dark. |
+| Config editors | `node desktop/packages/electron/scripts/e2e/config-editors-webmcp.mjs --artifacts /tmp/ax-config-editors` | Scope labels, command selectors, required-template validation, agent numeric clamping/clearing, narrow bounds (foregrounds window for blur validation). |
+| Config update overlay | `node desktop/packages/electron/scripts/e2e/config-update-webmcp.mjs --artifacts /tmp/ax-config-update` | Compares native observations with DOM/center-hit testing during delayed accepted/rejected/retried saves and overlay dismissal. |
+| Numeric focus | `node desktop/packages/electron/scripts/e2e/numeric-focus-webmcp.mjs --artifacts /tmp/ax-numeric-focus` | Compares foreground/background focus/blur event delivery with numeric read-back. |
+| Shortcut capture | `node desktop/packages/electron/scripts/e2e/shortcut-capture-webmcp.mjs --artifacts /tmp/ax-shortcut-capture` | CDP keyboard events for Escape/Tab navigation, draft preservation, Tab capture, conflict overwrite, reload persistence. |
+| Agent permissions | `node desktop/packages/electron/scripts/e2e/agent-permissions-webmcp.mjs --artifacts /tmp/agent-permissions` | Add/edit/reset unsaved rule overrides, restore global default, custom-rule bounds at 800px. |
+| Hooks targets | `node desktop/packages/electron/scripts/e2e/hooks-targets-webmcp.mjs --artifacts /tmp/ax-hooks-targets` | Same-name Settings project targets, long-command expansion, scoped refresh/error/retry, late response handling. |
+| AX Trust provider | `node desktop/packages/electron/scripts/e2e/ax-trust-provider-webmcp.mjs --artifacts /tmp/ax-trust-provider` | AX Trust category/setup with empty runtime catalog, URL/token form in light/dark (no credentials submitted). |
+| MCP create | `node desktop/packages/electron/scripts/e2e/mcp-create-webmcp.mjs --artifacts /tmp/ax-mcp-create` | In-memory MCP HTTP interception: default/renamed creates, URL edits across inventory refresh, translated unsaved notice, narrow light/dark. |
+| MCP save | `node desktop/packages/electron/scripts/e2e/mcp-save-webmcp.mjs --artifacts /tmp/ax-mcp-save` | Delayed save while switching projects, dirty-state readback, unchanged saves, narrow light/dark. |
+| MCP delete | `node desktop/packages/electron/scripts/e2e/mcp-delete-webmcp.mjs --artifacts /tmp/ax-mcp-delete` | Delayed inventories, failed-load retry, scoped deletion (`--unselected` and `--replacement` modes). |
+| Editor & catalog boundaries | `node desktop/packages/electron/scripts/e2e/editor-catalog-boundaries-webmcp.mjs --artifacts /tmp/ax-editor-catalog` | Command selection in scheduled-task editor, malformed Skills catalog read refusal before writes. |
+| Project archive all | `node desktop/packages/electron/scripts/e2e/project-archive-all-webmcp.mjs --artifacts /tmp/ax-project-archive-all` | Project menu Archive all, cancel, archive + Undo, cross-project isolation, disabled empty-project state. |
+| Project schedule targets | `node desktop/packages/electron/scripts/e2e/project-schedule-targets-webmcp.mjs --artifacts /tmp/ax-project-schedule-targets` | Two same-name projects with same-title tasks: collapse isolation, distinct editor prompts, new-task picker, narrow light/dark. |
+| Scheduled task UX | `pnpm run e2e:desktop:scheduled-ux -- --artifacts /tmp/ax-scheduled-ux` | Empty guidance, task-intent order, pause/resume, weekly/one-time schedules, unchanged cron preservation, narrow light/dark. Also `scheduled-startup-webmcp.mjs` (startup error/retry), `scheduled-webmcp.mjs` (history/DST-gap refusal) and `scheduled-create-webmcp.mjs` (`--lost-ack`). |
+
+### State, streaming and memory
+
+| Journey | Command | What it qualifies |
+| --- | --- | --- |
+| Persistence boundaries | `node desktop/packages/electron/scripts/e2e/persistence-boundaries-webmcp.mjs --artifacts /tmp/ax-persistence-boundaries` | Seeds stale action fields, malformed preferences and obsolete navigation; verifies startup, Config metadata, Settings and clean reload. |
+| Context panel state | `node desktop/packages/electron/scripts/e2e/context-panel-state-webmcp.mjs --artifacts /tmp/ax-context-panel-state` | Plain vs trailing-space project roots and literal filenames on POSIX: tab restore, select, close and reload. |
+| Markdown streaming | `node desktop/packages/electron/scripts/e2e/markdown-stream-webmcp.mjs --artifacts /tmp/ax-markdown-stream` | Large CRLF message, incremental append and finalization through the Markdown Worker (40 unique headings, light/dark). |
+| Markdown trace | `node desktop/packages/electron/scripts/e2e/markdown-trace-webmcp.mjs --runs 3 --sizes 100000,300000,500000 --artifacts /tmp/ax-markdown-trace` | Cold-document timing: last painted heading, Worker round trips, long tasks, finalization, re-theme, JS heap (`--fence-size` supported). |
+| Chat reader scroll | `node desktop/packages/electron/scripts/e2e/chat-reader-scroll-webmcp.mjs --artifacts /tmp/ax-chat-reader-scroll` | Chromium wheel, `Shift+Space` and scrollbar drag during streaming append; verifies scroll hold and `End` re-pin. |
+| Memory retention | `node desktop/packages/electron/scripts/e2e/memory-retention-webmcp.mjs --artifacts /tmp/ax-memory-retention` | Debug Panel retained-session budget and post-GC renderer heap across 5×200 background sessions (`AX_MEMORY_EXPECT_UNBOUNDED=1` for pre-fix comparison). |
+
+### Notes on viewport and focus checks
+
+- Viewport fixtures foreground the native main window, select reduced motion, deliver a resize notification after
+  DevTools metric changes and wait for the left sidebar's rendered width to settle. They qualify settled layout, not
+  animation timing.
+- Narrower emulated viewports (such as 600px) are rendering stress cases, not a new native minimum-window-size promise.
+- `Page.bringToFront` alone may not activate a different Electron native window; `numeric-focus-webmcp.mjs` uses the
+  internal native main-window focus command (not exposed by WebMCP UI tools) for setup and restoration.

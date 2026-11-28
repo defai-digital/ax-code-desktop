@@ -36,7 +36,7 @@ stays the same no matter who is writing.
 
 ```mdx
 3. Run `ax-code-desktop --ui-password be-creative-here`.
-4. Open the printed URL (usually `http://localhost:3000`).
+4. Open the printed URL (usually `http://localhost:3100`).
 
 You should land on the AX Code Desktop session list. If you see it, the server is
 running.
